@@ -1,0 +1,8 @@
+{
+  "environment": "dndturn:body_control",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 100,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:gate_melee"
+}

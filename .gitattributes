@@ -1,2 +1,3 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+targets/neoforge-26.1/gradlew text eol=lf

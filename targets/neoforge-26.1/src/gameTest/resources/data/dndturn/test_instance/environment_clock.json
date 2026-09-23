@@ -1,0 +1,1 @@
+{"environment":"dndturn:environment_clock","structure":"dndturn:local_time_arena","max_ticks":150,"required":true,"type":"minecraft:function","function":"dndturn:environment_clock"}

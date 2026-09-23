@@ -1,0 +1,8 @@
+{
+  "environment": "dndturn:navigation_regressions",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 300,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:mob_standardization_revoked"
+}

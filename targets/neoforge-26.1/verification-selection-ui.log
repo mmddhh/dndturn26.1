@@ -1,0 +1,199 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed module (file:/C:/Users/RNaim/.gradle/wrapper/dists/gradle-9.7.1-bin/1w1c7tv4s851m17nbqdsro2tv/gradle-9.7.1/lib/native-platform-0.22-milestone-29.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :clean
+> Task :common:clean
+
+> Task :createMinecraftArtifacts
+ Deleted 11 outdated lock files
+Loaded 141 artifacts from D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\tmp\createMinecraftArtifacts\nfrt_artifact_manifest.properties
+*** Started working on downloadManifest
+  DL    https://launchermeta.mojang.com/mc/game/version_manifest_v2.json
+ DONE  Completed downloadManifest in 2.11s
+*** Started working on downloadJson
+ DONE  Completed downloadJson in 0.00s
+*** Started working on downloadServer
+*** Started working on downloadClient
+ DONE  Completed downloadClient in 0.01s
+ DONE  Completed downloadServer in 0.01s
+*** Started working on preProcessJar
+ REUSE Used cache of preProcessJar in 0.00s
+*** Started working on decompile
+ REUSE Used cache of decompile in 0.00s
+*** Started working on patch
+ REUSE Used cache of patch in 0.00s
+*** Started working on applyNeoforgePatches
+ REUSE Used cache of applyNeoforgePatches in 0.00s
+*** Started working on transformSources
+ REUSE Used cache of transformSources in 0.00s
+*** Started working on recompile
+ REUSE Used cache of recompile in 0.00s
+*** Started working on mergeWithSources
+ REUSE Used cache of mergeWithSources in 0.00s
+Total runtime: 2.74s
+
+
+> Task :common:compileJava
+
+> Task :compileJava
+注: 某些输入文件使用或覆盖了已过时的 API。
+注: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+注: 某些输入文件使用了未经检查或不安全的操作。
+注: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+
+> Task :processResources
+> Task :common:processResources NO-SOURCE
+> Task :common:classes
+> Task :classes
+> Task :jarJar NO-SOURCE
+> Task :jar
+> Task :assemble
+> Task :compileCompatTestJava
+> Task :processCompatTestResources NO-SOURCE
+> Task :compatTestClasses
+
+> Task :compileGameTestJava
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentBoundaryTimeChecks.java:27: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player = h.makeMockServerPlayerInLevel();
+                      ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentCircuitChecks.java:21: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player=helper.makeMockServerPlayerInLevel();player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+                         ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentClassificationChecks.java:19: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player = helper.makeMockServerPlayerInLevel();
+                           ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentClockChecks.java:18: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player=helper.makeMockServerPlayerInLevel();player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+                         ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentDomainChecks.java:21: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var first=helper.makeMockServerPlayerInLevel();first.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentDomainChecks.java:22: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var second=helper.makeMockServerPlayerInLevel();second.setPos(base.getX()+20.5,base.getY(),base.getZ()+.5);
+                         ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentProcessChecks.java:33: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player=helper.makeMockServerPlayerInLevel(); player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+                         ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentTntChecks.java:22: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player=helper.makeMockServerPlayerInLevel(); player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+                         ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\MobAbilityLoopChecks.java:71: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player = helper.makeMockServerPlayerInLevel();
+                           ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\MobPlanMovementChecks.java:23: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player=helper.makeMockServerPlayerInLevel();
+                         ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:418: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:556: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer first = helper.makeMockServerPlayerInLevel();
+                                   ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:557: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer second = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:743: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:848: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:909: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:995: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+                players[i] = helper.makeMockServerPlayerInLevel();
+                                   ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1066: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer firstPlayer = helper.makeMockServerPlayerInLevel();
+                                             ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1067: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer secondPlayer = helper.makeMockServerPlayerInLevel();
+                                              ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1244: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1356: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1367: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer other = helper.makeMockServerPlayerInLevel();
+                                   ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1583: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1625: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2001: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2066: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2211: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2271: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2403: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\RepairGameTests.java:127: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        try { rejected.requestStart(helper.makeMockServerPlayerInLevel(), UUID.randomUUID()); }
+                                          ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\RepairGameTests.java:228: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player = helper.makeMockServerPlayerInLevel();
+                           ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\TacticalPlanGameTests.java:15: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\TacticalPlanGameTests.java:207: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player = helper.makeMockServerPlayerInLevel(); var level = helper.getLevel();
+                           ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\TacticalPlanGameTests.java:518: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player = helper.makeMockServerPlayerInLevel();
+                           ^
+注: D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java使用或覆盖了已过时的 API。
+注: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+34 个警告
+
+> Task :processGameTestResources
+> Task :gameTestClasses
+> Task :compileTestJava NO-SOURCE
+> Task :processTestResources NO-SOURCE
+> Task :testClasses UP-TO-DATE
+> Task :common:jar
+> Task :test NO-SOURCE
+> Task :compileUiTestJava
+> Task :processUiTestResources NO-SOURCE
+> Task :uiTestClasses
+
+> Task :verifyUiProjection
+UI checks passed: stylesheet readiness, retained text updates, ring redraw/empty/surplus.
+
+> Task :check
+> Task :build
+> Task :common:assemble
+> Task :common:compileTestJava
+> Task :common:processTestResources NO-SOURCE
+> Task :common:testClasses
+> Task :common:test
+> Task :common:check
+> Task :common:build
+
+[Incubating] Problems report is available at: file:///D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 15s
+15 actionable tasks: 15 executed

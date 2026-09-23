@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="aui-viewport" content="mode=gui,zoom=0.65,user-scalable=false">
+  <meta name="aui-mouse-events" content="intercept">
+  <link rel="stylesheet" href="tactical.css">
+</head>
+<body>
+  <section id="initiative" aria-label="先攻与队伍"></section>
+  <aside id="journal" class="combat-panel journal">
+    <h2>战斗日志</h2><div id="log"></div>
+    <div id="hit" class="evidence"></div>
+  </aside>
+  <section id="inventory-panel" class="combat-panel inventory-panel" style="display: none">
+    <h2>随身物品</h2><div id="inventory"></div>
+    <p class="muted">点击热栏准备能力，左键确认目标；右键对象打开菜单。按 I 打开个人背包整理。</p>
+  </section>
+  <footer id="actions" class="combat-panel actions">
+    <div id="resources" class="resource-row"><span id="environment" class="muted"></span><span id="target"></span></div>
+    <div id="dock-tabs" role="tablist"><button id="items-tab" role="tab" aria-controls="items-page">物品</button><button id="abilities-tab" role="tab" aria-controls="abilities-page">能力</button></div>
+    <button id="investigate" aria-label="调查"></button>
+    <section id="items-page" role="tabpanel">
+      <div id="hotbar"></div>
+      <div id="behavior-options" aria-label="当前物品行为"><span id="behavior-empty">选择物品查看行为</span></div>
+    </section>
+    <section id="abilities-page" role="tabpanel" style="display: none">
+      <div id="action-grid">
+      <button class="action-slot" id="move" aria-label="移动"></button>
+      <button class="action-slot" id="attack" aria-label="攻击"></button>
+      <button class="action-slot" id="dash" aria-label="疾走"></button>
+      <button class="action-slot" id="dodge" aria-label="回避"></button>
+      <button class="action-slot" id="disengage" aria-label="撤离"></button>
+      <button class="action-slot" id="use-block" aria-label="使用方块"></button>
+      <button class="action-slot" id="break-block" aria-label="破坏"></button>
+      </div>
+      <div id="spell-slots" aria-label="预留法术位"></div>
+    </section>
+    <button id="end" aria-label="结束回合"></button>
+    <div id="utilities"><button id="behavior-hand" aria-label="切换主副手"></button><button id="cancel-plan" aria-label="取消"></button><button id="inventory-toggle" aria-label="背包"></button><button id="exit" aria-label="退出回合制"></button></div>
+    <div id="description" class="muted">悬停动作查看规则说明。</div>
+    <div id="status" class="muted"></div>
+  </footer>
+  <section id="inspection-panel" class="combat-panel" style="display: none">
+    <h2 id="inspection-title"></h2><div id="inspection-content"></div>
+    <button id="inspection-refresh"></button><button id="inspection-close"></button>
+  </section>
+  <section id="context-menu" class="combat-panel" style="display: none"><div id="context-options"><span id="context-status"></span></div></section>
+</body>
+</html>

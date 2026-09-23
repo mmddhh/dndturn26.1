@@ -1,12 +1,16 @@
-# SighsTemple
+# DNDTurn
 
-空白的 `common + targets/<loader>-<minecraft-version>` Minecraft 开发模板。
+项目采用 `common + targets/<loader>-<minecraft-version>` 的独立 Gradle 工程结构。开发文档见 [docs 索引](docs/README.md)，已接入范围见[实现事实](docs/legacy/01_IMPLEMENTED_DECISIONS.md)，未完成与待验收项统一见[活动缺口](docs/02_GAPS_AND_CONFLICTS.md)。
 
-默认包名与 Gradle group 为 `cc.sighs.temple`，默认 mod id 为 `temple`。
+当前战斗规则、区域时间政策与多人行为见[游戏规则](docs/legacy/03_PLAYER_RULES.md)。NeoForge 26.1 使用正常 `/dndturn tactical [start|end|exit]` 入口；不再以 prototype 开关隐藏已有能力。其他三个 target 的战术功能仍未启用。已接入不等于所有原版行为、真实客户端或活动存档恢复均已验收。
 
-快速迁移请对 AI 这么说：
+Gradle group 与 Java 包名为 `cc.sighs.dndturn`，mod id 为 `dndturn`。`common` 和 Minecraft 1.20.1 targets 使用 Java 17 语言级别；Minecraft 与加载器 API 留在各 target。
 
-“使用 https://github.com/Tower-of-Sighs/SighsTemple 框架来重构本项目，第一步先将当前mc版本的所有源码及资源迁移至common部分，第二步将明确查询源码证实了存在明显版本差异的内容转移到targets中的对应版本下，第三步搭建spi模式，将targets中的内容抽象化，只保留具体实现差异，共通逻辑迁移回common部分，第四步将当前targets下的主版本内容移植到全部所有版本。”
+## NeoForge 26.1 界面
+
+已接 ApricityUI 1.2.5 常驻动作栏、先攻／资源、实体头像、物品预览与多人同意模态。有效会话统一使用战术镜头；原第一人称切换入口已移除。战斗日志仅保留空面板，日志生成、历史订阅和 debug 链路已移除。布局、点击与真实联机显示的待验收范围见[日志与 GUI](docs/version-differences/neoforge-26.1-log-gui.md)和[活动缺口](docs/02_GAPS_AND_CONFLICTS.md)。
+
+物品按自身、指定实体、指定位置和瞄准投射接入。已支持的持续使用在当前回合完成，之后仍可移动或结束回合；鱼竿抛收及部分投掷物有轨迹预览。特殊投射物和全部原版组合尚未接完，见[玩家物品范围](docs/version-differences/neoforge-26.1-player-items.md)。
 
 ## IDEA
 
@@ -14,14 +18,16 @@
 
 ## Target
 
-| Target | JDK | 构建命令 |
-| --- | --- | --- |
-| `forge-1.20.1` | JDK 21 | `targets\forge-1.20.1\.\gradlew.bat clean build` |
-| `fabric-1.20.1` | JDK 21 | `targets\fabric-1.20.1\.\gradlew.bat clean build` |
-| `neoforge-1.21.1` | JDK 21 | `targets\neoforge-1.21.1\.\gradlew.bat clean build` |
-| `neoforge-26.1` | JDK 25 | `targets\neoforge-26.1\.\gradlew.bat clean build` |
+| Target | Gradle JVM | 当前能力 | 构建工作目录 |
+| --- | --- | --- | --- |
+| `forge-1.20.1` | JDK 21 | 构建占位，战术功能未启用 | `targets/forge-1.20.1/` |
+| `fabric-1.20.1` | JDK 21 | 构建占位，战术功能未启用 | `targets/fabric-1.20.1/` |
+| `neoforge-1.21.1` | JDK 21 | 构建占位，战术功能未启用 | `targets/neoforge-1.21.1/` |
+| `neoforge-26.1` | JDK 25 | 正式战术入口；支持边界与待验收见 docs/02 | `targets/neoforge-26.1/` |
 
-根项目默认只同步 `common`。使用 JDK 21 时可选择性构建前三个 target：
+在表中对应目录执行 `.\gradlew.bat clean build`。表中的 JDK 是运行 Gradle 的版本；编译语言级别由各模块的 `options.release` 固定：`common`、Forge/Fabric 1.20.1 为 Java 17，NeoForge 1.21.1 为 Java 21，NeoForge 26.1 为 Java 25。
+
+根项目默认只构建 `common`。使用 JDK 21 时可选择性构建前三个 target：
 
 ```powershell
 .\gradlew.bat '-Ptarget=forge-1.20.1' build
@@ -30,7 +36,7 @@
 .\gradlew.bat -PallTargets=true build
 ```
 
-`neoforge-26.1` 因 JDK 25 要求独立构建。
+`allTargets` 只包含前三个 target。使用 JDK 25 时，可在 `targets/neoforge-26.1/` 独立构建，或运行 `.\gradlew.bat '-Ptarget=neoforge-26.1' build`。
 
 ## 结构
 
@@ -80,5 +86,12 @@ cd targets\forge-1.20.1
 
 ## 版本参考
 
-- [Minecraft 1.20.1、1.21.1、26.1 完整迁移差异参考](docs/version-differences/README.md)
-- [多版本日常维护工作流](docs/MAINTENANCE_WORKFLOW.md)
+- [固定版本接入与验证索引](docs/version-differences/README.md)
+- [工程约束与维护原则](AGENTS.md)
+- 历史 `MAINTENANCE_WORKFLOW.md` 当前缺失；不将缺失文件列为已读流程。
+
+## NeoForge 26.1 验证
+
+在该 target 独立根、JDK25 下运行 `.\gradlew.bat clean build :common:test runGameTestServer`。其他 target 用 JDK21 单独构建；各根共用 `common/build`，应串行运行，避免测试结果文件竞争。
+
+旧 `/dndturn local`、`-debug`／`-Pdebug` 诊断链路及自动生产探针已移除。测试位于独立 gameTest／compatTest／uiTest 源码集，不进入发布 jar。最近一次玩家物品实现验证为81项 common、63项 required GameTest通过，四个 target 构建通过；具体命令、失败历史及未执行项见[验证记录](docs/version-differences/neoforge-26.1-player-items.md)。本次文档同步只核对已有证据，没有重新运行构建或游戏。

@@ -1,0 +1,72 @@
+/* GUI viewport; panel anchors are recomputed in current document pixels. */
+#inspection-panel { position: fixed; z-index: 110; padding: 10px; }
+#inspection-content { overflow-y: auto; white-space: pre-wrap; font-size: 12px; line-height: 18px; margin-bottom: 8px; }
+#investigate { position: absolute; }
+
+* { box-sizing: border-box; user-select: none; }
+html, body { margin: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; color: #e8dbc2; font-family: sans-serif; font-size: 13px; line-height: 18px; }
+.combat-panel { background: rgba(16,12,10,.96); border: 1px solid #8c7042; padding: 12px; pointer-events: auto; }
+button { background: #241a12; color: #e8dbc2; border: 1px solid #80633b; padding: 7px; font-family: sans-serif; font-size: 13px; line-height: 18px; cursor: pointer; }
+button:hover, button:focus { background: #493421; border-color: #e0bf77; }
+button:disabled { opacity: .4; }
+#initiative { position: fixed; height: 54px; display: flex; gap: 0; overflow-x: auto; pointer-events: auto; }
+.member { position: relative; width: 30px; min-width: 30px; height: 48px; flex-shrink: 0; padding: 2px; background: rgba(18,15,13,.85); border: 0.5px solid #705b3b; text-align: center; pointer-events: auto; }
+.member.current { border-color: #efce84; background: #35271a; }
+.member.selected { border-color: #ffdf98; background: #523a23; }
+.member:hover { border-color: #d2b16e; }
+.member-portrait, .member-globe { position: absolute; display: block; margin: 0; padding: 0; pointer-events: none; }
+.member-name { position: absolute; left: 2px; right: 2px; bottom: 2px; height: 8px; font-size: 5px; line-height: 8px; overflow: hidden; white-space: nowrap; pointer-events: none; }
+.journal { position: fixed; padding: 8px; background: rgba(12,15,18,.48); border-color: rgba(185,158,110,.4); }
+h2 { margin: 0 0 8px; color: #d7b676; font-family: sans-serif; font-size: 14px; line-height: 20px; font-weight: normal; }
+#log { overflow-y: auto; }
+.log-entry { display: block; width: 100%; padding: 5px 3px; background: transparent; border: 0; border-bottom: 1px solid #463523; font-size: 11px; text-align: left; }
+.evidence { border-top: 1px solid #705737; padding-top: 6px; margin-top: 6px; height: 54px; overflow-y: auto; white-space: pre-wrap; font-size: 11px; line-height: 14px; }
+.actions { position: fixed; padding: 0; background: rgba(17,17,18,.92); border-color: #ac8c50; }
+.resource-row { position: absolute; left: 3px; top: 2px; width: 117px; display: flex; gap: 3px; align-items: center; height: 7px; line-height: 7px; color: #dabc7b; font-size: 5px; overflow: hidden; white-space: nowrap; }
+#target { margin-left: auto; }
+#action-grid, #hotbar, #spell-slots { display: grid; gap: 0; margin-bottom: 0; }
+.action-slot { position: relative; min-width: 0; min-height: 0; padding: 1px; background: #202322; overflow: hidden; }
+.action-slot:hover { background: #3c433a; }
+.action-slot.selected { border-color: #a4dbe6; background: #293f46; }
+/* The shared host owns layout; input and visual layers fill that same box. */
+.icon-control { position: relative; min-width: 0; min-height: 0; flex-shrink: 0; pointer-events: none; }
+.icon-control > button { position: absolute; z-index: 0; min-width: 0; min-height: 0; margin: 0; padding: 0; line-height: 0; pointer-events: auto; }
+.control-visual { position: absolute; z-index: 1; margin: 0; padding: 0; pointer-events: none; }
+.icon-control[disabled] > .control-visual { opacity: .4; }
+.action-icon, .hotbar-item { display: block; min-width: 0; min-height: 0; margin: 0; padding: 0; pointer-events: none; }
+.slot-number { position: absolute; left: 1px; top: 0; color: #c9b98f; font-size: 4.5px; pointer-events: none; }
+#end-control { position: absolute; }
+.movement-ring { position: absolute; display: block; margin: 0; padding: 0; pointer-events: none; }
+#end { border: 1px solid #b49a61; border-radius: 50%; background: #163a49; }
+#end:hover { background: #255b6c; border-color: #f0d59b; }
+#utilities { position: absolute; display: flex; gap: 1.5px; }
+#utilities > .icon-control { width: 11.5px; height: 11.5px; }
+.muted { color: #a49682; font-size: 11px; line-height: 16px; }
+.rejected { color: #efaa91; font-size: 11px; line-height: 16px; }
+#description, #status { position: absolute; margin: 0; overflow-y: auto; }
+.inventory-panel { position: fixed; width: 338px; height: 182px; padding: 10px; }
+.inventory-panel h2 { margin-bottom: 4px; }
+.inventory-panel p { margin: 4px 0 0; }
+#inventory { display: grid; grid-template-columns: repeat(9, 26px); gap: 0; }
+.inventory-slot { width: 26px; height: 26px; border: 1px solid #695132; background: #100c09; }
+/* Override AUI's slot > item absolute 1px offset; 24px fits inside the border. */
+.inventory-slot > item { position: static; width: 24px; height: 24px; margin: 0; }
+
+#dock-tabs { position: absolute; left: 3px; top: 9px; display: flex; height: 10px; gap: 0; }
+#dock-tabs button { height: 10px; margin: 0; padding: 0 5px; font-size: 5.5px; line-height: 8px; }
+#items-page, #abilities-page { position: absolute; margin: 0; padding: 0; }
+#dock-tabs .active-tab { background: #493421; border-color: #e0bf77; color: #f2d89b; }
+#behavior-options { display: flex; gap: 0; overflow-x: auto; background: #171a19; }
+#behavior-options > .icon-control { width: 13px; height: 13px; }
+#behavior-empty { font-size: 5px; line-height: 11px; color: #a49682; pointer-events: none; }
+.empty-slot { border: 0.5px solid #463d30; background: #171a19; pointer-events: none; }
+#context-menu { position: fixed; z-index: 100; padding: 3px; background: rgba(17,20,23,.94); }
+#context-options { overflow-y: auto; }
+#context-status { color: #a49682; font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+#context-options button { display: block; width: 100%; height: 20px; min-height: 20px; margin: 0; padding: 1px 4px; text-align: left; font-size: 11px; line-height: 16px; }
+.chat-hidden, #initiative.chat-hidden { display: none; }
+
+/* Scale inherited text and borders with the compact action dock. */
+.actions { font-size: 6.5px; line-height: 9px; border-width: .5px; }
+.actions button { border-width: .5px; }
+.actions .muted, .actions .rejected { font-size: 5.5px; line-height: 7px; }
