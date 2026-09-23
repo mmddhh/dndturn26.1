@@ -1,0 +1,8 @@
+{
+  "environment": "dndturn:arrow_regressions",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 200,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:arrow_trace_miss"
+}

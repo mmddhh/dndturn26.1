@@ -1,0 +1,8 @@
+{
+  "environment": "dndturn:navigation_regressions",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 85,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:prototype_zombie_navigation"
+}

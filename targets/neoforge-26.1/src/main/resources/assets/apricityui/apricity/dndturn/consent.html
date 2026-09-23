@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="aui-viewport" content="mode=browser,user-scalable=false">
+  <meta name="aui-mouse-events" content="intercept">
+  <link rel="stylesheet" href="tactical.css">
+  <style>
+    body.ore-theme { margin: 0; width: 100%; height: 100%; background: rgba(0,0,0,.6); font-family: sans-serif; color: #eee9dd; transform: translateZ(200px); }
+    #consent-dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 480px; max-width: 96%; padding: 24px; background: #1a120d; border: 1px solid #c6ad75; }
+    #consent-backdrop { position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,.6); pointer-events: auto; }
+    #consent-dialog { z-index: 1; pointer-events: auto; }
+    #consent-dialog h2 { font-family: sans-serif; font-size: 22px; color: #e4c47c; margin: 0 0 16px; }
+    #reason, #deadline { margin-bottom: 12px; font-size: 15px; }
+    #consent-roster { height: 120px; overflow-y: auto; margin-bottom: 16px; }
+    #consent-roster div { height: 26px; line-height: 26px; font-size: 15px; }
+    .notice { font-size: 12px; color: #b6a68d; margin-bottom: 16px; }
+    .choices { display: flex; gap: 16px; }
+    .choices .button { width: 200px; }
+  </style>
+</head>
+<body class="ore-theme">
+  <div id="consent-backdrop"></div>
+  <main id="consent-dialog" role="dialog" aria-modal="true">
+    <h2>加入回合制战斗？</h2>
+    <div id="reason"></div><div id="deadline"></div>
+    <div id="consent-roster"></div>
+    <div class="notice">等待期间世界继续运行。离开后再进入需要重新同意；有人掉线或拒绝将取消请求。</div>
+    <div class="choices"><button id="agree" class="button button-primary">同意</button><button id="decline" class="button">拒绝</button></div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="aui-viewport" content="mode=gui,zoom=0.65,user-scalable=false">
+  <meta name="aui-mouse-events" content="intercept">
+  <link rel="stylesheet" href="tactical.css">
+</head>
+<body>
+  <header id="heading" class="combat-panel heading"><span class="brand">DNDTURN</span><span id="phase"></span><button id="pointer" class="button"></button></header>
+  <section id="initiative" aria-label="先攻与队伍"></section>
+  <aside id="journal" class="combat-panel journal">
+    <h2>战斗日志</h2><div id="log"></div>
+    <div id="hit" class="evidence">选择日志查看命中与伤害。</div>
+  </aside>
+  <section id="inventory-panel" class="combat-panel inventory-panel" style="display: none">
+    <h2>随身物品</h2><div id="inventory"></div>
+    <p class="muted">点击热栏准备能力，左键确认目标；右键对象打开菜单。按 I 打开个人背包整理。</p>
+  </section>
+  <footer id="actions" class="combat-panel actions">
+    <div class="resource-row"><span id="action"></span><span id="movement"></span><span id="reaction"></span><span id="environment" class="muted"></span><span id="target"></span></div>
+    <div id="action-grid">
+      <button class="action-slot" id="move" aria-label="移动"></button>
+      <button class="action-slot" id="attack" aria-label="攻击"></button>
+      <button class="action-slot" id="dash" aria-label="疾走"></button>
+      <button class="action-slot" id="dodge" aria-label="回避"></button>
+      <button class="action-slot" id="disengage" aria-label="撤离"></button>
+      <button class="action-slot" id="use-block" aria-label="使用方块"></button>
+      <button class="action-slot" id="use-item" aria-label="使用物品"></button>
+      <button class="action-slot" id="place" aria-label="放置"></button>
+      <button class="action-slot" id="break-block" aria-label="破坏"></button>
+    </div>
+    <div id="hotbar"></div>
+    <button id="end" aria-label="结束回合"></button>
+    <div id="utilities"><button id="behavior-hand" aria-label="切换主副手"></button><button id="cancel-plan" aria-label="取消"></button><button id="inventory-toggle" aria-label="背包"></button><button id="exit" aria-label="退出回合制"></button></div>
+    <div id="description" class="muted">悬停动作查看规则说明。</div>
+    <div id="status" class="muted"></div>
+  </footer>
+  <section id="ability-panel" class="combat-panel" style="display: none"><div id="behavior-options"></div></section>
+  <section id="context-menu" class="combat-panel" style="display: none"><h2>行动候选</h2><div id="context-options"></div><div id="context-status" class="muted"></div></section>
+</body>
+</html>

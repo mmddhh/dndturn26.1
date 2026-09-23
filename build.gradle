@@ -1,7 +1,11 @@
+group = providers.gradleProperty('mod_group_id').get()
+version = providers.gradleProperty('mod_version').get()
+
 def targetBuilds = [
         'forge-1.20.1'    : [directory: 'targets/forge-1.20.1', task: 'buildForge1201'],
         'fabric-1.20.1'   : [directory: 'targets/fabric-1.20.1', task: 'buildFabric1201'],
-        'neoforge-1.21.1' : [directory: 'targets/neoforge-1.21.1', task: 'buildNeoForge1211']
+        'neoforge-1.21.1' : [directory: 'targets/neoforge-1.21.1', task: 'buildNeoForge1211'],
+        'neoforge-26.1'   : [directory: 'targets/neoforge-26.1', task: 'buildNeoForge261']
 ]
 
 def selectedTarget = providers.gradleProperty('target').orNull
@@ -11,18 +15,23 @@ if (selectedTarget != null && !targetBuilds.containsKey(selectedTarget)) {
     throw new GradleException("Unknown target '${selectedTarget}'. Available targets: ${targetBuilds.keySet().join(', ')}")
 }
 
+project(':common') {
+    group = rootProject.group
+    version = rootProject.version
+}
+
 targetBuilds.each { targetName, targetBuild ->
     tasks.register(targetBuild.task, Exec) {
         group = 'build'
         description = "Builds ${targetName} in its independent Gradle project."
-        workingDir rootDir
-        commandLine 'cmd', '/c', 'gradlew.bat', '-p', targetBuild.directory.replace('/', '\\'), 'build', '--console', 'plain', '--no-daemon'
+        workingDir file(targetBuild.directory)
+        commandLine 'cmd', '/c', 'gradlew.bat', 'build', '--console', 'plain', '--no-daemon'
     }
 }
 
 tasks.register('build') {
     group = 'build'
-    description = 'Builds common and an optionally selected JDK 21 target.'
+    description = 'Builds common and optionally one or all independent platform targets.'
     dependsOn ':common:build'
 
     if (selectedTarget != null) {
@@ -30,8 +39,8 @@ tasks.register('build') {
     }
 
     if (buildAllTargets.get()) {
-        targetBuilds.values().each { targetBuild ->
-            dependsOn tasks.named(targetBuild.task)
+        ['forge-1.20.1', 'fabric-1.20.1', 'neoforge-1.21.1'].each { targetName ->
+            dependsOn tasks.named(targetBuilds[targetName].task)
         }
     }
 }

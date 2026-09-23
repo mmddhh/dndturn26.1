@@ -1,0 +1,8 @@
+{
+  "environment": "dndturn:consent_regressions",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 430,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:consent_multiplayer"
+}

@@ -1,0 +1,57 @@
+/* GUI viewport; panel anchors are recomputed in current document pixels. */
+* { box-sizing: border-box; user-select: none; }
+html, body { margin: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; color: #e8dbc2; font-family: sans-serif; font-size: 13px; line-height: 18px; }
+.combat-panel { background: rgba(16,12,10,.96); border: 1px solid #8c7042; padding: 12px; pointer-events: auto; }
+button { background: #241a12; color: #e8dbc2; border: 1px solid #80633b; padding: 7px; font-family: sans-serif; font-size: 13px; line-height: 18px; cursor: pointer; }
+button:hover, button:focus { background: #493421; border-color: #e0bf77; }
+button:disabled { opacity: .4; }
+.heading { position: fixed; height: 30px; padding: 5px; text-align: center; }
+.brand { color: #b79861; font-size: 10px; margin-right: 14px; }
+#phase { color: #f2d89b; font-size: 13px; }
+#pointer { position: fixed; left: 8px; top: 8px; font-size: 10px; pointer-events: auto; }
+#initiative { position: fixed; height: 92px; display: flex; gap: 5px; overflow-x: auto; pointer-events: auto; }
+.member { position: relative; width: 84px; min-width: 84px; height: 88px; padding: 4px; background: rgba(18,15,13,.85); border: 1px solid #705b3b; text-align: center; pointer-events: auto; }
+.member.current { border-color: #efce84; background: #35271a; }
+.member.selected { border-color: #ffdf98; background: #523a23; }
+.member:hover { border-color: #d2b16e; }
+.member span { display: block; width: 74px; height: 34px; font-size: 10px; line-height: 11px; overflow: hidden; white-space: pre-wrap; }
+.portrait { position: relative; width: 34px; height: 36px; margin: 0 auto 3px; border: 1px solid #b08b4f; background: #0c0907; overflow: hidden; }
+.portrait texture { position: absolute; width: 256px; height: 256px; left: -32px; top: -32px; pointer-events: none; }
+.journal { position: fixed; padding: 8px; background: rgba(12,15,18,.48); border-color: rgba(185,158,110,.4); }
+h2 { margin: 0 0 8px; color: #d7b676; font-family: sans-serif; font-size: 14px; line-height: 20px; font-weight: normal; }
+#log { overflow-y: auto; }
+.log-entry { display: block; width: 100%; padding: 5px 3px; background: transparent; border: 0; border-bottom: 1px solid #463523; font-size: 11px; text-align: left; }
+.evidence { border-top: 1px solid #705737; padding-top: 6px; margin-top: 6px; height: 54px; overflow-y: auto; white-space: pre-wrap; font-size: 11px; line-height: 14px; }
+.actions { position: fixed; padding: 8px; background: rgba(17,17,18,.92); border-color: #ac8c50; }
+.resource-row { display: flex; gap: 10px; align-items: center; height: 20px; color: #dabc7b; font-size: 10px; overflow: hidden; white-space: nowrap; }
+#action { color: #a9bd82; }
+#reaction { color: #b4c7d9; }
+#target { margin-left: auto; }
+#action-grid, #hotbar { display: grid; gap: 3px; margin-bottom: 3px; }
+.action-slot { position: relative; padding: 3px; background: #202322; overflow: hidden; }
+.action-slot:hover { background: #3c433a; }
+.action-slot.selected { border: 2px solid #a4dbe6; background: #293f46; }
+.action-icon, .hotbar-item { width: 100%; height: 100%; pointer-events: none; }
+.slot-number { position: absolute; left: 2px; top: 0; color: #c9b98f; font-size: 9px; pointer-events: none; }
+#end { position: absolute; border: 2px solid #b49a61; border-radius: 50%; background: #163a49; padding: 8px; }
+#end:hover { background: #255b6c; border-color: #f0d59b; }
+#utilities { position: absolute; display: flex; gap: 3px; }
+#utilities button { width: 23px; min-width: 23px; height: 23px; padding: 2px; flex-shrink: 0; }
+.muted { color: #a49682; font-size: 11px; line-height: 16px; }
+.rejected { color: #efaa91; font-size: 11px; line-height: 16px; }
+#description, #status { height: 16px; overflow-y: auto; }
+.inventory-panel { position: fixed; width: 338px; height: 182px; padding: 10px; }
+.inventory-panel h2 { margin-bottom: 4px; }
+.inventory-panel p { margin: 4px 0 0; }
+#inventory { display: grid; grid-template-columns: repeat(9, 32px); gap: 3px; }
+.inventory-slot, .inventory-slot item { width: 26px; height: 26px; }
+.inventory-slot { border: 1px solid #695132; background: #100c09; }
+
+#ability-panel { position: fixed; padding: 6px; }
+#behavior-options { display: flex; gap: 4px; overflow-x: auto; }
+#behavior-options button { width: 36px; min-width: 36px; height: 36px; padding: 4px; }
+#context-menu { position: fixed; z-index: 100; padding: 8px; background: rgba(17,20,23,.94); }
+#context-options { overflow-y: auto; }
+#context-options button { display: block; width: 100%; min-height: 32px; padding: 6px; text-align: left; font-size: 11px; }
+#context-status { max-height: 28px; overflow-y: auto; }
+.chat-hidden, #initiative.chat-hidden { display: none; }

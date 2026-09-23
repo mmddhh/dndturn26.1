@@ -4,10 +4,7 @@ plugins {
     id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
 }
 
-def properties = new Properties()
-file('../../gradle.properties').withInputStream { properties.load(it) }
-file('gradle.properties').withInputStream { properties.load(it) }
-properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+apply from: file('../../gradle/target-conventions/properties.gradle')
 
 group = mod_group_id
 version = mod_version
@@ -20,28 +17,65 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
+sourceSets.main.output.dir(
+        project(':common').layout.buildDirectory.dir('classes/java/main'),
+        builtBy: ':common:classes'
+)
+
+// Fixtures are compiled and loaded only by the automated GameTest run.
+sourceSets {
+    gameTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
 neoForge {
     version = neoforge_261_version
-
+    mods {
+        "${mod_id}" { sourceSet(sourceSets.main) }
+        dndturnTests {
+            sourceSet(sourceSets.main)
+            sourceSet(sourceSets.gameTest)
+        }
+    }
     runs {
         client {
             client()
+            loadedMods = [neoForge.mods.getByName(mod_id)]
+            if (project.hasProperty('debug')) programArgument '-debug'
         }
         server {
             server()
+            loadedMods = [neoForge.mods.getByName(mod_id)]
             programArgument '--nogui'
+            if (project.hasProperty('debug')) programArgument '-debug'
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            gameDirectory = layout.buildDirectory.dir('gametest-run')
+            sourceSet = sourceSets.gameTest
+            loadedMods = [neoForge.mods.dndturnTests]
+            if (project.hasProperty('debug')) programArgument '-debug'
         }
     }
+}
 
-    mods {
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
-        }
+repositories {
+    maven {
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+    maven {
+        url = 'https://maven.latvian.dev/releases'
+        content { includeGroup 'dev.latvian.mods' }
     }
 }
 
 dependencies {
     implementation project(':common')
+    // Exact NeoForge 26.1 release, not the similarly named artifacts for other targets.
+    implementation 'maven.modrinth:apricityui:wwrdhxiM' // 1.2.5
+    implementation 'dev.latvian.mods:rhino:2101.2.7-build.82'
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -62,12 +96,11 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
-tasks.named('jar', Jar).configure {
-    from project(':common').sourceSets.main.output
-}
-
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 25
 }
 
 apply from: file('../../gradle/target-conventions/publish.gradle')
+
+tasks.named('check') { dependsOn tasks.named('gameTestClasses') }
