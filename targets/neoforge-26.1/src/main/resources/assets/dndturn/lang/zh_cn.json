@@ -1,0 +1,18 @@
+{
+  "key.category.dndturn.prototype": "DNDTurn 玩法原型",
+  "key.dndturn.start": "进入 / 退出回合制战斗",
+  "key.dndturn.exit": "退出回合制战斗",
+  "key.dndturn.move": "切换战术移动",
+  "key.dndturn.attack": "攻击选中目标",
+  "key.dndturn.dash": "疾走获得移动额度",
+  "key.dndturn.dodge": "回避至下个自己回合",
+  "key.dndturn.disengage": "本回合撤离",
+  "key.dndturn.end_turn": "结束当前回合",
+  "key.dndturn.ui": "切换镜头 / 角色控制",
+  "key.dndturn.inventory": "战术物品预览",
+  "key.dndturn.jump": "角色跳跃",
+  "key.dndturn.rotate_left": "镜头向左旋转",
+  "key.dndturn.rotate_right": "镜头向右旋转",
+  "key.dndturn.camera_home": "镜头回到受控角色",
+  "key.dndturn.camera_preset": "切换俯视预设"
+}

@@ -4,10 +4,7 @@ plugins {
     id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
 }
 
-def properties = new Properties()
-file('../../gradle.properties').withInputStream { properties.load(it) }
-file('gradle.properties').withInputStream { properties.load(it) }
-properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+apply from: file('../../gradle/target-conventions/properties.gradle')
 
 group = mod_group_id
 version = mod_version
@@ -20,16 +17,46 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
+sourceSets.main.output.dir(
+        project(':common').layout.buildDirectory.dir('classes/java/main'),
+        builtBy: ':common:classes'
+)
+
 neoForge {
     version = neoforge_261_version
 
     runs {
         client {
             client()
+            if (project.hasProperty('dndturnControlProbe')) {
+                systemProperty 'dndturn.controlProbe', 'true'
+                systemProperty 'dndturn.controlProbe.output', layout.buildDirectory.file('control-probe/result.txt').get().asFile.absolutePath
+                systemProperty 'dndturn.controlProbe.scale', project.findProperty('controlProbeScale') ?: '2'
+                systemProperty 'dndturn.controlProbe.peer', project.hasProperty('controlProbePeer').toString()
+                systemProperty 'dndturn.controlProbe.requirePeer', project.hasProperty('controlProbeRequirePeer').toString()
+                systemProperty 'dndturn.controlProbe.activeCombat', project.hasProperty('controlProbeActive').toString()
+                programArguments.addAll('--username', project.hasProperty('controlProbePeer') ? 'DNDCameraPeer' : 'DNDCameraProbe',
+                    '--quickPlayMultiplayer', '127.0.0.1:25565')
+                programArguments.addAll('--width', project.findProperty('controlProbeWidth') ?: '1280',
+                    '--height', project.findProperty('controlProbeHeight') ?: '720')
+            }
+            if (project.hasProperty('dndturnRepairClient')) {
+                gameDirectory = layout.buildDirectory.dir('repair-client')
+            }
+            if (project.hasProperty('dndturnUiSmoke')) {
+                systemProperty 'dndturn.uiSmoke', 'true'
+                systemProperty 'dndturn.uiSmoke.output', layout.buildDirectory.dir('ui-smoke').get().asFile.absolutePath
+            }
         }
         server {
             server()
             programArgument '--nogui'
+            if (project.hasProperty('dndturnRepairServer')) {
+                gameDirectory = layout.buildDirectory.dir('repair-server')
+            }
+        }
+        gameTestServer {
+            type = "gameTestServer"
         }
     }
 
@@ -40,8 +67,30 @@ neoForge {
     }
 }
 
+repositories {
+    maven {
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+    maven {
+        url = 'https://maven.latvian.dev/releases'
+        content { includeGroup 'dev.latvian.mods' }
+    }
+}
+
 dependencies {
     implementation project(':common')
+    // Exact NeoForge 26.1 release, not the similarly named artifacts for other targets.
+    implementation 'maven.modrinth:apricityui:wwrdhxiM' // 1.2.5
+    implementation 'dev.latvian.mods:rhino:2101.2.7-build.82'
+}
+
+// Physical-side regression: compile with UI APIs, launch the isolated server without UI mods.
+if (project.hasProperty('dndturnRepairServer')) {
+    configurations.runtimeClasspath {
+        exclude group: 'maven.modrinth', module: 'apricityui'
+        exclude group: 'dev.latvian.mods', module: 'rhino'
+    }
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -62,12 +111,34 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
-tasks.named('jar', Jar).configure {
-    from project(':common').sourceSets.main.output
-}
-
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 25
 }
 
 apply from: file('../../gradle/target-conventions/publish.gradle')
+
+if (project.hasProperty('dndturnUiSmoke')) {
+    tasks.named('runClient').configure {
+        doFirst { layout.buildDirectory.file('ui-smoke/result.txt').get().asFile.delete() }
+        doLast {
+            def result = layout.buildDirectory.file('ui-smoke/result.txt').get().asFile
+            if (!result.exists() || !result.text.startsWith('PASS:')) {
+                throw new GradleException(result.exists() ? result.text : 'UI smoke produced no result')
+            }
+        }
+    }
+}
+
+if (project.hasProperty('dndturnControlProbe')) {
+    tasks.named('runClient').configure {
+        def resultName = project.hasProperty('controlProbePeer') ? 'peer-result.txt' : 'result.txt'
+        doFirst { layout.buildDirectory.file('control-probe/' + resultName).get().asFile.delete() }
+        doLast {
+            def result = layout.buildDirectory.file('control-probe/' + resultName).get().asFile
+            if (!result.exists() || !result.text.startsWith('PASS:'))
+                throw new GradleException(result.exists() ? result.text : 'Control probe produced no result')
+            logger.lifecycle(result.text)
+        }
+    }
+}

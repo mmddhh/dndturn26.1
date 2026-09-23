@@ -1,0 +1,11 @@
+// Isolate validation output and run worlds from an already running developer instance.
+gradle.beforeProject { p ->
+    p.layout.buildDirectory.set(new File(p.rootDir, '../../build/client-control-validation/' + p.name))
+}
+gradle.projectsEvaluated {
+    def runs = gradle.rootProject.extensions.getByName('neoForge').runs
+    def clientFolder = gradle.rootProject.hasProperty('controlProbePeer') ? 'peer-run' : 'client-run'
+    runs.getByName('client').gameDirectory = new File(gradle.rootProject.rootDir, '../../build/client-control-validation/' + clientFolder)
+    runs.getByName('server').gameDirectory = new File(gradle.rootProject.rootDir, '../../build/client-control-validation/server-run')
+    runs.getByName('gameTestServer').gameDirectory = new File(gradle.rootProject.rootDir, '../../build/client-control-validation/gametest-run')
+}

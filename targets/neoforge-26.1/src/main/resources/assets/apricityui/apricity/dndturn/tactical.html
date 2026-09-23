@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="aui-viewport" content="mode=fixed,width=960,height=540,scale=fit,user-scalable=false">
+  <meta name="aui-mouse-events" content="intercept">
+  <link rel="stylesheet" href="tactical.css">
+</head>
+<body>
+  <header class="combat-panel heading"><span class="brand">DNDTURN</span><span id="phase"></span><button id="pointer" class="button"></button></header>
+  <section id="initiative" aria-label="先攻与队伍"></section>
+  <aside class="combat-panel journal">
+    <h2>战斗日志</h2><div id="log"></div>
+    <div id="hit" class="evidence">选择日志查看命中与伤害。</div>
+  </aside>
+  <section id="inventory-panel" class="combat-panel inventory-panel" style="display: none">
+    <h2>随身物品</h2><div id="inventory"></div>
+    <p class="muted">点击热栏准备能力，左键确认目标；右键对象打开菜单。按 I 打开个人背包整理。</p>
+  </section>
+  <footer class="combat-panel actions">
+    <div class="resource-row"><span id="action"></span><span id="movement"></span><span id="reaction"></span><span id="environment" class="muted"></span><span id="target"></span></div>
+    <div class="buttons">
+      <button class="button" id="move">移动</button>
+      <button class="button button-primary" id="attack">攻击</button>
+      <button class="button" id="place">放置</button>
+      <button class="button" id="use-block">使用方块</button>
+      <button class="button" id="break-block">破坏</button>
+      <button class="button" id="use-item">使用物品</button>
+      <div id="behavior-options"></div><button class="button" id="behavior-hand">切换主 / 副手</button><button class="button" id="cancel-plan">取消</button>
+      <button class="button" id="dash">疾走</button>
+      <button class="button" id="dodge">回避</button>
+      <button class="button" id="disengage">撤离</button>
+      <button class="button" id="inventory-toggle">物品</button>
+      <button class="button" id="end">结束回合</button>
+      <button class="button" id="exit">退出</button>
+    </div>
+    <div id="description" class="muted">悬停动作查看规则说明。</div>
+    <div id="status" class="muted"></div>
+  </footer>
+</body>
+</html>

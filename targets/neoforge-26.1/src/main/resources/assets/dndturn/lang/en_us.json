@@ -1,0 +1,18 @@
+{
+  "key.category.dndturn.prototype": "DNDTurn Prototype",
+  "key.dndturn.start": "Enter / leave turn-based combat",
+  "key.dndturn.exit": "Exit prototype combat",
+  "key.dndturn.move": "Toggle tactical movement",
+  "key.dndturn.attack": "Attack selected target",
+  "key.dndturn.dash": "Dash for movement",
+  "key.dndturn.dodge": "Dodge until your next turn",
+  "key.dndturn.disengage": "Disengage for this turn",
+  "key.dndturn.end_turn": "End tactical turn",
+  "key.dndturn.ui": "Switch camera / character control",
+  "key.dndturn.inventory": "Tactical inventory preview",
+  "key.dndturn.jump": "Character jump",
+  "key.dndturn.rotate_left": "Orbit camera left",
+  "key.dndturn.rotate_right": "Orbit camera right",
+  "key.dndturn.camera_home": "Focus controlled character",
+  "key.dndturn.camera_preset": "Toggle overhead preset"
+}

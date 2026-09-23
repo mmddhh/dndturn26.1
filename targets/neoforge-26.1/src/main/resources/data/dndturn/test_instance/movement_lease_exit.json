@@ -1,0 +1,8 @@
+{
+  "environment": "dndturn:movement_lease_exit",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 70,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:movement_lease_exit"
+}

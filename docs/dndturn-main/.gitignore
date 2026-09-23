@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Minecraft run directory (worlds, logs, mods, options)
+run/
+run-data/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS / misc
+.DS_Store
+Thumbs.db
+*.log
+hs_err_pid*
+replay_pid*
+
+# Local properties
+local.properties

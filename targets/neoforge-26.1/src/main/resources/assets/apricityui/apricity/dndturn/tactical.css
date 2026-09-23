@@ -1,0 +1,47 @@
+/* Fixed logical viewport; presentation never changes world state. */
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; color: #e8dbc2; font-family: sans-serif; font-size: 13px; line-height: 18px; }
+.combat-panel { background: rgba(16,12,10,.96); border: 1px solid #8c7042; padding: 12px; pointer-events: auto; }
+button { background: #241a12; color: #e8dbc2; border: 1px solid #80633b; padding: 7px; font-family: sans-serif; font-size: 13px; line-height: 18px; cursor: pointer; }
+button:hover, button:focus { background: #493421; border-color: #e0bf77; }
+button:disabled { opacity: .4; }
+.heading { position: fixed; top: 12px; left: 280px; width: 400px; height: 32px; padding: 6px; text-align: center; }
+.brand { position: absolute; left: 12px; top: 6px; width: 90px; height: 20px; color: #b79861; font-size: 10px; letter-spacing: 3px; }
+#phase { position: absolute; left: 110px; top: 6px; width: 278px; height: 20px; color: #f2d89b; font-size: 14px; }
+#pointer { position: fixed; left: 18px; top: 14px; width: 246px; pointer-events: auto; }
+#initiative { position: fixed; top: 54px; left: 200px; width: 560px; height: 120px; display: flex; gap: 8px; overflow-x: auto; pointer-events: auto; }
+.member { position: relative; width: 100px; min-width: 100px; height: 118px; padding: 5px; background: rgba(18,13,10,.96); border: 1px solid #705b3b; text-align: center; pointer-events: auto; }
+.member.current { border-color: #efce84; background: #35271a; }
+.member.selected { border-color: #ffdf98; background: #523a23; }
+.member:hover { border-color: #d2b16e; }
+.member span { display: block; width: 88px; height: 50px; font-size: 12px; line-height: 15px; overflow: hidden; white-space: pre-wrap; }
+.portrait { position: relative; width: 42px; height: 48px; margin: 0 auto 5px; border: 1px solid #b08b4f; background: #0c0907; overflow: hidden; }
+.portrait texture { position: absolute; width: 320px; height: 320px; left: -40px; top: -40px; pointer-events: none; }
+.journal { position: fixed; right: 18px; top: 182px; width: 266px; height: 170px; }
+h2 { margin: 0 0 8px; color: #d7b676; font-family: sans-serif; font-size: 14px; line-height: 20px; font-weight: normal; }
+#log { height: 45px; overflow-y: auto; }
+.log-entry { display: block; width: 100%; padding: 5px 3px; background: transparent; border: 0; border-bottom: 1px solid #463523; font-size: 11px; text-align: left; }
+.evidence { border-top: 1px solid #705737; padding-top: 6px; margin-top: 6px; height: 54px; overflow-y: auto; white-space: pre-wrap; font-size: 11px; line-height: 14px; }
+.actions { position: fixed; bottom: 42px; left: 110px; width: 740px; height: 134px; padding: 10px 14px; }
+.resource-row { display: flex; gap: 18px; align-items: center; height: 24px; margin-bottom: 6px; color: #dabc7b; font-size: 12px; }
+#action { color: #a9bd82; }
+#reaction { color: #b4c7d9; }
+#target { margin-left: auto; }
+.buttons { display: flex; gap: 7px; height: 50px; margin-bottom: 7px; }
+.buttons button { width: 47px; height: 48px; padding: 4px; white-space: pre-wrap; font-size: 12px; line-height: 17px; }
+.buttons #end { margin-left: auto; width: 70px; border-color: #d4af69; background: #4a3220; color: #ffe4a7; }
+.buttons #exit { width: 56px; }
+.muted { color: #a49682; font-size: 11px; line-height: 16px; }
+.rejected { color: #efaa91; font-size: 11px; line-height: 16px; }
+#description, #status { height: 16px; overflow-y: auto; }
+.inventory-panel { position: fixed; left: 18px; top: 174px; width: 338px; height: 182px; padding: 10px; }
+.inventory-panel h2 { margin-bottom: 4px; }
+.inventory-panel p { margin: 4px 0 0; }
+#inventory { display: grid; grid-template-columns: repeat(9, 32px); gap: 3px; }
+.inventory-slot, .inventory-slot item { width: 26px; height: 26px; }
+.inventory-slot { border: 1px solid #695132; background: #100c09; }
+
+/* Item abilities and target-bound context choices share one bounded panel. */
+#behavior-options { position: fixed; left: 18px; top: 184px; width: 300px; max-height: 160px; overflow-y: auto; pointer-events: auto; }
+#behavior-options button { display: block; width: 100%; height: auto; min-height: 28px; text-align: left; }
+#place, #break-block, #use-block, #use-item { display: none; }

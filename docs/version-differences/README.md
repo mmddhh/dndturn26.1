@@ -1,5 +1,9 @@
 # Minecraft Migration Reference
 
+当前仓库固定版本接入从 [NeoForge 26.1.2.84 接入契约](neoforge-26.1.2.84-seams.md) 开始；开发缺口统一见 [M3 acceptance](../02_GAPS_AND_CONFLICTS.md)。
+
+下面的 Primer 是按版本组织的迁移参考，不是当前项目进度或开发任务。仅查阅相关版本/主题；实际 API 以对应 target 固定依赖的 patched 源码为准。
+
 Complete Primer source text is split by migration and top-level topic. Read the relevant topic file instead of loading this whole directory.
 
 Original author: ChampionAsh5357. License: Creative Commons Attribution 4.0 International. See [licenses/LICENSE-CHAMPIONASH5357.txt](licenses/LICENSE-CHAMPIONASH5357.txt).
@@ -20,3 +24,7 @@ Original author: ChampionAsh5357. License: Creative Commons Attribution 4.0 Inte
 - [Minecraft 1.21.9 -> 1.21.10](12-1.21.9-to-1.21.10/README.md)
 - [Minecraft 1.21.10 -> 1.21.11](13-1.21.10-to-1.21.11/README.md)
 - [Minecraft 1.21.11 -> 26.1](14-1.21.11-to-26.1/README.md)
+
+## DNDTurn UI
+
+- [NeoForge 26.1.2.84 AUI 接入契约](neoforge-26.1.2.84-aui.md)

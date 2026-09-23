@@ -1,0 +1,8 @@
+{
+  "environment": "dndturn:tactical_ranged",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 200,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:tactical_ranged"
+}

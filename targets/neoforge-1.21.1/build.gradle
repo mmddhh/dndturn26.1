@@ -4,10 +4,7 @@ plugins {
     id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
 }
 
-def properties = new Properties()
-file('../../gradle.properties').withInputStream { properties.load(it) }
-file('gradle.properties').withInputStream { properties.load(it) }
-properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+apply from: file('../../gradle/target-conventions/properties.gradle')
 
 group = mod_group_id
 version = mod_version
@@ -19,6 +16,11 @@ base {
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
 }
+
+sourceSets.main.output.dir(
+        project(':common').layout.buildDirectory.dir('classes/java/main'),
+        builtBy: ':common:classes'
+)
 
 neoForge {
     version = neoforge_121_version
@@ -62,12 +64,9 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
-tasks.named('jar', Jar).configure {
-    from project(':common').sourceSets.main.output
-}
-
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 21
 }
 
 apply from: file('../../gradle/target-conventions/publish.gradle')

@@ -14,10 +14,7 @@ apply plugin: 'fabric-loom'
 apply plugin: 'java'
 apply plugin: 'me.modmuss50.mod-publish-plugin'
 
-def properties = new Properties()
-file('../../gradle.properties').withInputStream { properties.load(it) }
-file('gradle.properties').withInputStream { properties.load(it) }
-properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+apply from: file('../../gradle/target-conventions/properties.gradle')
 
 group = mod_group_id
 version = mod_version
