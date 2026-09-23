@@ -1,0 +1,526 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed module (file:/C:/Users/RNaim/.gradle/wrapper/dists/gradle-9.7.1-bin/1w1c7tv4s851m17nbqdsro2tv/gradle-9.7.1/lib/native-platform-0.22-milestone-29.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.7.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :createMinecraftArtifacts UP-TO-DATE
+> Task :common:compileJava UP-TO-DATE
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :common:processResources NO-SOURCE
+> Task :common:classes UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :compileCompatTestJava UP-TO-DATE
+> Task :processCompatTestResources NO-SOURCE
+> Task :compatTestClasses UP-TO-DATE
+
+> Task :compileGameTestJava
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\combat\EnvironmentBoundaryTimeChecks.java:27: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        var player = h.makeMockServerPlayerInLevel();
+                      ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:410: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:548: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer first = helper.makeMockServerPlayerInLevel();
+                                   ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:549: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer second = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:735: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:840: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:901: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:987: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+                players[i] = helper.makeMockServerPlayerInLevel();
+                                   ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1045: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer firstPlayer = helper.makeMockServerPlayerInLevel();
+                                             ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1046: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer secondPlayer = helper.makeMockServerPlayerInLevel();
+                                              ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1223: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1335: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1346: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer other = helper.makeMockServerPlayerInLevel();
+                                   ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1562: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1604: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:1973: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2038: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                        ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2183: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2243: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java:2373: 警告: [removal] GameTestHelper 中的 makeMockServerPlayerInLevel() 已过时, 且标记为待删除
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+注: D:\javaProjects\dndturn26.1\targets\neoforge-26.1\src\gameTest\java\cc\sighs\dndturn\gametest\LocalTimeGameTests.java使用或覆盖了已过时的 API。
+注: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+20 个警告
+
+> Task :processGameTestResources UP-TO-DATE
+> Task :gameTestClasses
+> Task :downloadAssets UP-TO-DATE
+> Task :prepareGameTestServerRun UP-TO-DATE
+> Task :common:jar UP-TO-DATE
+
+2026-09-28T08:01:08.533848300Z main WARN Advanced terminal features are not available in this environment
+> Task :runGameTestServer
+[16:01:08] [main/INFO] [ne.ne.fm.st.Entrypoint/]: JVM Uptime at startup: 108ms
+[16:01:08] [main/INFO] [ne.ne.fm.lo.FMLLoader/]: Starting FancyModLoader version 11.0.15 (DEDICATED_SERVER in DEV)
+[16:01:08] [main/INFO] [ne.ne.fm.lo.FMLLoader/]: Game directory: D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\gametest-run
+[16:01:08] [main/INFO] [ne.ne.fm.lo.EarlyServiceDiscovery/]: Found 2 early service jars (out of 109) in 14ms
+[16:01:08] [main/INFO] [ne.ne.fm.lo.FMLLoader/]: Loading FML Early Services:
+[16:01:08] [main/INFO] [ne.ne.fm.lo.FMLLoader/]:  - C:/Users/RNaim/.gradle/caches/modules-2/files-2.1/net.neoforged.fancymodloader/loader/11.0.15/69ddd98736a6b095783523404d1af8992842722/loader-11.0.15.jar
+[16:01:08] [main/INFO] [ne.ne.fm.lo.FMLLoader/]:  - C:/Users/RNaim/.gradle/caches/modules-2/files-2.1/net.neoforged.fancymodloader/earlydisplay/11.0.15/b254aa4ec40828f8ce65411dcb7fb9f6ce008064/earlydisplay-11.0.15.jar
+[16:01:08] [main/INFO] [ne.ne.fm.lo.ImmediateWindowHandler/]: Not loading early display in headless mode.
+[16:01:08] [main/INFO] [ne.ne.fm.lo.mo.lo.GameLocator/]: Detected a joined NeoForge and Minecraft configuration. Applying filtering...
+[16:01:08] [main/INFO] [ne.ne.fm.lo.mo.lo.InDevFolderLocator/CORE]: Got mod coordinates dndturnTests%%D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\classes\java\main;dndturnTests%%D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\resources\main;dndturnTests%%D:\javaProjects\dndturn26.1\common\build\classes\java\main;dndturnTests%%D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\classes\java\compatTest;dndturnTests%%D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\resources\compatTest;dndturnTests%%D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\classes\java\gameTest;dndturnTests%%D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\resources\gameTest from env
+[16:01:08] [main/INFO] [ne.ne.fm.lo.mo.lo.JarInJarDependencyLocator/]: Found 2 dependencies adding them to mods collection
+[16:01:08] [main/INFO] [ne.ne.fm.lo.mo.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		ApricityUI 1.2.5 (apricityui)
+		DNDTurn 1.0.0-SNAPSHOT (dndturn)
+		Minecraft 26.1.2 (minecraft)
+		NeoForge 26.1.2.84 (neoforge)
+[16:01:08] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=file:/C:/Users/RNaim/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.17.3+mixin.0.8.7/41c4a3984a80f4679e759fb9f495587acc5cdac7/sponge-mixin-0.17.3+mixin.0.8.7.jar Service=FML Env=SERVER
+[16:01:08] [main/INFO] [ne.ne.fm.lo.FMLLoader/]: Loading FML Plugins:
+[16:01:08] [main/INFO] [ne.ne.fm.lo.FMLLoader/]:  - C:/Users/RNaim/.gradle/caches/modules-2/files-2.1/net.neoforged/neoforge/26.1.2.84/b725526a2fab2163b9a0a8ce89d435d7cd5d8a88/neoforge-26.1.2.84-universal.jar > net.neoforged.neoforge-coremods-26.1.2.84.jar
+[16:01:09] [main/INFO] [ne.ne.fm.lo.FMLLoader/]: Building game content classloader:
+ - apricityui (jar(C:/Users/RNaim/.gradle/caches/modules-2/files-2.1/maven.modrinth/apricityui/wwrdhxiM/d4311449e5b1cdc9a59e33a7f2b02435d7441546/apricityui-wwrdhxiM.jar))
+ - dndturn (composite(folder(D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/classes/java/main), folder(D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/resources/main), folder(D:/javaProjects/dndturn26.1/common/build/classes/java/main), folder(D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/classes/java/compatTest), folder(D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/classes/java/gameTest), folder(D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/resources/gameTest)))
+ - minecraft (composite(filtered(jar(D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/moddev/artifacts/minecraft-patched-26.1.2.84.jar)), filtered(jar(D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/moddev/artifacts/minecraft-patched-26.1.2.84.jar))))
+ - mixinextras.neoforge (jar(C:/Users/RNaim/.gradle/caches/modules-2/files-2.1/net.neoforged/neoforge/26.1.2.84/b725526a2fab2163b9a0a8ce89d435d7cd5d8a88/neoforge-26.1.2.84-universal.jar > mixinextras-neoforge-0.5.4.jar))
+ - neoforge (composite(filtered(jar(C:/Users/RNaim/.gradle/caches/modules-2/files-2.1/net.neoforged/neoforge/26.1.2.84/b725526a2fab2163b9a0a8ce89d435d7cd5d8a88/neoforge-26.1.2.84-universal.jar))))
+ - net.neoforged.fml.generated (empty(VirtualJar/net.neoforged.fml.generated))
+[16:01:09] [main/INFO] [ne.ne.fm.lo.FMLLoader/]: Built game content classloader in 14ms
+[16:01:09] [main/INFO] [mixin/]: Compatibility level set to JAVA_25
+[16:01:09] [main/WARN] [mixin/]: Reference map 'apricityui.refmap.json' for apricityui.mixins.json could not be read. If this is a development environment you can ignore this message
+[16:01:09] [main/INFO] [minecraft/GameTestMainUtil]: Running GameTestMain with cwd 'D:\javaProjects\dndturn26.1\targets\neoforge-26.1\build\gametest-run', universe path 'gametestserver'
+[16:01:09] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.4).
+[16:01:11] [modloading-worker-0/INFO] [ne.ne.ne.co.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 26.1.2.84, for MC 26.1.2
+[16:01:11] [modloading-sync-worker/INFO] [co.si.ap.ne.ap.NetworkAutoRegistration/]: [NetworkAutoReg] Metadata scan found: 4 | added: 4 | skipped: 0
+[16:01:12] [main/INFO] [minecraft/RecipeManager]: Loaded 1515 recipes
+[16:01:12] [main/INFO] [minecraft/AdvancementTree]: Loaded 1617 advancements
+[16:01:12] [main/INFO] [ne.ne.ne.co.cr.RecipePriorityManager/]: Loaded 0 recipe priority overrides
+[16:01:13] [Server thread/INFO] [minecraft/LoggingLevelLoadListener]: Selecting global world spawn...
+[16:01:13] [Server thread/INFO] [minecraft/LoggingLevelLoadListener]: Loading 0 persistent chunks...
+[16:01:13] [Server thread/INFO] [minecraft/LoggingLevelLoadListener]: Preparing spawn area: 100%
+[16:01:13] [Server thread/INFO] [minecraft/LoggingLevelLoadListener]: Time elapsed: 199 ms
+[16:01:13] [Server thread/INFO] [minecraft/GameTestServer]: Started game test server
+[16:01:13] [Server thread/INFO] [ne.ne.ne.se.pe.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[16:01:13] [Server thread/INFO] [minecraft/GameTestServer]: 59 tests are now running at position 746737, -59, -2299621!
+[16:01:14] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:arrow_regressions' batch 0 (9 tests)...
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 1 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 2 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 5 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 6 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 9 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 10 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 15 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 16 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 19 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 20 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:14] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 26 at (0.0, 0.0, 0.0)
+[16:01:14] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:15] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 27 at (0.0, 0.0, 0.0)
+[16:01:15] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:15] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 28 at (0.0, 0.0, 0.0)
+[16:01:15] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:15] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 29 at (0.0, 0.0, 0.0)
+[16:01:15] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++_+                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [__+_+++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestServer]: [+_+++++++                                                  ]
+[16:01:15] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:tactical_plan' batch 0 (1 tests)...
+[16:01:15] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 38 at (0.0, 0.0, 0.0)
+[16:01:15] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++_                                                 ]
+[16:01:16] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player has made the advancement [Isn't It Iron Pick]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++_                                                 ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:discovery_cursor' batch 0 (1 tests)...
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++_                                                ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++_                                                ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:tactical_snowball' batch 0 (1 tests)...
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++_                                               ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++_                                               ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++_                                               ]
+[16:01:16] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 126 at (0.0, 0.0, 0.0)
+[16:01:16] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++_                                               ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:environment_domains' batch 0 (1 tests)...
+[16:01:16] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 129 at (0.0, 0.0, 0.0)
+[16:01:16] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:16] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 130 at (0.0, 0.0, 0.0)
+[16:01:16] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++_                                              ]
+[16:01:16] [Server thread/WARN] [cc.si.dn.co.EnvironmentExplosion/]: ENVIRONMENT_DOMAIN_MISMATCH step=4a8ce513-d8a1-42ae-abd1-d4b2af3a4215 source=834636e1-28f5-4a76-8ccd-e51ef09850a1 rejectedEntities=1 rejectedBlocks=13
+[16:01:16] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:scheduled_tick_hold' batch 0 (1 tests)...
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++                                              ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++_                                             ]
+[16:01:16] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 136 at (0.0, 0.0, 0.0)
+[16:01:16] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:16] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:navigation_regressions' batch 0 (1 tests)...
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++_                                            ]
+[16:01:16] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++_                                            ]
+[16:01:16] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 138 at (0.0, 0.0, 0.0)
+[16:01:16] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+[16:01:17] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'minecraft:default' batch 0 (21 tests)...
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 140 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player has made the advancement [Monster Hunter]
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 145 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: candidate-review-player[embedded] logged in with entity id 147 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: candidate-review-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 150 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 152 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 154 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 155 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: exit-test-player[embedded] logged in with entity id 159 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: exit-test-player[embedded] logged in with entity id 161 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player joined the game
+[16:01:17] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 162 at (0.0, 0.0, 0.0)
+[16:01:17] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+[16:01:18] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 166 at (0.0, 0.0, 0.0)
+[16:01:18] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:18] [Server thread/ERROR] [cc.si.dn.co.ServerCombatService/]: Combat save cannot be safely restored; preserving it and disabling new encounters
+java.lang.IllegalArgumentException: active encounter lacks captured settings or session sequence
+	at TRANSFORMER/dndturn@1.0.0-SNAPSHOT/cc.sighs.dndturn.combat.CombatRecoveryCandidate.validate(CombatRecoveryCandidate.java:13) ~[main/:?] {}
+	at TRANSFORMER/dndturn@1.0.0-SNAPSHOT/cc.sighs.dndturn.combat.ServerCombatService.<init>(ServerCombatService.java:290) [main/:?] {}
+	at TRANSFORMER/dndturn@1.0.0-SNAPSHOT/cc.sighs.dndturn.combat.ServerCombatService.restoreForGameTest(ServerCombatService.java:374) [main/:?] {}
+	at TRANSFORMER/dndturn@1.0.0-SNAPSHOT/cc.sighs.dndturn.gametest.RepairGameTests.values(RepairGameTests.java:124) [main/:?] {}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.gametest.framework.FunctionGameTestInstance.run(FunctionGameTestInstance.java:34) [minecraft-patched-26.1.2.84.jar:?] {}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.gametest.framework.GameTestInfo.startTest(GameTestInfo.java:163) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.gametest.framework.GameTestInfo.tickInternal(GameTestInfo.java:119) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.gametest.framework.GameTestInfo.tick(GameTestInfo.java:104) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.gametest.framework.GameTestTicker.lambda$tick$0(GameTestTicker.java:47) [minecraft-patched-26.1.2.84.jar:?] {}
+	at java.base/java.util.concurrent.CopyOnWriteArrayList.forEach(CopyOnWriteArrayList.java:905) [?:?] {}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.gametest.framework.GameTestTicker.tick(GameTestTicker.java:47) [minecraft-patched-26.1.2.84.jar:?] {}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.server.MinecraftServer.tickChildren(MinecraftServer.java:1171) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer,neoforge:access_transformer,neoforge:mixin[APP:dndturn.mixins.json:MinecraftServerWorldTickBoundaryMixin from mod dndturn]}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.server.MinecraftServer.tickServer(MinecraftServer.java:1003) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer,neoforge:access_transformer,neoforge:mixin[APP:dndturn.mixins.json:MinecraftServerWorldTickBoundaryMixin from mod dndturn]}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.gametest.framework.GameTestServer.tickServer(GameTestServer.java:255) [minecraft-patched-26.1.2.84.jar:?] {}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.server.MinecraftServer.processPacketsAndTick(MinecraftServer.java:1035) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer,neoforge:access_transformer,neoforge:mixin[APP:dndturn.mixins.json:MinecraftServerWorldTickBoundaryMixin from mod dndturn]}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:776) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer,neoforge:access_transformer,neoforge:mixin[APP:dndturn.mixins.json:MinecraftServerWorldTickBoundaryMixin from mod dndturn]}
+	at TRANSFORMER/minecraft@26.1.2/net.minecraft.server.MinecraftServer.lambda$spin$0(MinecraftServer.java:300) [minecraft-patched-26.1.2.84.jar:?] {neoforge:access_transformer,neoforge:access_transformer,neoforge:mixin[APP:dndturn.mixins.json:MinecraftServerWorldTickBoundaryMixin from mod dndturn]}
+	at java.base/java.lang.Thread.run(Thread.java:1474) [?:?] {}
+[16:01:18] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 174 at (0.0, 0.0, 0.0)
+[16:01:18] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:18] [Server thread/WARN] [cc.si.dn.co.ServerCombatService/]: Restored encounter 4cb119f1-1d75-4aa7-8f8d-ff24c0f2b9ab released: membersPresent=false unknownOperations=1
+[16:01:18] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 176 at (0.0, 0.0, 0.0)
+[16:01:18] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:18] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++___++++++++_++_+_++_                       ]
+[16:01:18] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 181 at (0.0, 0.0, 0.0)
+[16:01:18] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:18] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 182 at (0.0, 0.0, 0.0)
+[16:01:18] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:18] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++_++_+_+++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 191 at (0.0, 0.0, 0.0)
+[16:01:19] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++_++_+++++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++_++_+++++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++_+++++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++_+++++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++_+++++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++_+++++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++_+++++                       ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:environment_clock' batch 0 (1 tests)...
+[16:01:19] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 194 at (0.0, 0.0, 0.0)
+[16:01:19] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++_                      ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++_                      ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++_                      ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++_                      ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++_                      ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++_                      ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:body_control' batch 0 (1 tests)...
+[16:01:19] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 195 at (0.0, 0.0, 0.0)
+[16:01:19] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++_                     ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++_                     ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:prototype_environment_loop' batch 0 (1 tests)...
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++_                    ]
+[16:01:19] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 200 at (0.0, 0.0, 0.0)
+[16:01:19] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:19] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++_                    ]
+[16:01:19] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:movement_lease_exit' batch 0 (1 tests)...
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++_                   ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++_                   ]
+[16:01:20] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 204 at (0.0, 0.0, 0.0)
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:20] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:movement_regressions' batch 0 (1 tests)...
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++_                  ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++_                  ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++_                  ]
+[16:01:20] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 211 at (0.0, 0.0, 0.0)
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+[16:01:20] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:tactical_crossbow' batch 0 (1 tests)...
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++_                 ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++_                 ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++_                 ]
+[16:01:20] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 213 at (0.0, 0.0, 0.0)
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++_                 ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++_                 ]
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player has made the advancement [Ol' Betsy]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:consent_regressions' batch 0 (1 tests)...
+[16:01:20] [Server thread/INFO] [minecraft/PlayerList]: exit-test-player[embedded] logged in with entity id 216 at (0.0, 0.0, 0.0)
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player joined the game
+[16:01:20] [Server thread/INFO] [minecraft/PlayerList]: exit-test-player[embedded] logged in with entity id 217 at (0.0, 0.0, 0.0)
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player joined the game
+[16:01:20] [Server thread/INFO] [minecraft/PlayerList]: exit-test-player[embedded] logged in with entity id 218 at (0.0, 0.0, 0.0)
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player joined the game
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++_                ]
+[16:01:20] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:tactical_behaviors' batch 0 (3 tests)...
+[16:01:20] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 221 at (0.0, 0.0, 0.0)
+[16:01:20] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:21] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 223 at (0.0, 0.0, 0.0)
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:21] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 225 at (0.0, 0.0, 0.0)
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player has made the advancement [Monster Hunter]
+[16:01:21] [Server thread/INFO] [minecraft/LivingEntity]: Named entity Zombie['Behavior target'/226, l='ServerLevel[Test Level]', x=807789.50, y=93.00, z=-2299558.50] died: death.attack.dndturn.tactical
+[16:01:21] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++__+             ]
+[16:01:21] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++__+             ]
+[16:01:21] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++_++             ]
+[16:01:21] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:action_preview' batch 0 (1 tests)...
+[16:01:21] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 230 at (0.0, 0.0, 0.0)
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+action_preview flat A*: slices=4, charged probes=73
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test has made the advancement [Take Aim]
+[16:01:21] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:merge_world_boundary' batch 0 (1 tests)...
+[16:01:21] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++_           ]
+[16:01:21] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 234 at (0.0, 0.0, 0.0)
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:21] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 235 at (0.0, 0.0, 0.0)
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:21] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:environment_classification' batch 0 (1 tests)...
+[16:01:21] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++           ]
+[16:01:21] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 241 at (0.0, 0.0, 0.0)
+[16:01:21] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:21] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++_          ]
+[16:01:21] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++_          ]
+[16:01:21] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:environment_processes' batch 0 (1 tests)...
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 245 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++_         ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++_         ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:environment_circuits' batch 0 (1 tests)...
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 249 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++_        ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:native_melee' batch 0 (1 tests)...
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 253 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++_       ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++_       ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:tactical_ranged' batch 0 (1 tests)...
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++_      ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++_      ]
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 255 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++_      ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++_      ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:restart_history' batch 0 (1 tests)...
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 258 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++_     ]
+[16:01:22] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++_     ]
+DNDTURN_RESTART_WRITE_READY encounter=a8f40c22-b530-429e-8c54-8cb025cb95eb operation=2d1325f0-5572-42a3-a2e9-2ec91fa5da70
+[16:01:22] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:merge_discovery_expansion' batch 0 (1 tests)...
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 259 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 261 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:22] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 263 at (0.0, 0.0, 0.0)
+[16:01:22] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:23] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:environment_tnt' batch 0 (1 tests)...
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++    ]
+[16:01:23] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 273 at (0.0, 0.0, 0.0)
+[16:01:23] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++_   ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:external_melee' batch 0 (1 tests)...
+[16:01:23] [Server thread/INFO] [minecraft/PlayerList]: tactical-test[embedded] logged in with entity id 280 at (0.0, 0.0, 0.0)
+[16:01:23] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test joined the game
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++++++_  ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++++++_  ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:environment_boundary_time' batch 0 (1 tests)...
+[16:01:23] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 282 at (0.0, 0.0, 0.0)
+[16:01:23] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++++_ ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++++_ ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++++_ ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++++_ ]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestRunner]: Running test environment 'dndturn:player_only_start' batch 0 (1 tests)...
+[16:01:23] [Server thread/INFO] [minecraft/PlayerList]: test-mock-player[embedded] logged in with entity id 283 at (0.0, 0.0, 0.0)
+[16:01:23] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player joined the game
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++++++++_]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++++++++_]
+[16:01:23] [Server thread/INFO] [minecraft/GameTestServer]: [++++++++++++++++++++++++++++++++++++++++++++++++++++++++++_]
+[16:01:24] [Server thread/INFO] [minecraft/GameTestServer]: [+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++]
+[16:01:24] [Server thread/INFO] [minecraft/GameTestServer]: ========= 59 GAME TESTS COMPLETE IN 10.59 s ======================
+[16:01:24] [Server thread/INFO] [minecraft/GameTestServer]: All 59 required tests passed :)
+[16:01:24] [Server thread/INFO] [minecraft/GameTestServer]: ====================================================
+[16:01:24] [Server thread/INFO] [minecraft/MinecraftServer]: Stopping server
+[16:01:24] [Server thread/INFO] [minecraft/MinecraftServer]: Saving players
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: candidate-review-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: candidate-review-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: exit-test-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: tactical-test lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: exit-test-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: exit-test-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: exit-test-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: tactical-test lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: tactical-test lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: tactical-test lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: tactical-test left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: test-mock-player lost connection: Server closed
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: test-mock-player left the game
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: Saving worlds
+[16:01:25] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:overworld
+[16:01:29] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:the_nether
+[16:01:29] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:the_end
+[16:01:30] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[16:01:30] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[16:01:30] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[16:01:30] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+[16:01:31] [Server thread/INFO] [minecraft/GameTestServer]: Game test server shutting down
+
+[Incubating] Problems report is available at: file:///D:/javaProjects/dndturn26.1/targets/neoforge-26.1/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 28s
+11 actionable tasks: 2 executed, 9 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.7.1/userguide/configuration_cache_enabling.html

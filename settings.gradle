@@ -1,4 +1,4 @@
-rootProject.name = 'SighsTemple'
+rootProject.name = 'DNDTurn'
 
 include 'common'
 

@@ -1,0 +1,42 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.4/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :createMinecraftArtifacts UP-TO-DATE
+> Task :common:compileJava
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :common:processResources NO-SOURCE
+> Task :common:classes
+> Task :classes
+> Task :jarJar NO-SOURCE
+> Task :jar
+> Task :assemble
+> Task :compileTestJava NO-SOURCE
+> Task :processTestResources NO-SOURCE
+> Task :testClasses UP-TO-DATE
+> Task :common:jar
+> Task :test NO-SOURCE
+> Task :check UP-TO-DATE
+> Task :build
+> Task :common:assemble
+> Task :common:compileTestJava
+> Task :common:processTestResources NO-SOURCE
+> Task :common:testClasses
+> Task :common:test FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':common:test'.
+> java.io.IOException: Unable to delete directory 'D:\javaProjects\dndturn26.1\common\build\test-results\test\binary'
+    New files were found. This might happen because a process is still writing to the target directory.
+    - D:\javaProjects\dndturn26.1\common\build\test-results\test\binary\results.bin
+    - D:\javaProjects\dndturn26.1\common\build\test-results\test\binary\output.bin.idx
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 14s
+8 actionable tasks: 5 executed, 3 up-to-date

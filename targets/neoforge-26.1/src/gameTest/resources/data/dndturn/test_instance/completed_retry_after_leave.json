@@ -1,0 +1,8 @@
+{
+  "environment": "minecraft:default",
+  "structure": "dndturn:local_time_arena",
+  "max_ticks": 20,
+  "required": true,
+  "type": "minecraft:function",
+  "function": "dndturn:completed_retry_after_leave"
+}
