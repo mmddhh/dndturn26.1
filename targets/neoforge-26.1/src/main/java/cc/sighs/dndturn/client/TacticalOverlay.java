@@ -137,7 +137,7 @@ public final class TacticalOverlay {
         action("dodge", CombatNetwork.IntentKind.DODGE, "消耗动作，直到下次自身回合开始前，对你的命中检定有劣势。");
         action("disengage", CombatNetwork.IntentKind.DISENGAGE, "消耗动作，设置本回合撤离状态。借机攻击流程尚未开放。");
         action("end", CombatNetwork.IntentKind.END_TURN, "先结束并结算正在进行的移动，然后请求结束回合。");
-        action("exit", CombatNetwork.IntentKind.EXIT, "先让角色中心离开场地再退出；场内请求会被拒绝。有其他玩家留场时只移除你，其余玩家继续战斗。");
+        action("exit", CombatNetwork.IntentKind.EXIT, "没有 Mob 以你为目标时可直接退出；否则须先中心越界。其他玩家继续回合制；仍有玩家被 Mob 锁定时不能结束整个会话。");
         ability("place", cc.sighs.dndturn.combat.TacticalIntent.Capability.PLACE, "选择放置面；原版接受放置后消耗一次动作。");
         ability("use-block", cc.sighs.dndturn.combat.TacticalIntent.Capability.USE_BLOCK, "使用方块自身，不消耗动作；接近仍消耗移动。");
         ability("break-block", cc.sighs.dndturn.combat.TacticalIntent.Capability.BREAK, "选择要破坏的方块。");

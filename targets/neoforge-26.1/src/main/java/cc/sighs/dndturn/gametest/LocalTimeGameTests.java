@@ -207,9 +207,9 @@ public final class LocalTimeGameTests {
                 for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++) {
                     helper.getLevel().getChunk(x, z); helper.getLevel().setChunkForced(x, z, true);
                 }
-            ServerPlayer first = helper.makeMockServerPlayerInLevel();
-            ServerPlayer second = helper.makeMockServerPlayerInLevel();
-            ServerPlayer third = helper.makeMockServerPlayerInLevel();
+            ServerPlayer first = makeTargetablePlayer(helper);
+            ServerPlayer second = makeTargetablePlayer(helper);
+            ServerPlayer third = makeTargetablePlayer(helper);
             for (ServerPlayer player : List.of(first, second, third)) {
                 player.connection.markClientLoaded(); player.setNoGravity(true);
                 player.teleportTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
@@ -264,14 +264,23 @@ public final class LocalTimeGameTests {
             UUID exit = UUID.randomUUID();
             long beforeExit = service.state(encounter).version();
             Vec3 exitStart = first.position();
+            first.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            second.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            third.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            Difficulty exitDifficulty = helper.getLevel().getDifficulty();
+            helper.getLevel().getServer().setDifficulty(Difficulty.NORMAL, true);
+            target.setTarget(first);
+            helper.assertTrue(target.getTarget() == first, "exit fixture requires a live target");
             boolean insideRejected = false;
             try { service.exitEncounter(first, encounter, exit, beforeExit); }
             catch (IllegalStateException expected) { insideRejected = true; }
             helper.assertTrue(insideRejected && encounter.equals(service.encounterOf(first.getUUID()))
                 && service.state(encounter).version() == beforeExit, "inside EXIT changed membership or resources");
-            // Place the fixture outside to test exit authorization; movement has separate packet tests.
-            first.setPos(exitStart.x + 128, exitStart.y, exitStart.z);
+            // Another player remains in combat; the neutral requester exits in place.
+            target.setTarget(second);
             service.exitEncounter(first, encounter, exit, beforeExit);
+            helper.assertTrue(first.position().equals(exitStart) && !MinecraftCombatRuntime.isBodyPaused(first),
+                "neutral inside exit teleported or retained body control");
             helper.assertTrue(service.encounterOf(first.getUUID()) == null
                     && encounter.equals(service.encounterOf(second.getUUID()))
                     && encounter.equals(service.encounterOf(third.getUUID())),
@@ -279,7 +288,18 @@ public final class LocalTimeGameTests {
             long afterExit = service.state(encounter).version();
             service.exitEncounter(first, encounter, exit, beforeExit);
             helper.assertTrue(service.state(encounter).version() == afterExit, "exit retry changed remaining members");
-            service.stop(encounter);
+            service.exitEncounter(third, encounter, UUID.randomUUID(), afterExit);
+            long lastVersion = service.state(encounter).version();
+            second.setPos(exitStart.x + 128, exitStart.y, exitStart.z);
+            boolean combatStopRejected = false;
+            try { service.exitEncounter(second, encounter, UUID.randomUUID(), lastVersion); }
+            catch (IllegalStateException expected) { combatStopRejected = true; }
+            helper.assertTrue(combatStopRejected && service.state(encounter).version() == lastVersion,
+                "last targeted player ended turn-based mode after crossing the boundary");
+            target.setTarget(null);
+            second.setPos(exitStart);
+            service.exitEncounter(second, encounter, UUID.randomUUID(), lastVersion);
+            helper.getLevel().getServer().setDifficulty(exitDifficulty, true);
             first.setPos(exitStart);
             UUID disconnect = UUID.randomUUID();
             service.requestStart(first, disconnect);
@@ -402,6 +422,18 @@ public final class LocalTimeGameTests {
     }
 
     /** Normal consent fixture; no special scheduling set or execution permission. */
+    private static ServerPlayer makeTargetablePlayer(GameTestHelper helper) {
+        var profile = new GameProfile(UUID.randomUUID(), "exit-test-player");
+        var cookie = CommonListenerCookie.createInitial(profile, false);
+        ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
+            profile, cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        player.setGameMode(GameType.SURVIVAL);
+        return player;
+    }
+
     private static CombatEngine.StateView startEncounter(GameTestHelper helper, ServerPlayer player) {
         ServerCombatService service = ServerCombatService.forServer(helper.getLevel().getServer());
         UUID request = UUID.randomUUID();
@@ -418,6 +450,87 @@ public final class LocalTimeGameTests {
         UUID encounter = service.encounterOf(player.getUUID());
         if (encounter == null) throw new IllegalStateException("normal consent did not create a session: " + service.consentView(request));
         return service.state(encounter);
+    }
+
+    public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> NEUTRAL_MOB_TURN =
+        TEST_FUNCTIONS.register("neutral_mob_turn", () -> LocalTimeGameTests::neutralMobTurn);
+
+    private static void neutralMobTurn(GameTestHelper helper) {
+        helper.runAtTickTime(10, () -> {
+            var level = helper.getLevel();
+            var service = ServerCombatService.forServer(level.getServer());
+            BlockPos anchor = helper.absolutePos(new BlockPos(30000, 121, 0));
+            for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
+                for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++) {
+                    level.getChunk(x, z); level.setChunkForced(x, z, true);
+                }
+            for (int x = -12; x <= 12; x++) for (int z = -12; z <= 12; z++)
+                level.setBlockAndUpdate(anchor.offset(x, -1, z), Blocks.STONE.defaultBlockState());
+            helper.runAfterDelay(20, () -> {
+            var cow = helper.spawn(EntityType.COW, new BlockPos(30002, 121, 0));
+            var sheep = helper.spawn(EntityType.SHEEP, new BlockPos(30002, 121, 4));
+            sheep.setNoAi(true);
+            sheep.setNoGravity(true);
+            cow.setNoAi(true);
+            boolean[] initialized = {false};
+            helper.runAfterDelay(5, () -> {
+            if (initialized[0]) return;
+            initialized[0] = true;
+            helper.assertTrue(level.getEntity(cow.getUUID()) == cow && level.getEntity(sheep.getUUID()) == sheep,
+                "waiting for neutral fixture entity registration");
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            player.connection.markClientLoaded();
+            player.setPos(anchor.getX() + .5, anchor.getY(), anchor.getZ() + .5);
+            player.setNoGravity(true);
+            cow.setNoAi(false);
+            cow.setOnGround(true);
+            helper.assertTrue(cow.getNavigation().moveTo(anchor.getX() + 9.5, anchor.getY(), anchor.getZ() + .5, 1.0),
+                "neutral fixture has no vanilla path");
+            helper.assertTrue(service.encounterOf(cow.getUUID()) == null && service.encounterOf(sheep.getUUID()) == null,
+                "neutral fixture was already claimed");
+            UUID id = startEncounter(helper, player).id();
+            helper.assertTrue(id.equals(service.encounterOf(cow.getUUID())) && id.equals(service.encounterOf(sheep.getUUID())),
+                "non-hostile mobs missing from turn roster");
+            for (int n = 0; n < 3 && !cow.getUUID().equals(service.state(id).current()); n++)
+                service.endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
+            helper.assertTrue(cow.getUUID().equals(service.state(id).current()), "cow turn not reached");
+            Vec3 before = cow.position();
+            Vec3 sheepBefore = sheep.position();
+            int budget = service.state(id).members().get(cow.getUUID()).movementTicks();
+            boolean[] done = {false};
+            for (int tick = 12; tick <= 70; tick++) {
+                final int checkTick = tick;
+                helper.runAfterDelay(tick, () -> {
+                    if (done[0]) return;
+                    var state = service.state(id);
+                    var results = service.results(id, 0, 100).results();
+                    int charged = results.stream().filter(r -> r.snapshot().owner().equals(cow.getUUID())
+                        && r.snapshot().kind() == OperationRecord.Kind.MOVE).mapToInt(OperationRecord.Result::actualMovementTicks).sum();
+                    boolean terminal = results.stream().anyMatch(r -> r.snapshot().owner().equals(cow.getUUID())
+                        && r.snapshot().kind() == OperationRecord.Kind.MOVE && r.terminal());
+                    if (!terminal && checkTick < 70) return;
+                    done[0] = true;
+                    try {
+                        helper.assertTrue(cow.position().distanceToSqr(before) > .01 && charged > 0 && charged <= budget,
+                            "neutral cow did not move with a bounded charge: " + results);
+                        helper.assertTrue(terminal && !service.hasMobMoveLease(cow.getUUID()), "neutral movement lease did not terminate");
+                        helper.assertTrue(sheep.position().equals(sheepBefore), "another neutral mob moved during the cow turn");
+                        helper.assertTrue(state.phase() != EncounterPhase.ACTIVE && cow.getTarget() == null,
+                            "neutral movement invented hostility");
+                        helper.assertTrue(MinecraftCombatRuntime.isBodyPaused(player), "cow movement opened player body ticks");
+                        helper.succeed();
+                    } finally {
+                        service.stop(id);
+                        cow.discard(); sheep.discard();
+                        for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
+                            for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
+                                level.setChunkForced(x, z, false);
+                    }
+                });
+            }
+            });
+            });
+        });
     }
 
     private LocalTimeGameTests() {}
@@ -1243,7 +1356,7 @@ public final class LocalTimeGameTests {
     }
 
     private static void prototypeExitRetry(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = makeTargetablePlayer(helper);
         BlockPos playerPos = helper.absolutePos(new BlockPos(3073, 341, 1));
         for (int x = 3072; x <= 3076; x++) for (int z = 0; z <= 4; z++)
             helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 340, z)),
@@ -1252,7 +1365,12 @@ public final class LocalTimeGameTests {
         for (int chunkX = (playerPos.getX() - 24) >> 4; chunkX <= (playerPos.getX() + 24) >> 4; chunkX++)
             for (int chunkZ = (playerPos.getZ() - 24) >> 4; chunkZ <= (playerPos.getZ() + 24) >> 4; chunkZ++)
                 helper.getLevel().getChunk(chunkX, chunkZ);
-        helper.spawn(EntityType.ZOMBIE, new BlockPos(3074, 341, 1));
+        Zombie exitEnemy = helper.spawn(EntityType.ZOMBIE, new BlockPos(3074, 341, 1));
+        player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        Difficulty exitDifficulty = helper.getLevel().getDifficulty();
+        helper.getLevel().getServer().setDifficulty(Difficulty.NORMAL, true);
+        exitEnemy.setTarget(player);
+        helper.assertTrue(exitEnemy.getTarget() == player, "single exit fixture target missing");
         ServerCombatService service = ServerCombatService.forServer(helper.getLevel().getServer());
         var started = startEncounter(helper, player);
         UUID exitId = UUID.randomUUID();
@@ -1262,8 +1380,10 @@ public final class LocalTimeGameTests {
         catch (IllegalStateException expected) { insideRejected = true; }
         helper.assertTrue(insideRejected && started.id().equals(service.encounterOf(player.getUUID()))
             && service.state(started.id()).version() == version, "inside EXIT mutated the encounter");
-        player.setPos(player.getX() + 128, player.getY(), player.getZ());
+        exitEnemy.setTarget(null);
+        helper.getLevel().getServer().setDifficulty(exitDifficulty, true);
         service.exitEncounter(player, started.id(), exitId, version);
+        helper.assertFalse(MinecraftCombatRuntime.isBodyPaused(player), "no-enemy inside EXIT retained body control");
         helper.assertTrue(service.encounterOf(player.getUUID()) == null
             && service.completedExitRetry(player, started.id(), exitId, version),
             "successful EXIT did not retain its same-generation receipt");
@@ -1275,7 +1395,7 @@ public final class LocalTimeGameTests {
             conflict = true;
         }
         helper.assertTrue(conflict, "EXIT replay accepted a changed request version");
-        ServerPlayer stranger = helper.makeMockServerPlayerInLevel();
+        ServerPlayer stranger = makeTargetablePlayer(helper);
         boolean disclosed = false;
         try {
             service.completedExitRetry(stranger, started.id(), exitId, version);

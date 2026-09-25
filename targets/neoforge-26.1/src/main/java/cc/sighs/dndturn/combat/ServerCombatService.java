@@ -822,7 +822,7 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
             || !engine.encounterIds().contains(lease.encounterId)
             || !lease.encounterId.equals(engine.encounterOf(lease.mobId))) return false;
         CombatEngine.StateView state = engine.stateView(lease.encounterId);
-        return state.phase() == EncounterPhase.ACTIVE
+        return (state.phase() == EncounterPhase.ACTIVE || state.phase() == EncounterPhase.CANDIDATE)
             && lease.mobId.equals(state.current())
             && state.members().containsKey(lease.mobId)
             && engine.pendingOperation(lease.encounterId, lease.operationId) != null;
@@ -1044,7 +1044,7 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         return water ? 1 : 0;
     }
 
-    /** Advances only a leased Zombie body. Decision and navigation remain separate. */
+    /** Advances only a leased Mob body. Decision and navigation remain separate. */
     public void advanceMobTurns() {
         requireThread();
         for (UUID encounterId : engine.encounterIds()) {
@@ -1052,20 +1052,16 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
             CombatEngine.StateView state = engine.stateView(encounterId);
             if (state.phase() == EncounterPhase.ENVIRONMENT || state.current() == null) continue;
             Entity found = resolve(state.current());
-            if (!(found instanceof Zombie zombie)) continue;
-            Vec3 zombieCenter = zombie.getBoundingBox().getCenter();
-            if (!state.region().containsPoint(zombieCenter.x, zombieCenter.y, zombieCenter.z)) {
-                MobMoveLease outsideLease = mobMoves.get(zombie.getUUID());
+            if (!(found instanceof Mob mob)) continue;
+            Vec3 mobCenter = mob.getBoundingBox().getCenter();
+            if (!state.region().containsPoint(mobCenter.x, mobCenter.y, mobCenter.z)) {
+                MobMoveLease outsideLease = mobMoves.get(mob.getUUID());
                 if (outsideLease != null) closeMobMove(outsideLease, "member moved outside fixed region");
                 endCurrentTurn(encounterId, UUID.randomUUID(),
                     engine.stateView(encounterId).version());
                 continue;
             }
-            if (state.phase() == EncounterPhase.CANDIDATE) {
-                endCurrentTurn(encounterId, UUID.randomUUID(), state.version());
-                continue;
-            }
-            MobMoveLease lease = mobMoves.get(zombie.getUUID());
+            MobMoveLease lease = mobMoves.get(mob.getUUID());
             if (lease != null) {
                 if (!activeMobLease(lease)) {
                     revokeMobLease(lease);
@@ -1079,40 +1075,65 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
                     revokeMobLease(lease);
                     endCurrentTurn(encounterId, UUID.randomUUID(),
                         engine.stateView(encounterId).version());
-                } else observeMobLease(zombie, lease);
+                } else observeMobLease(mob, lease);
             } else {
-                ServerPlayer target = selectZombieTarget(zombie, state);
-                if (target == null) {
-                    endCurrentTurn(encounterId, UUID.randomUUID(), state.version());
-                    continue;
-                }
-                if (inMeleeReach(zombie, target)) {
+                ServerPlayer target = mob instanceof Zombie hostile && state.phase() == EncounterPhase.ACTIVE
+                    ? selectZombieTarget(hostile, state) : null;
+                if (target != null && inMeleeReach(mob, target)) {
                     takeZombieTurn(encounterId, target.getUUID());
                 } else {
-                    beginMobMove(zombie, state);
+                    beginMobMove(mob, state);
                 }
             }
         }
     }
 
-    private void beginMobMove(Zombie zombie, CombatEngine.StateView state) {
-        if (state.members().get(zombie.getUUID()).movementTicks() < 1) {
+    private void beginMobMove(Mob mob, CombatEngine.StateView state) {
+        if (state.members().get(mob.getUUID()).movementTicks() < 1) {
             endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
             return;
         }
         UUID operationId = UUID.randomUUID();
-        BlockPos pos = zombie.blockPosition();
+        BlockPos pos = mob.blockPosition();
         OperationRecord.Snapshot snapshot = operationSnapshot(operationId, null,
-            state.id(), zombie.getUUID(), zombie.getUUID(), null, cumulativeServerTicks,
+            state.id(), mob.getUUID(), mob.getUUID(), null, cumulativeServerTicks,
             state.version(), new GridCell(pos.getX(), pos.getY(), pos.getZ()), null,
             OperationRecord.Kind.MOVE);
         if (!engine.beginOperation(snapshot)) return;
-        zombie.getNavigation().stop();
-        mobMoves.put(zombie.getUUID(), new MobMoveLease(state.id(), operationId, zombie));
+        MobMoveLease lease = new MobMoveLease(state.id(), operationId, mob);
+        mobMoves.put(mob.getUUID(), lease);
+        ServerPlayer target = mob instanceof Zombie hostile && state.phase() == EncounterPhase.ACTIVE
+            ? selectZombieTarget(hostile, state) : null;
+        if (target != null) {
+            // Existing hostile navigation first observes the leased body, then plans its path.
+            mob.getNavigation().stop();
+        } else if (startMobPath(mob, state, null)) {
+            lease.pathStarted = true;
+            lease.ownedPath = mob.getNavigation().getPath();
+        } else {
+            engine.publish(state.id(), operationId, 0, OperationRecord.Outcome.REJECTED,
+                "no supported vanilla navigation proposal for this Mob turn", 0, 0, true);
+            revokeMobLease(lease);
+            endCurrentTurn(state.id(), UUID.randomUUID(), engine.stateView(state.id()).version());
+        }
         sync(engine.stateView(state.id()));
     }
 
-    private void observeMobLease(Zombie zombie, MobMoveLease lease) {
+    private boolean startMobPath(Mob mob, CombatEngine.StateView state, ServerPlayer target) {
+        if (target != null) return mob.getNavigation().moveTo(target, 1.0);
+        if (mob.isNoAi() || mob.isPassenger() || mob.hasControllingPassenger()) return false;
+        if (!(mob instanceof net.minecraft.world.entity.PathfinderMob walker)
+            || !(mob.getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation)) return false;
+        if (!mob.getNavigation().isDone()) return true;
+        // RandomStrollGoal's vanilla proposal bounds, not a movement budget or a forced displacement.
+        BlockPos origin = mob.blockPosition();
+        if (!mob.level().hasChunksAt(origin.offset(-10, -7, -10), origin.offset(10, 7, 10))) return false;
+        Vec3 proposal = net.minecraft.world.entity.ai.util.DefaultRandomPos.getPos(walker, 10, 7);
+        return proposal != null && state.region().containsPoint(proposal.x, proposal.y, proposal.z)
+            && mob.getNavigation().moveTo(proposal.x, proposal.y, proposal.z, 1.0);
+    }
+
+    private void observeMobLease(Mob mob, MobMoveLease lease) {
         if (!activeMobLease(lease)) {
             revokeMobLease(lease);
             return;
@@ -1120,17 +1141,18 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         if (!lease.ticked) return;
         lease.ticked = false;
         CombatEngine.StateView state = engine.stateView(lease.encounterId);
-        ServerPlayer target = selectZombieTarget(zombie, state);
+        ServerPlayer target = mob instanceof Zombie hostile && state.phase() == EncounterPhase.ACTIVE
+                    ? selectZombieTarget(hostile, state) : null;
         if (!lease.pathStarted) {
-            MobObservation observation = settleMobDisplacement(zombie, lease, state, false);
+            MobObservation observation = settleMobDisplacement(mob, lease, state, false);
             if (observation == MobObservation.TERMINAL_UNKNOWN
                 || observation == MobObservation.TERMINAL_COMPLETED) {
-                finishMobTurnAfterLease(lease, zombie, target, observation);
+                finishMobTurnAfterLease(lease, mob, target, observation);
                 return;
             }
-            if (target != null && zombie.getNavigation().moveTo(target, 1.0)) {
+            if (startMobPath(mob, state, target)) {
                 lease.pathStarted = true;
-                lease.ownedPath = zombie.getNavigation().getPath();
+                lease.ownedPath = mob.getNavigation().getPath();
                 lease.stalled = 0;
                 return;
             }
@@ -1142,49 +1164,49 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
                 engine.stateView(lease.encounterId).version());
             return;
         }
-        boolean pathChanged = lease.ownedPath != zombie.getNavigation().getPath();
-        MobObservation observation = settleMobDisplacement(zombie, lease, state, !pathChanged);
+        boolean pathChanged = lease.ownedPath != mob.getNavigation().getPath();
+        MobObservation observation = settleMobDisplacement(mob, lease, state, !pathChanged);
         if (observation == MobObservation.TERMINAL_UNKNOWN
             || observation == MobObservation.TERMINAL_COMPLETED) {
-            finishMobTurnAfterLease(lease, zombie, target, observation);
+            finishMobTurnAfterLease(lease, mob, target, observation);
             return;
         }
         if (observation == MobObservation.NO_DISPLACEMENT) lease.stalled++;
-        boolean done = pathChanged || target == null || inMeleeReach(zombie, target) || zombie.getNavigation().isDone()
+        boolean done = pathChanged || target != null && inMeleeReach(mob, target) || mob.getNavigation().isDone()
             || lease.stalled >= 5 || engine.stateView(lease.encounterId).members()
-                .get(zombie.getUUID()).movementTicks() == 0;
+                .get(mob.getUUID()).movementTicks() == 0;
         if (!done) return;
         if (engine.pendingOperation(lease.encounterId, lease.operationId) != null)
             engine.publish(lease.encounterId, lease.operationId, lease.step,
                 lease.spent == 0 ? OperationRecord.Outcome.REJECTED : OperationRecord.Outcome.COMPLETED,
-                "Zombie navigation finished", 0, 0, true);
+                "Mob navigation finished", 0, 0, true);
         sync(engine.stateView(lease.encounterId));
         revokeMobLease(lease);
         CombatEngine.StateView after = engine.stateView(lease.encounterId);
-        if (target != null && inMeleeReach(zombie, target)) takeZombieTurn(lease.encounterId, target.getUUID());
+        if (target != null && inMeleeReach(mob, target)) takeZombieTurn(lease.encounterId, target.getUUID());
         else endCurrentTurn(lease.encounterId, UUID.randomUUID(), after.version());
     }
 
-    private void finishMobTurnAfterLease(MobMoveLease lease, Zombie zombie,
+    private void finishMobTurnAfterLease(MobMoveLease lease, Mob mob,
                                          ServerPlayer target, MobObservation observation) {
         if (!engine.encounterIds().contains(lease.encounterId)) return;
         CombatEngine.StateView after = engine.stateView(lease.encounterId);
-        if (after.phase() != EncounterPhase.ACTIVE || !lease.mobId.equals(after.current())) return;
+        if (!lease.mobId.equals(after.current())) return;
         if (observation == MobObservation.TERMINAL_COMPLETED
-            && target != null && inMeleeReach(zombie, target))
+            && target != null && inMeleeReach(mob, target))
             takeZombieTurn(lease.encounterId, target.getUUID());
         else endCurrentTurn(lease.encounterId, UUID.randomUUID(), after.version());
     }
 
-    private MobObservation settleMobDisplacement(Zombie zombie, MobMoveLease lease,
+    private MobObservation settleMobDisplacement(Mob mob, MobMoveLease lease,
                                                   CombatEngine.StateView state, boolean navigationOwned) {
         Vec3 before = lease.previous;
         boolean groundedBefore = lease.previousGrounded;
         boolean waterBefore = lease.previousWater;
-        boolean displaced = before.distanceToSqr(zombie.position()) > 1.0E-10;
-        lease.previous = zombie.position();
-        lease.previousGrounded = zombie.onGround();
-        lease.previousWater = zombie.isInWater();
+        boolean displaced = before.distanceToSqr(mob.position()) > 1.0E-10;
+        lease.previous = mob.position();
+        lease.previousGrounded = mob.onGround();
+        lease.previousWater = mob.isInWater();
         if (!engine.encounterIds().contains(lease.encounterId)
             || engine.pendingOperation(lease.encounterId, lease.operationId) == null) {
             revokeMobLease(lease);
@@ -1192,24 +1214,24 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         }
         if (!displaced) return MobObservation.NO_DISPLACEMENT;
         lease.stalled = 0;
-        boolean horizontal = Math.abs(before.x - zombie.getX()) > 1.0E-5
-            || Math.abs(before.z - zombie.getZ()) > 1.0E-5;
-        boolean jumped = groundedBefore && !zombie.onGround() && zombie.getY() > before.y + 0.05;
-        ForcedMovementEvidence force = availableForce(zombie.getUUID(), cumulativeServerTicks);
+        boolean horizontal = Math.abs(before.x - mob.getX()) > 1.0E-5
+            || Math.abs(before.z - mob.getZ()) > 1.0E-5;
+        boolean jumped = groundedBefore && !mob.onGround() && mob.getY() > before.y + 0.05;
+        ForcedMovementEvidence force = availableForce(mob.getUUID(), cumulativeServerTicks);
         boolean active = navigationOwned && force == null
-            && (horizontal || jumped || ((waterBefore || zombie.isInWater()) && zombie.isJumping()));
+            && (horizontal || jumped || ((waterBefore || mob.isInWater()) && mob.isJumping()));
         if (force != null) force.classifiedTick = cumulativeServerTicks;
-        int cost = active ? observedMoveCost(waterBefore || zombie.isInWater(), jumped) : 0;
+        int cost = active ? observedMoveCost(waterBefore || mob.isInWater(), jumped) : 0;
         if (cost >= 2 && lease.underreserveNextExpensiveStepForGameTest
             && lease.authorizedCost < cost)
             lease.underreserveNextExpensiveStepForGameTest = false;
-        int remaining = state.members().get(zombie.getUUID()).movementTicks();
+        int remaining = state.members().get(mob.getUUID()).movementTicks();
         if (cost > remaining || navigationOwned && cost > lease.authorizedCost) {
             try {
                 engine.publish(lease.encounterId, lease.operationId, lease.step,
                     OperationRecord.Outcome.UNKNOWN,
                     "navigation displaced beyond preauthorized movement mode: delta="
-                        + zombie.position().subtract(before) + " reserved=" + lease.authorizedCost
+                        + mob.position().subtract(before) + " reserved=" + lease.authorizedCost
                         + " observed=" + cost + " remaining=" + remaining
                         + " pathOwned=" + navigationOwned,
                     0, 0, true);
@@ -1223,8 +1245,8 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         boolean terminal = cost > 0 && remaining == cost;
         engine.publish(lease.encounterId, lease.operationId, lease.step,
             terminal ? OperationRecord.Outcome.COMPLETED : OperationRecord.Outcome.ACCEPTED,
-            active ? "vanilla Zombie navigation displacement, preauthorized=" + lease.authorizedCost
-                : "passive Zombie displacement" + (force == null ? "" : " " + force.description()),
+            active ? "vanilla Mob navigation displacement, preauthorized=" + lease.authorizedCost
+                : "passive Mob displacement" + (force == null ? "" : " " + force.description()),
             cost, 0, terminal);
         lease.step++;
         lease.spent += cost;
@@ -1252,18 +1274,18 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
 
     private void stopMobNavigation(MobMoveLease lease) {
         Entity entity = resolve(lease.mobId);
-        if (entity instanceof Zombie zombie && lease.ownedPath != null
-            && zombie.getNavigation().getPath() == lease.ownedPath) zombie.getNavigation().stop();
+        if (entity instanceof Mob mob && lease.ownedPath != null
+            && mob.getNavigation().getPath() == lease.ownedPath) mob.getNavigation().stop();
     }
 
     private void closeMobMove(MobMoveLease lease, String reason) {
         if (mobMoves.get(lease.mobId) != lease) return;
         Entity entity = resolve(lease.mobId);
-        if (lease.ticked && entity instanceof Zombie zombie
+        if (lease.ticked && entity instanceof Mob mob
             && engine.encounterIds().contains(lease.encounterId)) {
             lease.ticked = false;
-            settleMobDisplacement(zombie, lease, engine.stateView(lease.encounterId),
-                lease.pathStarted && lease.ownedPath == zombie.getNavigation().getPath());
+            settleMobDisplacement(mob, lease, engine.stateView(lease.encounterId),
+                lease.pathStarted && lease.ownedPath == mob.getNavigation().getPath());
         }
         if (mobMoves.get(lease.mobId) != lease) return;
         if (engine.encounterIds().contains(lease.encounterId)
@@ -1505,12 +1527,6 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         }
         AABB search = new AABB(discovery.minX(), discovery.minY(), discovery.minZ(),
             discovery.maxX(), discovery.maxY(), discovery.maxZ());
-        Entity target = level.getEntities((Entity) null, search, entity -> entity.getType() == EntityType.ZOMBIE)
-            .stream()
-            .filter(entity -> discovery.contains(pointOf(entity)))
-            .filter(entity -> engine.encounterOf(entity.getUUID()) == null)
-            .min(Comparator.comparingDouble(entity -> entity.distanceToSqr(initiator)))
-            .orElse(null);
         Set<UUID> members = new HashSet<>();
         for (UUID playerId : approvedPlayers) {
             ServerPlayer player = server.getPlayerList().getPlayer(playerId);
@@ -1524,7 +1540,11 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
             // authoritative encounter until the shared safe merge boundary commits.
             if (!isMember(playerId)) members.add(playerId);
         }
-        if (target != null) members.add(target.getUUID());
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, search,
+                mob -> mob.isAlive() && discovery.contains(pointOf(mob)))) {
+            if (engine.encounterOf(mob.getUUID()) == null
+                && !MinecraftCombatRuntime.isLocalMember(server, mob.getUUID())) members.add(mob.getUUID());
+        }
         UUID encounterId = UUID.randomUUID();
         long nextSequence = Math.addExact(nextSessionSequence, 1);
         var captured = CombatPersistenceEnvelope.CapturedSettings.from(config);
@@ -1617,18 +1637,41 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         EncounterRegion region = engine.stateView(encounterId).region();
         Vec3 center = player.getBoundingBox().getCenter();
         if (region.dimension().equals(player.level().dimension().identifier().toString())
-            && region.containsPoint(center.x, center.y, center.z))
-            throw new IllegalStateException("leave the encounter region before exiting");
+            && region.containsPoint(center.x, center.y, center.z) && isTargetedByMob(player))
+            throw new IllegalStateException("a Mob is targeting you; leave the encounter region before exiting");
         if (startReceipts.containsKey(operationId)
             || engine.resultFor(encounterId, operationId) != null
             || engine.pendingOperation(encounterId, operationId) != null)
             throw new IllegalStateException("operation ID payload conflict");
         boolean otherPlayer = engine.stateView(encounterId).members().keySet().stream()
             .anyMatch(id -> !id.equals(player.getUUID()) && server.getPlayerList().getPlayer(id) != null);
+        if (!otherPlayer && hasPlayerInCombat(encounterId))
+            throw new IllegalStateException("cannot end turn-based mode while a player is targeted by a Mob");
         if (otherPlayer) leave(player.getUUID());
-        else stop(encounterId); // Preserve the explicitly bounded single-player prototype lifecycle.
+        else stop(encounterId);
         exitReceipts.put(operationId,
             new ExitRequestReceipt(player.getUUID(), encounterId, expectedVersion));
+        syncBodyStateTransitions();
+    }
+
+    /** Current vanilla target semantics, including loaded non-member mobs; never loads chunks. */
+    private boolean isTargetedByMob(ServerPlayer player) {
+        for (Entity entity : player.level().getAllEntities()) {
+            if (entity instanceof Mob mob && mob.isAlive() && mob.getTarget() == player) return true;
+        }
+        return false;
+    }
+
+    private boolean hasPlayerInCombat(UUID encounterId) {
+        return engine.stateView(encounterId).members().keySet().stream().map(this::resolve)
+            .filter(ServerPlayer.class::isInstance).map(ServerPlayer.class::cast)
+            .anyMatch(this::isTargetedByMob);
+    }
+
+    private boolean exitedRegion(Entity entity, UUID encounterId) {
+        return entity instanceof ServerPlayer && engine.encounterOf(entity.getUUID()) == null
+            && exitReceipts.values().stream().anyMatch(receipt -> receipt.owner().equals(entity.getUUID())
+                && engine.canonicalEncounterId(receipt.encounterId()).equals(encounterId));
     }
 
     public void resendResults(ServerPlayer player, UUID encounterId, int fromIndex) {
@@ -2733,9 +2776,11 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         if (!(entity.level() instanceof ServerLevel level)) return false;
         Vec3 center = entity.getBoundingBox().getCenter();
         String dimension = level.dimension().identifier().toString();
-        for (EncounterRegion region : regions.values()) {
+        for (var entry : regions.entrySet()) {
+            EncounterRegion region = entry.getValue();
             if (region.dimension().equals(dimension)
-                && region.containsPoint(center.x, center.y, center.z)) return true;
+                && region.containsPoint(center.x, center.y, center.z)
+                && !exitedRegion(entity, entry.getKey())) return true;
         }
         return false;
     }
