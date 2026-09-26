@@ -1,62 +1,87 @@
 package cc.sighs.dndturn.combat;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Predicate;
+import java.util.*;
+import java.util.function.Function;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.InteractionHand;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
-/** Tracking permission and last delivered display state; never owns simulation authority. */
+/** Only observer lifetimes and last delivered values. Facts come from ServerCombatService. */
 public final class ServerEntityProjections {
     private final MinecraftServer server;
     private final UUID generation;
-    private final Predicate<Entity> paused;
-    private final Map<UUID, Map<UUID, Boolean>> tracked = new HashMap<>();
+    private final Function<Entity, PresentationState.Facts> facts;
+    private record Display(UUID instance, int runtimeId, String dimension, PresentationState.Facts facts) {}
+    private record Observer(UUID instance, String dimension) {}
+    private final Map<UUID, Map<UUID, Display>> tracked = new HashMap<>();
+    private final Map<UUID, Observer> observers = new HashMap<>();
     private long sequence;
 
-    public ServerEntityProjections(MinecraftServer server, UUID generation, Predicate<Entity> paused) {
-        this.server = server;
-        this.generation = generation;
-        this.paused = paused;
+    public ServerEntityProjections(MinecraftServer server, UUID generation, Function<Entity, PresentationState.Facts> facts) {
+        this.server = server; this.generation = generation; this.facts = facts;
     }
-
+    private static UUID instance(Entity entity) { return ((PresentationIdentity)entity).dndturn$presentationInstance(); }
+    private static String dimension(Entity entity) { return entity.level().dimension().identifier().toString(); }
+    private Map<UUID, Display> viewer(ServerPlayer viewer) {
+        var identity = new Observer(instance(viewer), dimension(viewer));
+        if (!identity.equals(observers.put(viewer.getUUID(), identity))) tracked.remove(viewer.getUUID());
+        return tracked.computeIfAbsent(viewer.getUUID(), ignored -> new HashMap<>());
+    }
     public void start(ServerPlayer viewer, Entity entity) {
-        tracked.computeIfAbsent(viewer.getUUID(), ignored -> new HashMap<>()).put(entity.getUUID(), null);
-        send(viewer, entity, true);
+        viewer(viewer).put(entity.getUUID(), null);
+        send(viewer, entity, true, null);
     }
-
     public void stop(ServerPlayer viewer, Entity entity) {
-        Map<UUID, Boolean> values = tracked.get(viewer.getUUID());
-        if (values != null) values.remove(entity.getUUID());
-        send(viewer, entity, false);
+        var values = viewer(viewer);
+        var previous = values.get(entity.getUUID());
+        if (previous != null && !previous.instance().equals(instance(entity))) return;
+        values.remove(entity.getUUID());
+        send(viewer, entity, false, null);
     }
-
-    public void removeViewer(UUID viewer) { tracked.remove(viewer); }
-    public void clear() { tracked.clear(); }
-
+    public void removeViewer(UUID viewer) { tracked.remove(viewer); observers.remove(viewer); }
+    public void clear() { tracked.clear(); observers.clear(); }
     public void sync() {
-        for (var viewerEntry : tracked.entrySet()) {
-            ServerPlayer viewer = server.getPlayerList().getPlayer(viewerEntry.getKey());
-            if (viewer == null) continue;
-            for (UUID id : java.util.Set.copyOf(viewerEntry.getValue().keySet())) {
-                Entity entity = viewer.level().getEntity(id);
-                if (entity == null) { viewerEntry.getValue().remove(id); continue; }
-                send(viewer, entity, true);
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) viewer(player).putIfAbsent(player.getUUID(), null);
+        for (var entry : tracked.entrySet()) {
+            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (player == null) continue;
+            for (UUID id : Set.copyOf(entry.getValue().keySet())) {
+                Entity entity = player.level().getEntity(id);
+                if (entity == null) { entry.getValue().remove(id); continue; }
+                send(player, entity, true, null);
             }
         }
         tracked.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
+        observers.keySet().retainAll(tracked.keySet());
     }
-
-    private void send(ServerPlayer viewer, Entity entity, boolean active) {
-        boolean hold = active && paused.test(entity);
-        Map<UUID, Boolean> values = tracked.get(viewer.getUUID());
-        if (active && values != null && Boolean.valueOf(hold).equals(values.get(entity.getUUID()))) return;
-        long next = Math.addExact(sequence, 1);
-        sequence = next;
-        if (CombatNetwork.sendEntitySimulation(viewer, new CombatNetwork.EntitySimulation(generation, next,
-            entity.getUUID(), entity.level().dimension().identifier().toString(), active, hold))
-            && active && values != null) values.put(entity.getUUID(), hold);
+    public void movement(Entity entity, PresentationState.Movement evidence) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (player == entity || viewer(player).containsKey(entity.getUUID())) send(player, entity, true, evidence);
+    }
+    public void swing(LivingEntity entity, UUID encounter, UUID operation, InteractionHand hand) {
+        // No event history: admission/ledger controls emission; tracking/reconnect sends only a baseline.
+        var animation = entity.getItemInHand(hand).getSwingAnimation();
+        var event = new CombatNetwork.TacticalSwing(generation, encounter, entity.getUUID(), entity.getId(),
+            instance(entity), operation, ++sequence, hand, animation);
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player != entity && !viewer(player).containsKey(entity.getUUID())) continue;
+            if (!dimension(player).equals(dimension(entity))) continue;
+            send(player, entity, true, null);
+            if (NetworkRegistry.hasChannel(player.connection, CombatNetwork.TacticalSwing.TYPE.id()))
+                PacketDistributor.sendToPlayer(player, event);
+        }
+    }
+    private void send(ServerPlayer player, Entity entity, boolean active, PresentationState.Movement movement) {
+        if (!dimension(player).equals(dimension(entity))) return;
+        var values = viewer(player);
+        var display = new Display(instance(entity), entity.getId(), dimension(entity), facts.apply(entity));
+        if (active && movement == null && display.equals(values.get(entity.getUUID()))) return;
+        if (CombatNetwork.sendEntitySimulation(player, new CombatNetwork.EntitySimulation(generation, ++sequence,
+            entity.getUUID(), entity.getId(), display.instance(), display.dimension(), active, display.facts(), movement))
+            && active) values.put(entity.getUUID(), display);
     }
 }

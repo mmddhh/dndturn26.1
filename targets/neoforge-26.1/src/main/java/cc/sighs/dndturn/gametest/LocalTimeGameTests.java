@@ -78,6 +78,8 @@ public final class LocalTimeGameTests {
         TEST_FUNCTIONS.register("cell_probe", () -> LocalTimeGameTests::cellProbe);
     public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> REPAIR_VALUES =
         TEST_FUNCTIONS.register("repair_values", () -> RepairGameTests::values);
+    public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> PRESENTATION_PROTOCOL =
+        TEST_FUNCTIONS.register("presentation_protocol", () -> PresentationGameTests::protocol);
     public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TACTICAL_CROSSBOW =
         TEST_FUNCTIONS.register("tactical_crossbow", () -> TacticalPlanGameTests::crossbow);
     public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TACTICAL_SNOWBALL =

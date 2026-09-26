@@ -13,7 +13,7 @@ import net.minecraft.world.item.ItemStack;
 /** Complete stack value comparison, including count and all serialized components. */
 public final class TacticalItems {
     private TacticalItems() {}
-    public static String revision(Player player, ItemStack stack) {
+    public static String revision(net.minecraft.world.entity.LivingEntity player, ItemStack stack) {
         if (stack.isEmpty()) return "empty";
         JsonElement value = ItemStack.CODEC.encodeStart(player.registryAccess().createSerializationContext(JsonOps.INSTANCE), stack)
             .getOrThrow();

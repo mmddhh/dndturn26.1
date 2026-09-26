@@ -15,7 +15,11 @@ public final class DNDTurnNeoForge261Client {
         modBus.addListener(DNDTurnNeoForge261Client::registerPayloads);
         modBus.addListener(CombatControls::registerKeys);
         modBus.addListener(CombatControls::registerHud);
+        modBus.addListener(cc.sighs.dndturn.client.ClientPresentation::register);
+        modBus.addListener(cc.sighs.dndturn.client.ClientPresentationRegression::renderers);
         NeoForge.EVENT_BUS.addListener(ClientCombatState::onClientTick);
+        NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.client.ClientPresentation::tick);
+        NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.client.ClientPresentation::leave);
         NeoForge.EVENT_BUS.addListener(CombatControls::onClientTick);
         NeoForge.EVENT_BUS.addListener(CombatControls::onKeyInput);
     }
@@ -25,6 +29,7 @@ public final class DNDTurnNeoForge261Client {
         event.register(cc.sighs.dndturn.combat.TacticalNetwork.Projection.TYPE, cc.sighs.dndturn.client.ClientTacticalPlan::receive);
         event.register(CombatNetwork.BodyState.TYPE, ClientCombatState::receive);
         event.register(CombatNetwork.EntitySimulation.TYPE, cc.sighs.dndturn.client.ClientEntitySimulation::receive);
+        event.register(CombatNetwork.TacticalSwing.TYPE, cc.sighs.dndturn.client.ClientPresentation::receiveSwing);
         event.register(CombatNetwork.EncounterState.TYPE, ClientCombatState::receiveEncounter);
         event.register(CombatNetwork.ResultNotice.TYPE, ClientCombatState::receiveResult);
         event.register(CombatNetwork.IntentStatus.TYPE, ClientCombatState::receiveIntentStatus);

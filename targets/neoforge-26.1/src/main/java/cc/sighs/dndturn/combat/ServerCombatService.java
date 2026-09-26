@@ -133,6 +133,7 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         String forcedCause;
         int baseCost;
         boolean jumped;
+        double presentationHorizontal;
 
         PlayerMoveLease(UUID encounterId, UUID operationId, UUID playerId) {
             this.encounterId = encounterId;
@@ -207,7 +208,7 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         this.config = ServerCombatConfig.load(server);
         this.consent = new ServerConsentCoordinator(server, generation, this::isMember,
             this::sampleConsentRegion, this::commitConsentedEncounter);
-        this.entityProjections = new ServerEntityProjections(server, generation, this::clientEntityPaused);
+        this.entityProjections = new ServerEntityProjections(server, generation, this::presentationFacts);
         this.savedData = java.util.Objects.requireNonNull(savedData);
         CombatEngine restored = null;
         CombatPersistenceEnvelope saved = null;
@@ -987,6 +988,7 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         if (lease.observedTick != tick) lease.forcedCause = null;
         lease.observedTick = tick;
         lease.moved = true;
+        lease.presentationHorizontal += actor.position().subtract(before).horizontalDistance();
         lease.baseCost = Math.max(lease.baseCost, waterBefore || actor.isInWater()
             || waterInLoadedBody(actor.level(), actor.getBoundingBox()) != 0 ? 2 : 1);
         lease.jumped |= jumped;
@@ -1248,6 +1250,10 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
             active ? "vanilla Mob navigation displacement, preauthorized=" + lease.authorizedCost
                 : "passive Mob displacement" + (force == null ? "" : " " + force.description()),
             cost, 0, terminal);
+        entityProjections.movement(mob, new PresentationState.Movement(lease.operationId, lease.step,
+            ++presentationMovementSequence, active ? PresentationState.Motion.ACTIVE
+                : force != null ? PresentationState.Motion.FORCED : PresentationState.Motion.PASSIVE,
+            mob.position().subtract(before).horizontalDistance()));
         lease.step++;
         lease.spent += cost;
         if (terminal) revokeMobLease(lease);
@@ -1418,6 +1424,12 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
                 + lease.forcedCause + " at server tick "
                 : "vanilla player displacement at server tick ") + lease.observedTick,
             cost, 0, terminal);
+        var presentationActor = server.getPlayerList().getPlayer(lease.playerId);
+        if (presentationActor != null) entityProjections.movement(presentationActor, new PresentationState.Movement(
+            lease.operationId, lease.nextStep, ++presentationMovementSequence,
+            lease.mixedTick ? PresentationState.Motion.MIXED : PresentationState.Motion.ACTIVE,
+            lease.mixedTick ? 0 : lease.presentationHorizontal));
+        lease.presentationHorizontal = 0;
         lease.nextStep++;
         lease.observedSteps++;
         lease.spentTicks += cost;
@@ -1973,6 +1985,8 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
         UUID damageId = null;
         boolean effectStarted = false;
         try {
+        // Admission above is the once-only operation boundary, including misses and zero damage.
+        entityProjections.swing(actor, encounterId, operationId, net.minecraft.world.InteractionHand.MAIN_HAND);
         CombatRules.RollMode rollMode = CombatRules.mode(openingAdvantage,
             state.members().get(targetId).dodging());
         CombatRules.AttackRoll roll = CombatRules.rollAttack(
@@ -2016,6 +2030,9 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
             var observed = TacticalDamageContext.hurtObserved(level, target, source, tacticalDamage,
                 settingsFor(encounterId).tacticalKnockbackEnabled(), damageId);
             boolean accepted = observed.accepted();
+            if (accepted && roll.critical()) level.getChunkSource().sendToTrackingPlayersAndSelf(target,
+                new net.minecraft.network.protocol.game.ClientboundAnimatePacket(target,
+                    net.minecraft.network.protocol.game.ClientboundAnimatePacket.CRITICAL_HIT));
             if (accepted && actor instanceof ServerPlayer player) {
                 ItemStack weapon = player.getMainHandItem();
                 if (weapon.hurtEnemy(target, player)) weapon.postHurtEnemy(target, player);
@@ -2811,6 +2828,32 @@ public final class ServerCombatService implements RegionalScheduledTicks.RegionA
     }
 
     public ServerEntityProjections entityProjections() { return entityProjections; }
+
+    private long presentationMovementSequence;
+
+    /** Read-only projection of the same membership, region and lease facts used by simulation gates. */
+    public PresentationState.Facts presentationFacts(Entity entity) {
+        requireThread();
+        UUID member = engine.encounterOf(entity.getUUID());
+        UUID controller = null;
+        Vec3 center = entity.getBoundingBox().getCenter();
+        for (var entry : regions.entrySet()) {
+            if (entry.getValue().dimension().equals(entity.level().dimension().identifier().toString())
+                && entry.getValue().containsPoint(center.x, center.y, center.z) && !exitedRegion(entity, entry.getKey())) {
+                controller = entry.getKey(); break;
+            }
+        }
+        var use = PresentationState.Use.STOPPED;
+        if (controller != null && entity instanceof LivingEntity living && living.isUsingItem()) {
+            UUID identity = tacticalActions == null ? null : tacticalActions.presentationUseId(entity.getUUID());
+            if (identity == null) identity = ((PresentationUseIdentity)living).dndturn$useIdentity();
+            if (identity != null) use = new PresentationState.Use(identity, living.getUsedItemHand(), TacticalItems.revision(living, living.getUseItem()),
+                Math.max(0, living.getTicksUsingItem()), Math.max(0, living.getUseItemRemainingTicks()));
+        }
+        boolean paused = entity instanceof ServerPlayer player ? MinecraftCombatRuntime.isBodyPaused(player) : clientEntityPaused(entity);
+        return new PresentationState.Facts(member, controller,
+            controller == null ? "RELEASED" : engine.stateView(controller).phase().name(), paused, use);
+    }
 
     private boolean clientEntityPaused(Entity entity) {
         if (quarantinedProjectiles.containsKey(entity.getUUID())) return true;

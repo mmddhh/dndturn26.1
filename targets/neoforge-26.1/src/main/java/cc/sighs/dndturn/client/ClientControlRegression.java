@@ -31,14 +31,28 @@ public final class ClientControlRegression {
     private static int activeStage, stageTicks;
     private static Object oldPlayer;
     private static net.minecraft.core.BlockPos placed;
-    private static Runnable replayOptions, replayRunning;
+    private static volatile Runnable replayOptions;
+    private static Runnable replayRunning;
+    private static volatile boolean holdOptions;
+    private static int queryRequestCount;
     private static boolean cancelledSelection;
-    static void captureOptions(Runnable replay) { replayOptions = replay; }
+    private static volatile cc.sighs.dndturn.combat.TacticalNetwork.Request lastTacticalRequest;
+    private static boolean attackReplayed;
+    public static void receivedSwing(net.minecraft.world.entity.Entity entity) {
+        if (Boolean.getBoolean("dndturn.controlProbe") && entity != null && entity == Minecraft.getInstance().player)
+            packets.merge("RECEIVED_SELF_SWING", 1, Integer::sum);
+    }
+    static boolean captureOptions(Runnable replay) { replayOptions = replay; return holdOptions; }
     static void captureRunningProjection(Runnable replay) { replayRunning = replay; }
     private ClientControlRegression() {}
     public static void packet(Packet<?> packet) {
         if (!Boolean.getBoolean("dndturn.controlProbe") && !Boolean.getBoolean("dndturn.uiSmoke")) return;
         String name = packet.getClass().getSimpleName();
+        if (packet instanceof net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket custom
+            && custom.payload() instanceof cc.sighs.dndturn.combat.TacticalNetwork.Request request) {
+            packets.merge("TACTICAL_REQUEST", 1, Integer::sum);
+            if (Boolean.getBoolean("dndturn.controlProbe")) lastTacticalRequest = request;
+        }
         if (name.startsWith("Serverbound") || packet instanceof net.minecraft.network.protocol.game.ServerboundMovePlayerPacket)
             packets.merge(name, 1, Integer::sum);
         if (actor != null && packet instanceof net.minecraft.network.protocol.game.ServerboundMovePlayerPacket move
@@ -73,6 +87,8 @@ public final class ClientControlRegression {
                 if (Boolean.getBoolean("dndturn.controlProbe.requirePeer")) mc.player.connection.sendCommand("tp DNDCameraPeer -1.5 120 2.5");
                 if (Boolean.getBoolean("dndturn.controlProbe.activeCombat"))
                     mc.player.connection.sendCommand("summon minecraft:zombie 5.5 120 0.5 {PersistenceRequired:1b,NoAI:1b,Tags:[\"dndturn_control_probe\"]}");
+                if (Boolean.getBoolean("dndturn.controlProbe.visual"))
+                    mc.player.connection.sendCommand("effect give @e[type=minecraft:zombie,tag=dndturn_control_probe] minecraft:glowing 120 0 false");
             }
             if (!requested && ticks > 160) {
                 if (Boolean.getBoolean("dndturn.controlProbe.activeCombat")) {
@@ -95,6 +111,10 @@ public final class ClientControlRegression {
             }
             if (ClientCombatState.encounter() == null) return;
             ++age;
+            if (Boolean.getBoolean("dndturn.controlProbe.visual") && age > 56) {
+                if (ClientPresentationRegression.tick()) finish("PASS: physical .84 client protocol 17; finite main/off-hand clips and dedup; four-tick ownership release; independent encounter projections; hurt residue/new hurt; vanilla swing; Player/Zombie/Bat/item and Frog/Warden counterexamples; item-use matching/stopping and bow/crossbow properties; movement evidence dedup/attribution; global freeze; entity unload/ID reuse/generation rejection.");
+                return;
+            }
             if (Boolean.getBoolean("dndturn.controlProbe.activeCombat") && age > 56) { planTick(); return; }
             if (age == 0) {
                 mc.options.guiScale().set(Integer.getInteger("dndturn.controlProbe.scale", 2));
@@ -218,7 +238,42 @@ public final class ClientControlRegression {
                 if (!mc.player.getUUID().equals(state.current())) return;
                 TacticalOverlay.closePanel(); ClientTacticalPlan.cancel(); ClientControl.home();
                 actor = mc.player.position(); budget = state.movementTicks();
+                queryRequestCount = packets.getOrDefault("TACTICAL_REQUEST", 0);
+                activeStage = -4; stageTicks = 0;
+            }
+            case -4 -> {
+                if (stageTicks < 5) return;
+                replayOptions = null; holdOptions = true;
+                pointAt(actor.add(2,0,0)); button(0,1); button(0,0);
+                require(ClientTacticalPlan.phase()==ClientTacticalPlan.Phase.QUERYING,"ground query is not cancellable");
+                rawKey(GLFW.GLFW_KEY_ESCAPE);
+                require(mc.screen==null && ClientTacticalPlan.phase()==ClientTacticalPlan.Phase.IDLE,"Esc did not consume ground query");
                 nextStage();
+            }
+            case -3 -> {
+                if (replayOptions == null) return;
+                var delayed = replayOptions; holdOptions = false;
+                delayed.run(); delayed.run(); nextStage();
+            }
+            case -2 -> {
+                if (stageTicks < 10) return;
+                require(ClientTacticalPlan.phase()==ClientTacticalPlan.Phase.IDLE && ClientTacticalPlan.offers().isEmpty()
+                    && ClientTacticalPlan.inspected()==null && mc.screen==null,"delayed ground Options revived selection/menu");
+                require(!ClientTacticalPlan.running() && !state.moving() && actor.distanceToSqr(mc.player.position())<1e-8
+                    && state.movementTicks()==budget && packets.getOrDefault("TACTICAL_REQUEST",0)==queryRequestCount,
+                    "cancelled ground query sent a Request or gained movement");
+                pointAt(actor.add(2,0,0)); button(0,1); button(0,0);
+                button(1,1); button(1,0);
+                require(ClientTacticalPlan.phase()==ClientTacticalPlan.Phase.IDLE,"right click did not cancel ground query");
+                button(1,1); button(1,0); nextStage();
+            }
+            case -1 -> {
+                if (stageTicks < 10 || ClientTacticalPlan.offers().isEmpty()) return;
+                require(ClientTacticalPlan.phase()==ClientTacticalPlan.Phase.CONTEXT_MENU && !ClientTacticalPlan.running()
+                    && packets.getOrDefault("TACTICAL_REQUEST",0)==queryRequestCount,
+                    "context discovery inherited ground auto-submit");
+                rawKey(GLFW.GLFW_KEY_ESCAPE);
+                activeStage = 1; stageTicks = 0;
             }
             case 1 -> {
                 if (stageTicks == 5) { pointAt(actor.add(2,0,0)); button(1,1); button(1,0); }
@@ -231,6 +286,10 @@ public final class ClientControlRegression {
             case 2 -> {
                 if (stageTicks < 20 || ClientTacticalPlan.running()) return;
                 require(mc.player.position().distanceToSqr(actor)>1 && state.movementTicks()<budget,"raw ground click did not move and charge");
+                if (Boolean.getBoolean("dndturn.controlProbe.queryOnly")) {
+                    finish("PASS: raw ground click/Esc before held Options; duplicate delayed replies cause no Request, permit, movement or revived UI; right-click cancellation and replacement menu discovery do not auto-submit; uncancelled ground click moves and charges.");
+                    return;
+                }
                 rawKey(GLFW.GLFW_KEY_1); rawKey(GLFW.GLFW_KEY_2); rawKey(GLFW.GLFW_KEY_3); nextStage();
             }
             case 3 -> {
@@ -260,6 +319,12 @@ public final class ClientControlRegression {
             case 5 -> {
                 if (stageTicks<20 || ClientTacticalPlan.running()) return;
                 require(state.phase()==cc.sighs.dndturn.combat.EncounterPhase.ACTIVE,"raw attack did not activate: "+ClientTacticalPlan.description());
+                require(packets.getOrDefault("RECEIVED_SELF_SWING", 0) == 1, "attack/retry did not emit exactly one swing");
+                if (!attackReplayed) {
+                    require(lastTacticalRequest != null, "missing attack request for retry");
+                    net.neoforged.neoforge.client.network.ClientPacketDistributor.sendToServer(lastTacticalRequest);
+                    attackReplayed = true; stageTicks = 0; return;
+                }
                 require(actor.distanceToSqr(mc.player.position())>.1,"raw attack did not approach");
                 require(ClientControl.mode()==ClientControl.Mode.CAMERA,"plan changed camera mode");
                 if (Boolean.getBoolean("dndturn.controlProbe.requirePeer")) {
@@ -548,6 +613,7 @@ public final class ClientControlRegression {
     private static void finish(String result) {
         done = true;
         replayOptions = null; replayRunning = null;
+        holdOptions = false;
         if (savedForward != null) {
             Minecraft.getInstance().options.keyUp.setKey(savedForward);
             net.minecraft.client.KeyMapping.resetMapping(); savedForward = null;

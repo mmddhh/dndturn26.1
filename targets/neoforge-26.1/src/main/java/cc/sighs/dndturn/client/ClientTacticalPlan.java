@@ -16,7 +16,7 @@ public final class ClientTacticalPlan {
     private static TacticalNetwork.Projection projection;
     private static long sequence = -1;
     private static UUID requested;
-    public enum Phase { IDLE, TARGETING, CONTEXT_MENU, AWAITING_SERVER, EXECUTING, CANCEL_PENDING }
+    public enum Phase { IDLE, TARGETING, QUERYING, CONTEXT_MENU, AWAITING_SERVER, EXECUTING, CANCEL_PENDING }
     private static Phase phase = Phase.IDLE;
     private static long revision;
     private static int slot;
@@ -33,7 +33,7 @@ public final class ClientTacticalPlan {
         if (running() || !abilities.contains(value)) return;
         invalidate(); arming = false; behavior = value.id(); phase = Phase.TARGETING;
         reason = value.label() + " · 请选择目标";
-        if (value.targets().contains(TacticalIntent.TargetKind.SELF)) { submitAfterQuery = true; target(null,null); }
+        if (value.targets().contains(TacticalIntent.TargetKind.SELF)) target(null, null, true);
     }
     public static UUID inspected() { return selectedTarget == null ? null : selectedTarget.entity(); }
     public static void inspect(UUID value) {
@@ -50,14 +50,14 @@ public final class ClientTacticalPlan {
         target(null, null);
     }
     public static void worldClick(boolean right, UUID entity, net.minecraft.world.phys.BlockHitResult hit) {
-        if (right && (phase == Phase.TARGETING || phase == Phase.CONTEXT_MENU || running())) { cancel(); return; }
+        if (right && phase != Phase.IDLE) { cancel(); return; }
         if (running()) return;
         if (arming) { reason = "等待服务器确认物品"; return; }
         if (right) { slot = Minecraft.getInstance().player.getInventory().getSelectedSlot(); behavior = null; arming = false; phase = Phase.CONTEXT_MENU; target(entity, hit); return; }
-        if (phase == Phase.TARGETING) { arming = false; submitAfterQuery = true; target(entity, hit); return; }
+        if (phase == Phase.TARGETING || phase == Phase.QUERYING) { arming = false; target(entity, hit, true); return; }
         if (entity != null) { inspect(entity); return; }
         slot = Minecraft.getInstance().player.getInventory().getSelectedSlot();
-        behavior = "dndturn:move"; submitAfterQuery = true; arming = false; target(null, hit);
+        behavior = "dndturn:move"; arming = false; target(null, hit, true);
     }
     private static long terminalVersion;
     private static boolean endAfterCancel;
@@ -67,7 +67,7 @@ public final class ClientTacticalPlan {
     public static java.util.List<TacticalNetwork.Offer> offers() { return options == null ? java.util.List.of() : options.offers(); }
     public static void toggleHand() { if (running()) return; preferredCost = null; confirmedItem = null; invalidate(); hand = hand == TacticalIntent.Hand.MAIN_HAND ? TacticalIntent.Hand.OFF_HAND : TacticalIntent.Hand.MAIN_HAND; arming = true; phase = Phase.TARGETING; behavior = null; target(null, null); }
     public static void receiveOptions(TacticalNetwork.Options value, IPayloadContext context) {
-        if (Boolean.getBoolean("dndturn.controlProbe")) ClientControlRegression.captureOptions(() -> receiveOptions(value, context));
+        if (Boolean.getBoolean("dndturn.controlProbe") && ClientControlRegression.captureOptions(() -> receiveOptions(value, context))) return;
         var connection = context.connection(); var level = Minecraft.getInstance().level; var player = Minecraft.getInstance().player;
         context.enqueueWork(() -> {
             var mc = Minecraft.getInstance(); var state = ClientCombatState.encounter();
@@ -105,7 +105,7 @@ public final class ClientTacticalPlan {
     }
     public static String description() {
         String stage = switch (phase) {
-            case IDLE -> "空闲"; case TARGETING -> "选择目标"; case CONTEXT_MENU -> "目标菜单";
+            case IDLE -> "空闲"; case TARGETING -> "选择目标"; case QUERYING -> "查询目标"; case CONTEXT_MENU -> "目标菜单";
             case AWAITING_SERVER -> "等待确认"; case EXECUTING -> "执行中"; case CANCEL_PENDING -> "等待取消";
         };
         String target = "";
@@ -163,6 +163,9 @@ public final class ClientTacticalPlan {
                 state.version(), null, true));
     }
     public static void target(UUID entity, net.minecraft.world.phys.BlockHitResult hit) {
+        target(entity, hit, false);
+    }
+    private static void target(UUID entity, net.minecraft.world.phys.BlockHitResult hit, boolean autoSubmit) {
         var mc = Minecraft.getInstance();
         var state = ClientCombatState.encounter();
         if (state == null || mc.player == null || running()) return;
@@ -177,7 +180,10 @@ public final class ClientTacticalPlan {
                 hit.getDirection().ordinal(), Math.clamp(local.x, 0, 1), Math.clamp(local.y, 0, 1), Math.clamp(local.z, 0, 1));
         }
         selectedTarget = target;
-        revision++; queryId = UUID.randomUUID(); options = null;
+        // Submission belongs to this query only; discovery must never inherit it.
+        invalidate(); queryId = UUID.randomUUID(); submitAfterQuery = autoSubmit;
+        if (autoSubmit) phase = Phase.QUERYING;
+        else if (phase == Phase.IDLE || phase == Phase.QUERYING) phase = Phase.TARGETING;
         ClientPacketDistributor.sendToServer(new TacticalNetwork.Query(state.generation(), state.encounterId(), queryId, target, hand, hand == TacticalIntent.Hand.MAIN_HAND ? slot : 40, revision, confirmedItem));
         reason = "查询可用行为";
     }

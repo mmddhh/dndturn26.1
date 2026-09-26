@@ -21,6 +21,10 @@ public final class TacticalActions {
     private final Map<UUID, Selection> selections = new HashMap<>();
     private record ContainerPermit(UUID encounter, long round, BlockPos pos, int menu) {}
     private final Map<UUID, ContainerPermit> containers = new HashMap<>();
+    UUID presentationUseId(UUID owner) {
+        var execution = executions.get(owner);
+        return execution == null ? null : execution.action;
+    }
     public boolean mayUseContainer(ServerPlayer player) {
         var permit = containers.get(player.getUUID());
         if (permit == null || !permit.encounter().equals(service.encounterOf(player.getUUID()))

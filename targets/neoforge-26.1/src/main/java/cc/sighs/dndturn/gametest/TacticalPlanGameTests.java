@@ -57,9 +57,21 @@ public final class TacticalPlanGameTests {
             helper.assertTrue(player.getMainHandItem().getCount() == 7, "duplicate plan repeated placement");
             BlockPos chest = base.offset(-1, 0, 0);
             level.setBlockAndUpdate(chest, Blocks.CHEST.defaultBlockState());
+            var events = ((cc.sighs.dndturn.mixin.BlockEventsAccessor)level).dndturn$blockEvents();
+            // A stale signal from before regional suspension must not overwrite a newer close.
+            events.add(new net.minecraft.world.level.BlockEventData(chest, Blocks.CHEST, 1, 1));
+            helper.assertTrue(ChestPresentation.accepts(level, chest, Blocks.CHEST, 1), "normal chest lid was not classified");
             service.tacticalActions().request(player, request(player, service, id, TacticalIntent.Capability.USE_BLOCK, chest));
             helper.assertTrue(service.tacticalActions().mayUseContainer(player), "free chest did not grant bounded container access after action spent");
             player.closeContainer();
+            helper.assertTrue(events.stream().noneMatch(e -> e.pos().equals(chest) && e.paramA() == 1),
+                "closed chest retained a stale queued lid target");
+            level.blockEvent(chest, Blocks.CHEST, 2, 1);
+            helper.assertTrue(events.stream().anyMatch(e -> e.pos().equals(chest) && e.paramA() == 2),
+                "unclassified event bypassed the simulation queue");
+            helper.assertTrue(!ChestPresentation.accepts(level, chest, Blocks.PISTON, 1)
+                && !ChestPresentation.accepts(level, chest, Blocks.TRAPPED_CHEST, 1),
+                "simulation block was classified as a lid signal");
             service.stop(id);
             service.requestStart(player, UUID.randomUUID());
             id = service.encounterOf(player.getUUID());
@@ -309,7 +321,8 @@ public final class TacticalPlanGameTests {
     private static void rangedReady(GameTestHelper helper, net.minecraft.world.item.Item weapon, int arena) {
         var player = helper.makeMockServerPlayerInLevel();
         var level = helper.getLevel();
-        BlockPos base = helper.absolutePos(new BlockPos(arena, 151, 1));
+        // Keep distant ranged fixtures in dedicated stable chunks, independent of the randomized test structure origin.
+        BlockPos base = new BlockPos(arena, 151, 1);
         Set<Long> forced = new HashSet<>();
         for (int x = (base.getX() - 24) >> 4; x <= (base.getX() + 24) >> 4; x++)
             for (int z = (base.getZ() - 24) >> 4; z <= (base.getZ() + 24) >> 4; z++) {
@@ -324,6 +337,9 @@ public final class TacticalPlanGameTests {
         for (var leftover : level.getEntitiesOfClass(net.minecraft.world.entity.monster.zombie.Zombie.class,
                 new net.minecraft.world.phys.AABB(base).inflate(20))) leftover.discard();
         helper.runAfterDelay(20, () -> {
+        var priorDifficulty = level.getDifficulty();
+        level.getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
+        helper.runAtTickTime(199, () -> level.getServer().setDifficulty(priorDifficulty, true));
         var zombie = net.minecraft.world.entity.EntityType.ZOMBIE.create(level,net.minecraft.world.entity.EntitySpawnReason.STRUCTURE);
         zombie.setPos(base.getX()+3.5,base.getY(),base.getZ()+.5);
         helper.assertTrue(level.addFreshEntity(zombie),"ranged fixture registration failed");
@@ -331,13 +347,14 @@ public final class TacticalPlanGameTests {
         zombie.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
         zombie.setNoAi(true); zombie.setNoGravity(true);
         zombie.setPos(base.getX()+3.5, base.getY(), base.getZ()+.5);
-        helper.runAfterDelay(5, () -> {
+        helper.startSequence().thenWaitUntil(() -> helper.assertTrue(level.getEntity(zombie.getUUID()) == zombie,
+            "ranged fixture not visible after registration: " + zombie.getRemovalReason() + " difficulty=" + level.getDifficulty())).thenExecute(() -> {
         var service = ServerCombatService.forServer(level.getServer());
-        helper.assertTrue(level.getEntity(zombie.getUUID()) == zombie,"ranged fixture not visible after registration");
         service.requestStart(player, UUID.randomUUID());
         UUID encounter = service.encounterOf(player.getUUID());
         Runnable cleanup = () -> {
             service.stop(encounter); zombie.discard();
+            level.getServer().setDifficulty(priorDifficulty, true);
             for (long packed : forced) { var c = net.minecraft.world.level.ChunkPos.unpack(packed); level.setChunkForced(c.x(), c.z(), false); }
             forced.clear();
         };

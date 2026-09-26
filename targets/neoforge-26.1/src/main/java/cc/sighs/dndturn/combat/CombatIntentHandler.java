@@ -10,7 +10,7 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 public final class CombatIntentHandler {
     private CombatIntentHandler() {}
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("15");
+        var registrar = event.registrar("17");
         registrar.playToServer(TacticalNetwork.Query.TYPE, TacticalNetwork.Query.CODEC, (payload, context) -> context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player)
                 net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,

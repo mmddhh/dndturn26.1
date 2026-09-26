@@ -207,3 +207,14 @@ X01–X13 仍为排除或替代决定：不恢复自然索敌自动建场、同�
 - 全套 GameTest 的 `scheduled_tick_hold` 与 `arrow_pending_removal` 在本轮不同运行间出现间歇失败；需要独立定位随机场地/调度依赖。最终一次全绿不能证明稳定性，失败日志见验证记录。
 
 固定版本接入与实际运行证据分别见 [gameplay-chain](version-differences/neoforge-26.1.2.84-gameplay-chain.md) 和 [161358-validation](version-differences/neoforge-26.1.2.84-161358-validation.md)。
+
+### G36 — 视觉层剩余验收与运行失败
+
+- 双客户端在攻击前的既有 `peer camera/actor was changed by primary` 探针断言失败；命中/未命中/致死与同请求重试的双客户端组合尚未验收。完整真实会话合并、退出不影响另一会话、卸载重追踪、死亡重生、换维度与重连仍需端到端覆盖；显式测试投影不替代这些场景。
+- 本轮完整 GameTest 最终 46/48：`tactical_behaviors` 夹具 chunk entity registration 超时，`scheduled_tick_hold` 退出后计划 tick 恢复断言失败。排查记录与成功范围见固定版本文档，不把构建成功写成全套测试通过。
+- 真实暂停菜单、第一/第三人称实际使用动作目视、主副手动画画面质量、恒定实测帧率和长时间运行仍需验收；30/60/144 是本轮配置上限，字段断言不替代目视或 GPU 帧时验证。
+- 食饮粒子/声音、未知自定义模型和专属实体发射器仍需逐类审计。支持边界明确为原版 Player/Zombie/Bat/掉落物适配对；其他 renderer 保留原版字段，不补跑模拟。
+- 箱盖即时桥接仅限普通原版 ChestBlockEntity；陷阱箱、末影箱、潜影盒与模组容器需独立分类。远处镜头环境效果与箱盖画面仍需验收。
+- CAM-01 镜头地形高度问题仍为用户报告，根因与策略待核验。
+
+调查来源为根目录 `DNDTurn_180556_ACCEPTANCE_AND_VISUAL_INVESTIGATION.md`；查询取消的独立记录见 [180556-query-cancellation](version-differences/neoforge-26.1.2.84-180556-query-cancellation.md)。当前协议 17、精确 seam 与本轮实际通过/失败证据见 [visual-ownership](version-differences/neoforge-26.1.2.84-visual-ownership.md)，上一轮视觉记录见 [180556-visual](version-differences/neoforge-26.1.2.84-180556-visual.md)。

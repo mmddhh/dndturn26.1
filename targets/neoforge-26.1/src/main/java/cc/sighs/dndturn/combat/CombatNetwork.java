@@ -19,11 +19,12 @@ public final class CombatNetwork {
     private CombatNetwork() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("15");
+        var registrar = event.registrar("17");
         registrar.playToClient(TacticalNetwork.Options.TYPE, TacticalNetwork.Options.CODEC);
         registrar.playToClient(TacticalNetwork.Projection.TYPE, TacticalNetwork.Projection.CODEC);
         registrar.playToClient(BodyState.TYPE, BodyState.STREAM_CODEC);
         registrar.playToClient(EntitySimulation.TYPE, EntitySimulation.STREAM_CODEC);
+        registrar.playToClient(TacticalSwing.TYPE, TacticalSwing.STREAM_CODEC);
         registrar.playToClient(EncounterState.TYPE, EncounterState.STREAM_CODEC);
         registrar.playToClient(ResultNotice.TYPE, ResultNotice.STREAM_CODEC);
         registrar.playToClient(IntentStatus.TYPE, IntentStatus.STREAM_CODEC);
@@ -48,21 +49,65 @@ public final class CombatNetwork {
         return false;
     }
 
-    public record EntitySimulation(UUID generation, long sequence, UUID entityId,
-                                   String dimension, boolean tracked, boolean paused) implements CustomPacketPayload {
+    public record EntitySimulation(UUID generation, long sequence, UUID entityId, int runtimeId,
+                                   UUID instance, String dimension, boolean tracked,
+                                   PresentationState.Facts facts, PresentationState.Movement movement) implements CustomPacketPayload {
         public EntitySimulation {
             if (sequence < 0) throw new IllegalArgumentException("negative entity projection sequence");
+            java.util.Objects.requireNonNull(instance);
+            java.util.Objects.requireNonNull(facts);
         }
+        public boolean paused() { return facts.paused(); }
         public static final Type<EntitySimulation> TYPE = new Type<>(
             Identifier.fromNamespaceAndPath(DNDTurnNeoForge261.MOD_ID, "entity_simulation"));
         public static final StreamCodec<ByteBuf, EntitySimulation> STREAM_CODEC = StreamCodec.of((buffer, state) -> {
             writeUuid(buffer, state.generation()); buffer.writeLong(state.sequence());
-            writeUuid(buffer, state.entityId()); ByteBufCodecs.STRING_UTF8.encode(buffer, state.dimension());
-            buffer.writeBoolean(state.tracked()); buffer.writeBoolean(state.paused());
-        }, buffer -> new EntitySimulation(readUuid(buffer), buffer.readLong(), readUuid(buffer),
-            ByteBufCodecs.STRING_UTF8.decode(buffer), buffer.readBoolean(), buffer.readBoolean()));
+            writeUuid(buffer, state.entityId()); buffer.writeInt(state.runtimeId()); writeUuid(buffer, state.instance());
+            ByteBufCodecs.STRING_UTF8.encode(buffer, state.dimension()); buffer.writeBoolean(state.tracked());
+            var facts = state.facts(); writeOptionalId(buffer, facts.member()); writeOptionalId(buffer, facts.controller());
+            ByteBufCodecs.STRING_UTF8.encode(buffer, facts.phase()); buffer.writeBoolean(facts.paused());
+            var use = facts.use(); writeOptionalId(buffer, use.identity()); buffer.writeBoolean(use.hand() == net.minecraft.world.InteractionHand.OFF_HAND);
+            ByteBufCodecs.STRING_UTF8.encode(buffer, use.item()); buffer.writeInt(use.used()); buffer.writeInt(use.remaining());
+            var movement = state.movement(); buffer.writeBoolean(movement != null);
+            if (movement != null) {
+                writeUuid(buffer, movement.operation()); buffer.writeInt(movement.step()); buffer.writeLong(movement.sequence());
+                buffer.writeInt(movement.cause().ordinal()); buffer.writeDouble(movement.horizontal());
+            }
+        }, buffer -> {
+            UUID generation = readUuid(buffer); long sequence = buffer.readLong(); UUID entity = readUuid(buffer);
+            int runtimeId = buffer.readInt(); UUID instance = readUuid(buffer); String dimension = ByteBufCodecs.STRING_UTF8.decode(buffer);
+            boolean tracked = buffer.readBoolean(); UUID member = readOptionalId(buffer), controller = readOptionalId(buffer);
+            String phase = ByteBufCodecs.STRING_UTF8.decode(buffer); boolean paused = buffer.readBoolean();
+            var use = new PresentationState.Use(readOptionalId(buffer), buffer.readBoolean() ? net.minecraft.world.InteractionHand.OFF_HAND : net.minecraft.world.InteractionHand.MAIN_HAND,
+                ByteBufCodecs.STRING_UTF8.decode(buffer), buffer.readInt(), buffer.readInt());
+            var movement = buffer.readBoolean() ? new PresentationState.Movement(readUuid(buffer), buffer.readInt(), buffer.readLong(),
+                PresentationState.Motion.values()[buffer.readInt()], buffer.readDouble()) : null;
+            return new EntitySimulation(generation, sequence, entity, runtimeId, instance, dimension, tracked,
+                new PresentationState.Facts(member, controller, phase, paused, use), movement);
+        });
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
+
+    public record TacticalSwing(UUID generation, UUID encounter, UUID entity, int runtimeId, UUID instance,
+                                UUID operation, long sequence, net.minecraft.world.InteractionHand hand,
+                                net.minecraft.world.item.component.SwingAnimation animation) implements CustomPacketPayload {
+        public TacticalSwing {
+            if (sequence < 0 || animation.duration() <= 0) throw new IllegalArgumentException("invalid swing event");
+        }
+        public static final Type<TacticalSwing> TYPE = new Type<>(Identifier.fromNamespaceAndPath(DNDTurnNeoForge261.MOD_ID, "tactical_swing"));
+        public static final StreamCodec<ByteBuf, TacticalSwing> STREAM_CODEC = StreamCodec.of((b, s) -> {
+            writeUuid(b, s.generation()); writeUuid(b, s.encounter()); writeUuid(b, s.entity()); b.writeInt(s.runtimeId());
+            writeUuid(b, s.instance()); writeUuid(b, s.operation()); b.writeLong(s.sequence());
+            b.writeBoolean(s.hand() == net.minecraft.world.InteractionHand.OFF_HAND);
+            net.minecraft.world.item.component.SwingAnimation.STREAM_CODEC.encode(b, s.animation());
+        }, b -> new TacticalSwing(readUuid(b), readUuid(b), readUuid(b), b.readInt(), readUuid(b), readUuid(b), b.readLong(),
+            b.readBoolean() ? net.minecraft.world.InteractionHand.OFF_HAND : net.minecraft.world.InteractionHand.MAIN_HAND,
+            net.minecraft.world.item.component.SwingAnimation.STREAM_CODEC.decode(b)));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    private static void writeOptionalId(ByteBuf b, UUID id) { b.writeBoolean(id != null); if (id != null) writeUuid(b, id); }
+    private static UUID readOptionalId(ByteBuf b) { return b.readBoolean() ? readUuid(b) : null; }
 
     public static boolean sendEntitySimulation(ServerPlayer player, EntitySimulation state) {
         if (!NetworkRegistry.hasChannel(player.connection, EntitySimulation.TYPE.id())) return false;
