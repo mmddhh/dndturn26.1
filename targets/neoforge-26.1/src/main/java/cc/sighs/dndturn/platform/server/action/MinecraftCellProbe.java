@@ -42,8 +42,9 @@ public final class MinecraftCellProbe implements CellProbe {
         AABB footprint = footprint(cell);
         if (region != null) {
             if (!region.dimension().equals(level.dimension().identifier().toString())) return false;
-            var center = footprint.getCenter();
-            if (!region.containsPoint(center.x, center.y, center.z)) return false;
+            // Region containment disabled while the player-centered field follows its participants.
+            // var center = footprint.getCenter();
+            // if (!region.containsPoint(center.x, center.y, center.z)) return false;
         } else if (!bounds.dimension().equals(level.dimension().toString()) || !bounds.contains(cell)) return false;
         if (!isLoaded(footprint) || !level.hasChunkAt(floor)) return false;
         AABB supportProbe = new AABB(footprint.minX, footprint.minY - 0.01, footprint.minZ,

@@ -451,7 +451,11 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         CombatPersistenceEnvelope saved = opened.checkpoint();
         this.environment = new EnvironmentScheduler(engine);
         this.engine.bindAbilityDefinitions(AbilityAdapterRegistry.definitions());
-        this.engine.bindActorTurnObserver(boundary -> actorStates.turnStarted(boundary.encounter(), boundary.round(), boundary.actor()));
+        this.engine.bindActorTurnObserver(boundary -> {
+            actorStates.turnStarted(boundary.encounter(), boundary.round(), boundary.actor());
+            // Re-anchor at turn start to catch displacement not caused by movement.
+            reanchor(boundary.encounter());
+        });
         this.engine.bindObservationEpoch(generation);
         this.participantEffects = new VanillaEffectRoundController(this,engine);
         this.projections = new ProjectionPublisher(server, engine, generation, this::resolve);
@@ -1004,18 +1008,22 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             version = Math.max(version, region.version());
         }
         var discovery = new EncounterRegion.Discovery(minX, minY, minZ, maxX, maxY, maxZ);
-        Entity anchor = null;
+        // Player-centered field: anchor on the participating players; fall back to any member.
+        List<Entity> anchors = new ArrayList<>();
+        List<Entity> fallback = new ArrayList<>();
         for (UUID id : plan.encounters()) {
             for (UUID member : engine.stateView(id).members().keySet()) {
                 Entity found = level.getEntity(member);
-                if (found != null && discovery.contains(pointOf(found))) { anchor = found; break; }
+                if (found == null || !discovery.contains(pointOf(found))) continue;
+                fallback.add(found);
+                if (found instanceof ServerPlayer) anchors.add(found);
             }
-            if (anchor != null) break;
         }
-        if (anchor == null) throw new IllegalStateException("no loaded anchor in merged discovery");
+        if (anchors.isEmpty()) anchors = fallback;
+        if (anchors.isEmpty()) throw new IllegalStateException("no loaded anchor in merged discovery");
         CombatPersistenceEnvelope.CapturedSettings settings = settingsFor(plan.primary());
-        return MinecraftRegionSampler.capture(level, anchor, discovery, settings.regionRadius(),
-            Math.addExact(version, 1), settings.maxSampledChunks(), settings.maxAnchors());
+        return MinecraftRegionSampler.capturePlayers(level, anchors.get(0), discovery, anchors,
+            settings.regionRadius(), Math.addExact(version, 1), settings.maxSampledChunks(), settings.maxAnchors());
     }
 
     public void beforeBlockQueue(ServerLevel level) {
@@ -1179,7 +1187,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         if (state.version() != expectedVersion || (state.phase() != EncounterPhase.ACTIVE && state.phase() != EncounterPhase.CANDIDATE)
             || !actor.getUUID().equals(state.current()) || unsupportedPlayerMovement(actor)
             || !state.region().dimension().equals(actor.level().dimension().identifier().toString())
-            || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z())
+            // region containment disabled while the field follows its participants:
+            // || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z())
             || state.members().get(actor.getUUID()).movementTicks() < 1
             || playerMoves.containsKey(actor.getUUID()))
             throw new IllegalStateException("player movement is not authorized in this phase");
@@ -1283,12 +1292,13 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         lease.baseCost = Math.max(lease.baseCost, waterBefore || actor.isInWater()
             || waterInLoadedBody(actor.level(), actor.getBoundingBox()) != 0 ? 2 : 1);
         lease.jumped |= jumped;
-        EncounterAuthority.StateView state = engine.stateView(lease.encounterId);
-        Vec3 center = actor.getBoundingBox().getCenter();
-        if (!state.region().containsPoint(center.x, center.y, center.z)) {
-            settleMoveTick(lease);
-            if (playerMoves.get(actor.getUUID()) == lease) finishPlayerMove(actor);
-        }
+        // Region containment disabled: leaving the field no longer ends the movement.
+        // EncounterAuthority.StateView state = engine.stateView(lease.encounterId);
+        // Vec3 center = actor.getBoundingBox().getCenter();
+        // if (!state.region().containsPoint(center.x, center.y, center.z)) {
+        //     settleMoveTick(lease);
+        //     if (playerMoves.get(actor.getUUID()) == lease) finishPlayerMove(actor);
+        // }
     }
 
     private static boolean unsupportedPlayerMovement(ServerPlayer player) {
@@ -1360,6 +1370,77 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             sync(engine.stateView(encounter));
         }
     }
+    /** A mob has started targeting a participating player: pull it in and mark mutual hostility. */
+    public void pullHostile(Mob mob, UUID playerId) {
+        requireThread();
+        if (mob == null || mob.isRemoved() || !mob.isAlive()) return;
+        UUID encounterId = engine.encounterOf(playerId);
+        if (encounterId == null || engine.encounterOf(mob.getUUID()) != null) return;
+        if (engine.join(encounterId, mob.getUUID())) {
+            participantEffects.capture(mob);
+            engine.setHostile(encounterId, mob.getUUID(), playerId, true);
+            engine.setHostile(encounterId, playerId, mob.getUUID(), true);
+            persistence.changed();
+            sync(engine.stateView(encounterId));
+            syncBodyStateTransitions();
+        }
+    }
+
+    /**
+     * A player attacked an entity that is already a field member: pull the attacker into that
+     * encounter, mark mutual hostility and re-anchor the field to include them.
+     * Returns true when the vanilla attack should be cancelled (the attack resolves through the
+     * tactical action pipeline once the attacker is a member).
+     */
+    public boolean pullAttackingPlayer(ServerPlayer player, UUID targetId) {
+        requireThread();
+        if (player == null || player.getUUID().equals(targetId)) return false;
+        UUID encounterId = engine.encounterOf(targetId);
+        if (encounterId == null || engine.encounterOf(player.getUUID()) != null) return false;
+        if (!engine.join(encounterId, player.getUUID())) return false;
+        engine.setHostile(encounterId, player.getUUID(), targetId, true);
+        engine.setHostile(encounterId, targetId, player.getUUID(), true);
+        persistence.changed();
+        reanchor(encounterId);
+        sync(engine.stateView(encounterId));
+        syncBodyStateTransitions();
+        return true;
+    }
+
+    /** Re-sample the field as the convex hull of the currently loaded participating players. */
+    void reanchor(UUID encounterId) {
+        EncounterAuthority.StateView state = engine.stateView(encounterId);
+        EncounterRegion current = state.region();
+        if (current == null) return;
+        List<ServerPlayer> players = new ArrayList<>();
+        double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY, minZ = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
+        for (UUID id : state.members().keySet()) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            if (p == null || !p.level().dimension().identifier().toString().equals(current.dimension())) continue;
+            players.add(p);
+            var center = p.getBoundingBox().getCenter();
+            minX = Math.min(minX, center.x); minY = Math.min(minY, center.y); minZ = Math.min(minZ, center.z);
+            maxX = Math.max(maxX, center.x); maxY = Math.max(maxY, center.y); maxZ = Math.max(maxZ, center.z);
+        }
+        if (players.isEmpty()) return;
+        double horizontal = config.discoveryHorizontal(), vertical = config.discoveryVertical();
+        EncounterRegion.Discovery discovery = new EncounterRegion.Discovery(
+            minX - horizontal, minY - vertical, minZ - horizontal,
+            maxX + horizontal, maxY + vertical, maxZ + horizontal);
+        try {
+            EncounterRegion next = MinecraftRegionSampler.capturePlayers(players.get(0).level(), players.get(0),
+                discovery, players, config.regionRadius(), Math.addExact(current.version(), 1),
+                config.maxSampledChunks(), config.maxAnchors());
+            engine.updateRegion(encounterId, next);
+            regions.put(encounterId, next);
+            regionChunks.put(encounterId, exactRegionChunks(next));
+            sync(engine.stateView(encounterId));
+        } catch (RuntimeException ignored) {
+            // Keep the previous field when a new one cannot be built (unloaded chunks / too large).
+        }
+    }
+
     public void advanceMobTurns() {
         requireThread();
         if (server.tickRateManager().isFrozen()) return;
@@ -1544,12 +1625,13 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
                     leave(memberId);
                     continue;
                 }
-                if (!state.region().containsPoint(center.x, center.y, center.z)) {
-                    PlayerMoveLease playerLease = playerMoves.get(memberId);
-                    if (playerLease != null) closePlayerMove(playerLease);
-                    MobMoveLease mobLease = mobMoves.get(memberId);
-                    if (mobLease != null) closeMobMove(mobLease, "member moved outside fixed region");
-                }
+                // Region containment disabled: leaving the field no longer settles their movement.
+                // if (!state.region().containsPoint(center.x, center.y, center.z)) {
+                //     PlayerMoveLease playerLease = playerMoves.get(memberId);
+                //     if (playerLease != null) closePlayerMove(playerLease);
+                //     MobMoveLease mobLease = mobMoves.get(memberId);
+                //     if (mobLease != null) closeMobMove(mobLease, "member moved outside fixed region");
+                // }
             }
         }
     }
@@ -1581,6 +1663,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         playerMoves.remove(lease.playerId);
         sync(engine.stateView(lease.encounterId));
         syncBodyStateTransitions();
+        // The field follows its players; re-anchor once the movement has stopped.
+        reanchor(lease.encounterId);
         return result;
     }
 
@@ -1717,8 +1801,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         var discovery = captured == null ? new EncounterRegion.Discovery(
             center.x - config.discoveryHorizontal(), center.y - config.discoveryVertical(), center.z - config.discoveryHorizontal(),
             center.x + config.discoveryHorizontal(), center.y + config.discoveryVertical(), center.z + config.discoveryHorizontal()) : captured;
-        return MinecraftRegionSampler.capture(player.level(), player, discovery, config.regionRadius(), 1,
-            config.maxSampledChunks(), config.maxAnchors());
+        return MinecraftRegionSampler.capturePlayers(player.level(), player, discovery, List.of(player),
+            config.regionRadius(), 1, config.maxSampledChunks(), config.maxAnchors());
     }
 
     void commitConsentedEncounter(ServerPlayer anchor, EncounterRegion region, Set<UUID> players, Map<UUID, UUID> requestOwners) {
@@ -1751,8 +1835,6 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
                 && region.containsPoint(pointOf(player).x(), pointOf(player).y(), pointOf(player).z()))
                 throw new IllegalStateException("another player is inside the proposed encounter region");
         }
-        AABB search = new AABB(discovery.minX(), discovery.minY(), discovery.minZ(),
-            discovery.maxX(), discovery.maxY(), discovery.maxZ());
         Set<UUID> members = new HashSet<>();
         for (UUID playerId : approvedPlayers) {
             ServerPlayer player = server.getPlayerList().getPlayer(playerId);
@@ -1765,9 +1847,16 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             // authoritative encounter until the shared safe merge boundary commits.
             if (!isMember(playerId)) members.add(playerId);
         }
-        for (Mob mob : level.getEntitiesOfClass(Mob.class, search,
-                mob -> mob.isAlive() && discovery.contains(pointOf(mob)))) {
-            if (engine.encounterOf(mob.getUUID()) == null) members.add(mob.getUUID());
+        // Non-hostile mobs do not join; pull in only mobs already hostile to a participating player.
+        AABB search = new AABB(discovery.minX(), discovery.minY(), discovery.minZ(),
+            discovery.maxX(), discovery.maxY(), discovery.maxZ());
+        Map<UUID, UUID> initialHostility = new HashMap<>();
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, search, candidate ->
+                candidate.isAlive() && candidate.getTarget() instanceof ServerPlayer target
+                    && members.contains(target.getUUID()))) {
+            if (engine.encounterOf(mob.getUUID()) == null && members.add(mob.getUUID())) {
+                initialHostility.put(mob.getUUID(), mob.getTarget().getUUID());
+            }
         }
         UUID encounterId = UUID.randomUUID();
         long nextSequence = projections.nextSequence();
@@ -1775,6 +1864,10 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         Set<Long> chunks = exactRegionChunks(region);
         engine.beginCandidate(encounterId, region, members,
             config.time());
+        for (Map.Entry<UUID, UUID> relation : initialHostility.entrySet()) {
+            engine.setHostile(encounterId, relation.getKey(), relation.getValue(), true);
+            engine.setHostile(encounterId, relation.getValue(), relation.getKey(), true);
+        }
         capturedSettings.put(encounterId, captured);
         projections.bind(encounterId, nextSequence);
         regions.put(encounterId, region);
@@ -1940,8 +2033,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         if (state.version() != expectedVersion || (state.phase() != EncounterPhase.ACTIVE && state.phase() != EncounterPhase.CANDIDATE)
             || !actor.getUUID().equals(state.current()) || unsupportedPlayerMovement(actor)
             || playerMoves.containsKey(actor.getUUID())
-            || !state.region().dimension().equals(actor.level().dimension().identifier().toString())
-            || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z()))
+            || !state.region().dimension().equals(actor.level().dimension().identifier().toString()))
+            // || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z())
             throw new IllegalStateException("DASH is not authorized in this phase or position");
         Math.addExact(expectedVersion, 2);
         BlockPos pos = actor.blockPosition();
@@ -1980,8 +2073,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         EncounterAuthority.StateView state = engine.stateView(encounterId);
         if (state.version() != expectedVersion || state.phase() != EncounterPhase.ACTIVE
             || !actor.getUUID().equals(state.current()) || playerMoves.containsKey(actor.getUUID())
-            || !state.region().dimension().equals(actor.level().dimension().identifier().toString())
-            || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z()))
+            || !state.region().dimension().equals(actor.level().dimension().identifier().toString()))
+            // || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z())
             throw new IllegalStateException(kind + " is not authorized in this phase or position");
         Math.addExact(expectedVersion, 2);
         BlockPos pos = actor.blockPosition();
@@ -2143,8 +2236,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         Vec3 actorCenter = actor.getBoundingBox().getCenter();
         Vec3 targetCenter = target.getBoundingBox().getCenter();
         if (!state.region().dimension().equals(level.dimension().identifier().toString())
-            || !state.region().containsPoint(actorCenter.x, actorCenter.y, actorCenter.z)
-            || !state.region().containsPoint(targetCenter.x, targetCenter.y, targetCenter.z)
+            // || !state.region().containsPoint(actorCenter.x, actorCenter.y, actorCenter.z)
+            // || !state.region().containsPoint(targetCenter.x, targetCenter.y, targetCenter.z)
             || !inMeleeReach(actor, target)) throw new IllegalStateException("target is outside supported melee reach");
         boolean openingAdvantage = actor instanceof ServerPlayer
             && !engine.hasAttemptedAttack(encounterId, actor.getUUID())
@@ -3139,7 +3232,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             lease = null;
         }
         if (!isEntityInsidePausedRegion(entity)) {
-            if (lease != null) closeMobMove(lease, "member moved outside fixed region");
+            // Region containment disabled: do not revoke the lease merely for leaving the field.
+            // if (lease != null) closeMobMove(lease, "member moved outside fixed region");
             return;
         }
         if (lease == null) return;

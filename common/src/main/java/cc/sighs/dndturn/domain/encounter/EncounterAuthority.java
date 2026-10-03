@@ -624,6 +624,22 @@ public final class EncounterAuthority {
         return true;
     }
 
+    /**
+     * Re-anchor the encounter's continuous field, used when the field follows its participants.
+     * The caller supplies a freshly sampled region; its version must advance past the current one.
+     */
+    public void updateRegion(UUID encounterId, EncounterRegion region) {
+        Objects.requireNonNull(region);
+        Encounter encounter = require(encounterId);
+        if (encounter.region == null || !encounter.region.dimension().equals(region.dimension()))
+            throw new IllegalArgumentException("region dimension changed");
+        if (region.version() <= encounter.region.version())
+            throw new IllegalArgumentException("region version must advance");
+        encounter.region = region;
+        encounter.version = Math.addExact(encounter.version, 1);
+        encounter.structuralRevision = Math.addExact(encounter.structuralRevision, 1);
+    }
+
     public void setHostile(UUID encounterId, UUID source, UUID target, boolean hostile) {
         Encounter encounter = require(encounterId);
         if (!encounter.members.containsKey(source) || !encounter.members.containsKey(target) || source.equals(target))

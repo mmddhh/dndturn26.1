@@ -10,11 +10,14 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
+import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
@@ -83,6 +86,26 @@ public final class MinecraftCombatRuntime {
                 formal.leave(player.getUUID());
             }
         }
+    }
+
+    /** A mob that acquires a participating player as its target is pulled into that encounter. */
+    public static void onChangeTarget(LivingChangeTargetEvent event) {
+        if (!(event.getEntity() instanceof Mob mob)) return;
+        if (!(event.getNewAboutToBeSetTarget() instanceof ServerPlayer player)) return;
+        if (mob.level().getServer() == null) return;
+        EncounterRuntime formal = ServerRuntime.existingEncounter(mob.level().getServer());
+        if (formal != null) formal.pullHostile(mob, player.getUUID());
+    }
+
+    /**
+     * A player attacking an entity already inside a turn-based field is pulled into that encounter;
+     * the vanilla attack is cancelled so the attack resolves as a tactical action once joined.
+     */
+    public static void onPlayerAttack(AttackEntityEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (!(event.getTarget() instanceof Mob mob)) return;
+        EncounterRuntime formal = ServerRuntime.existingEncounter(player.level().getServer());
+        if (formal != null && formal.pullAttackingPlayer(player, mob.getUUID())) event.setCanceled(true);
     }
 
     public static void onDeath(LivingDeathEvent event) {

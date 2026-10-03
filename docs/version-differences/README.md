@@ -15,6 +15,7 @@
 | [鼠标朝向](neoforge-26.1-cursor-facing.md) | 拾取、朝向同步与位置纠正 |
 | [日志与GUI](neoforge-26.1-log-gui.md) | 空日志面板、AUI布局／更新、移动力环与无窗口验证 |
 | [参与者头像](neoforge-26.1-participant-portraits.md) | 原版实体渲染预览、环境图标及生命周期 |
+| [玩家为中心的跟随场地](neoforge-26.1-player-centered-field.md) | **用户明确要求**：场地以玩家为锚点、半径35、跟随玩家、允许越界、仅玩家+仇恨实体入场；覆盖 03 §4/§5 |
 
 当前协议／schema集中见[01实现事实](../legacy/01_IMPLEMENTED_DECISIONS.md)，活动状态只见[02](../02_GAPS_AND_CONFLICTS.md)。各记录保留当时的命令和测试数量；后续整套构建通过不替代早先未执行的真实客户端场景。
 

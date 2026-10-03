@@ -4,6 +4,7 @@ import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.EncounterPhase;
 import cc.sighs.dndturn.domain.encounter.TurnParticipant;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
+import cc.sighs.dndturn.platform.network.RegionBoundaryProtocol; // DNDTURN-TEMP-BOUNDARY-VIZ
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -78,6 +79,8 @@ public final class ProjectionPublisher {
                     ? movementOperation.apply(player.getUUID()) : null, roster,
                 engine.resultPage(state.id(), 0, 1).total(), ready, projectionRevision,
                 engine.movementTicksPerTurn(state.id())));
+            // DNDTURN-TEMP-BOUNDARY-VIZ: expose the encounter field to the client for the debug overlay.
+            RegionBoundaryProtocol.send(player, state.region());
         }
     }
 
@@ -87,5 +90,6 @@ public final class ProjectionPublisher {
             generation, encounterId, sessionSequences.getOrDefault(encounterId, 0L), false,
             version, EncounterPhase.ENDED,
             0, null, 0, 0, false, false, 0, false, null, List.of(), 0, false, revision));
+        RegionBoundaryProtocol.clear(player); // DNDTURN-TEMP-BOUNDARY-VIZ
     }
 }

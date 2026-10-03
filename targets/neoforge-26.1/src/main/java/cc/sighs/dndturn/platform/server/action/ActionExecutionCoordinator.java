@@ -394,8 +394,11 @@ public final class ActionExecutionCoordinator {
         var resolution = AbilityAdapterRegistry.definitions().resolve(context);
         AbilityAdapterRegistry.requireAccepted(resolution);
         GridCell target = targetCell(player, intent);
-        if (target != null && (!player.level().hasChunkAt(pos(target))
-            || !state.region().containsPoint(target.x() + .5, target.y() + .5, target.z() + .5)))
+        // Region containment disabled while the player-centered field follows its participants.
+        // if (target != null && (!player.level().hasChunkAt(pos(target))
+        //     || !state.region().containsPoint(target.x() + .5, target.y() + .5, target.z() + .5)))
+        //     throw new IllegalStateException("target outside loaded encounter");
+        if (target != null && !player.level().hasChunkAt(pos(target)))
             throw new IllegalStateException("target outside loaded encounter");
         if (active != null && active.root.intent().equals(intent) && active.root.encounterId().equals(state.id()))
             active.ruleRequest = ExecutionRequest.from(active.root.operationId(), context, resolution);
@@ -407,7 +410,9 @@ public final class ActionExecutionCoordinator {
             var route = List.copyOf(MovementPorts.require(mob).port().plan(
                     new LiveActorContext(player), state, intent, target,
                     () -> service.requireAbilityWork(player.getUUID(), state.id(), AbilityWorkBudget.Work.PROBE)));
-            if (route.isEmpty() || route.size() > 4096 || route.stream().anyMatch(cell -> !state.region().containsPoint(cell.x() + .5, cell.y(), cell.z() + .5)))
+            // Region containment disabled while the player-centered field follows its participants.
+            // || route.stream().anyMatch(cell -> !state.region().containsPoint(cell.x() + .5, cell.y(), cell.z() + .5))
+            if (route.isEmpty() || route.size() > 4096)
                 throw new IllegalStateException("invalid movement proposal bounds");
             return route;
         }

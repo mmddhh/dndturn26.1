@@ -24,18 +24,7 @@ public final class MinecraftRegionSampler {
         if (initiator.level() != level) throw new IllegalArgumentException("initiator dimension");
         if (maxSampledChunks < 1) throw new IllegalArgumentException("chunk limit");
         if (maxAnchors < 1) throw new IllegalArgumentException("anchor limit");
-        int minChunkX = chunkOf(discovery.minX());
-        int maxChunkX = chunkOf(discovery.maxX());
-        int minChunkZ = chunkOf(discovery.minZ());
-        int maxChunkZ = chunkOf(discovery.maxZ());
-        long chunkCount = ((long) maxChunkX - minChunkX + 1) * ((long) maxChunkZ - minChunkZ + 1);
-        if (chunkCount > maxSampledChunks) throw new IllegalArgumentException("discovery exceeds chunk limit");
-        for (int x = minChunkX; x <= maxChunkX; x++) {
-            for (int z = minChunkZ; z <= maxChunkZ; z++) {
-                if (!level.hasChunkAt(new BlockPos(x << 4, 0, z << 4)))
-                    throw new IllegalStateException("discovery includes unloaded chunk");
-            }
-        }
+        validateDiscoveryLoaded(level, discovery, maxSampledChunks);
         AABB search = new AABB(discovery.minX(), discovery.minY(), discovery.minZ(),
             discovery.maxX(), discovery.maxY(), discovery.maxZ());
         Map<UUID, EncounterRegion.Anchor> anchors = new LinkedHashMap<>();
@@ -54,6 +43,51 @@ public final class MinecraftRegionSampler {
         ordered.sort((left, right) -> left.entityId().compareTo(right.entityId()));
         return EncounterRegion.generate(level.dimension().identifier().toString(), discovery,
             ordered, radius, regionVersion);
+    }
+
+    /**
+     * Player-centered field: anchors on the given participants only, with no surrounding-entity scan.
+     * Used when the field follows its participants instead of spanning every discovered entity.
+     */
+    public static EncounterRegion capturePlayers(ServerLevel level, Entity initiator,
+                                                 EncounterRegion.Discovery discovery,
+                                                 List<? extends Entity> participants,
+                                                 double radius, long regionVersion,
+                                                 int maxSampledChunks, int maxAnchors) {
+        if (!level.getServer().isSameThread()) throw new IllegalStateException("region capture requires server thread");
+        if (initiator.level() != level) throw new IllegalArgumentException("initiator dimension");
+        if (maxSampledChunks < 1) throw new IllegalArgumentException("chunk limit");
+        if (maxAnchors < 1) throw new IllegalArgumentException("anchor limit");
+        validateDiscoveryLoaded(level, discovery, maxSampledChunks);
+        Map<UUID, EncounterRegion.Anchor> anchors = new LinkedHashMap<>();
+        for (Entity entity : participants) {
+            if (entity == null || entity.level() != level) continue;
+            EncounterRegion.Anchor anchor = centerOf(entity);
+            if (discovery.contains(anchor.center())) anchors.putIfAbsent(anchor.entityId(), anchor);
+        }
+        EncounterRegion.Anchor first = centerOf(initiator);
+        if (!discovery.contains(first.center())) throw new IllegalArgumentException("initiator outside discovery");
+        anchors.put(first.entityId(), first);
+        if (anchors.size() > maxAnchors) throw new IllegalStateException("discovery exceeds anchor limit");
+        List<EncounterRegion.Anchor> ordered = new ArrayList<>(anchors.values());
+        ordered.sort((left, right) -> left.entityId().compareTo(right.entityId()));
+        return EncounterRegion.generate(level.dimension().identifier().toString(), discovery,
+            ordered, radius, regionVersion);
+    }
+
+    private static void validateDiscoveryLoaded(ServerLevel level, EncounterRegion.Discovery discovery, int maxSampledChunks) {
+        int minChunkX = chunkOf(discovery.minX());
+        int maxChunkX = chunkOf(discovery.maxX());
+        int minChunkZ = chunkOf(discovery.minZ());
+        int maxChunkZ = chunkOf(discovery.maxZ());
+        long chunkCount = ((long) maxChunkX - minChunkX + 1) * ((long) maxChunkZ - minChunkZ + 1);
+        if (chunkCount > maxSampledChunks) throw new IllegalArgumentException("discovery exceeds chunk limit");
+        for (int x = minChunkX; x <= maxChunkX; x++) {
+            for (int z = minChunkZ; z <= maxChunkZ; z++) {
+                if (!level.hasChunkAt(new BlockPos(x << 4, 0, z << 4)))
+                    throw new IllegalStateException("discovery includes unloaded chunk");
+            }
+        }
     }
 
     private static EncounterRegion.Anchor centerOf(Entity entity) {

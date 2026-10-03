@@ -1,5 +1,16 @@
 # DNDTurn 未完成既定目标
 
+## 玩家为中心的跟随场地（用户明确修订，待验收）
+
+用户明确要求将遭遇场地改为**玩家为中心、半径35、跟随玩家、允许越界、仅玩家+仇恨实体入场**，覆盖 03 的默认场地描述。设计与改动清单见[版本记录](../version-differences/neoforge-26.1-player-centered-field.md)。当前仅完成实现并 `compileJava` 通过；**未**完成下列验收：
+
+- [ ] 实机：单人进入回合制后场地跟随、可自由越界移动/行动、不出现 `target outside encounter`。
+- [ ] 怪物以参战玩家为目标时被拉入并双向敌意（`LivingChangeTargetEvent`）。
+- [ ] 场外玩家攻击场内成员时被拉入、重锚并结算为战术动作。
+- [ ] 双客户端玩家场地重叠触发合并（且不再因怪物频繁合并）。
+- [ ] 环境 hold 范围随半径放大后的调度规模/性能。
+- [ ] 世界效果类区域限制（`VanillaBehaviors` 桶、`TacticalImpact`、爆破）仍按 03 处理，未随本次放开。
+
 <a id="combat-structural-remainder"></a>
 ## Revised combat structural checklist 的剩余结构目标
 

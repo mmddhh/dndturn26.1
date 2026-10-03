@@ -35,7 +35,7 @@ public record ServerCombatConfig(double discoveryHorizontal,
         Properties defaults = new Properties();
         defaults.setProperty("discoveryHorizontal", "16");
         defaults.setProperty("discoveryVertical", "8");
-        defaults.setProperty("regionRadius", "8");
+        defaults.setProperty("regionRadius", "35");
         defaults.setProperty("maxSampledChunks", "16");
         defaults.setProperty("maxAnchors", "64");
         defaults.setProperty("roundTicks", Integer.toString(RoundTime.DEFAULT_TICKS));

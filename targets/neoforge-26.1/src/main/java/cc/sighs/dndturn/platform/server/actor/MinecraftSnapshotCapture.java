@@ -161,13 +161,15 @@ public final class MinecraftSnapshotCapture {
         var cell = intent.target().cell();
         var target = intent.target().entity() == null ? null : actor.level().getEntity(intent.target().entity());
         boolean loaded = cell == null ? intent.target().entity() == null || target != null : actor.level().hasChunkAt(MinecraftCoordinates.pos(cell));
-        boolean domain = cell == null || state.region().containsPoint(cell.x() + .5, cell.y() + .5, cell.z() + .5);
+        // Field containment disabled while the player-centered field follows its participants.
+        // boolean domain = cell == null || state.region().containsPoint(cell.x() + .5, cell.y() + .5, cell.z() + .5);
+        boolean domain = true;
         if (intent.target().facet() != null) {
             if (!nativeFacts.supportsBodyFacet() || !(target instanceof LivingEntity)) rejection = "body facet unsupported by ability";
             else {
                 var hit = BodyTargets.resolve((LivingEntity)target, intent.target().facet());
                 var center = hit.body().getBoundingBox().getCenter();
-                domain &= state.region().containsPoint(center.x, center.y, center.z);
+                // domain &= state.region().containsPoint(center.x, center.y, center.z);
                 if (intent.capability() == ActionIntent.Capability.ATTACK
                         && cc.sighs.dndturn.platform.server.damage.DamageReceivers.server().find(hit) == null)
                     rejection = "body facet receiver unsupported";
