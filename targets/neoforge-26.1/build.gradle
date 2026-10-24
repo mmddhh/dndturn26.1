@@ -45,11 +45,19 @@ neoForge {
     runs {
         client {
             client()
+            if (providers.gradleProperty('localRunDirectory').isPresent())
+                gameDirectory = layout.projectDirectory.dir(providers.gradleProperty('localRunDirectory').get())
+            if (providers.gradleProperty('localClientName').isPresent()) {
+                programArgument '--username'
+                programArgument providers.gradleProperty('localClientName').get()
+            }
             if (gradle.startParameter.logLevel == LogLevel.DEBUG) programArgument '--debug'
             loadedMods = [neoForge.mods.getByName(mod_id)]
         }
         server {
             server()
+            if (providers.gradleProperty('localRunDirectory').isPresent())
+                gameDirectory = layout.projectDirectory.dir(providers.gradleProperty('localRunDirectory').get())
             if (gradle.startParameter.logLevel == LogLevel.DEBUG) programArgument '--debug'
             loadedMods = [neoForge.mods.getByName(mod_id)]
             programArgument '--nogui'
@@ -102,11 +110,12 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation project(':common')
     // Exact NeoForge 26.1 release, not the similarly named artifacts for other targets.
-    implementation 'maven.modrinth:apricityui:wwrdhxiM' // 1.2.5
+    implementation 'com.sighs:ApricityUI-neoforge-26.1:1.2.8'
     //implementation 'dev.latvian.mods:rhino:2101.2.7-build.82'
     // Development runs only; production compilation and published artifacts do not depend on AutoJS.
     if (providers.gradleProperty('autojs').map { it.toBoolean() }.orElse(false).get()) {
         localRuntimeOnly 'com.sighs.autojs:AutoJS-neoforge-26.1:1.0.0'
+        localRuntimeOnly 'dev.latvian.mods:rhino:2101.2.7-build.82'
     }
 }
 
