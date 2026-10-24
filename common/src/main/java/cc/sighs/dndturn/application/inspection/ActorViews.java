@@ -20,7 +20,7 @@ public final class ActorViews {
         public Spellbook { learned = List.copyOf(learned); available = List.copyOf(available); }
     }
     public record Inspection(UUID actor, FactSlice visible) {}
-    /** Filtered wire-safe view; the existing trusted FactSlice API remains source-compatible. */
+    /** Filtered wire-safe view of trusted facts. */
     public record InspectionView(UUID actor, UUID instance, UUID capture, List<InspectionPolicy.Field> fields) {
         public InspectionView {
             Objects.requireNonNull(actor); Objects.requireNonNull(instance); Objects.requireNonNull(capture);

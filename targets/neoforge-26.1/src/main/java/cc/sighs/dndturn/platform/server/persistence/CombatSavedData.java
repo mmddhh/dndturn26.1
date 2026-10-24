@@ -12,7 +12,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
-/** Fixed-version SavedData wrapper. The serialized body contains only common value records. */
+/** Current-format SavedData wrapper. The serialized body contains only common value records. */
 public final class CombatSavedData extends SavedData {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final int NBT_STRING_CHUNK = 30000;
@@ -63,6 +63,8 @@ public final class CombatSavedData extends SavedData {
         for (var field : type.getRecordComponents())
             if (!value.has(field.getName()) || value.get(field.getName()).isJsonNull())
                 throw new IllegalArgumentException("missing checkpoint field: " + field.getName());
+        if (value.size() != type.getRecordComponents().length)
+            throw new IllegalArgumentException("unexpected checkpoint fields: " + type.getSimpleName());
     }
 
     public void update(CombatPersistenceEnvelope envelope) {
@@ -83,7 +85,6 @@ public final class CombatSavedData extends SavedData {
         metadata.put("startReceipts", envelope.startReceipts());
         metadata.put("exitReceipts", envelope.exitReceipts());
         metadata.put("exitAuthorizations", envelope.exitAuthorizations());
-        metadata.put("moveEndReceipts", envelope.moveEndReceipts());
         metadata.put("leases", envelope.leases());
         metadata.put("abilities", envelope.abilities());
         metadata.put("processes", envelope.processes());

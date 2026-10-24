@@ -485,8 +485,7 @@ public final class LocalTimeGameTests {
             java.util.Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 8, 16, 64, false, 16)),
             java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.List.of(),
             java.util.Map.of(member, new CombatPersistenceEnvelope.StartReceipt(member, encounter)),
-            java.util.Map.of(departing, new CombatPersistenceEnvelope.ExitReceipt(departing, emptyOrder, 2)),
-            java.util.Map.of(), java.util.List.of(), java.util.Map.of(), java.util.List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of()));
+            java.util.Map.of(departing, new CombatPersistenceEnvelope.ExitReceipt(departing, emptyOrder, 2)), java.util.List.of(), java.util.Map.of(), java.util.List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of()));
         var read = saved.envelope();
         PersistencePolicyChecks.verify(helper, saved);
         helper.assertTrue(read != null && read.cumulativeServerTicks() == 24100
@@ -1202,19 +1201,19 @@ public final class LocalTimeGameTests {
                 int sourceIndex = canonical.equals(firstId) ? 1 : 0;
                 helper.assertTrue(oldResults[sourceIndex].equals(service.lifecycle().completedRetry(players[sourceIndex],
                     ids[sourceIndex], oldOperations[sourceIndex], OperationRecord.Kind.END_TURN,
-                    oldVersions[sourceIndex], null, true)),
+                    oldVersions[sourceIndex], null)),
                     "a completed request under the source encounter ID was not replayable after merge");
                 boolean conflict = false;
                 try {
                     service.lifecycle().completedRetry(players[sourceIndex], ids[sourceIndex], oldOperations[sourceIndex],
-                        OperationRecord.Kind.END_TURN, oldVersions[sourceIndex] + 1, null, true);
+                        OperationRecord.Kind.END_TURN, oldVersions[sourceIndex] + 1, null);
                 } catch (IllegalStateException expected) { conflict = true; }
                 helper.assertTrue(conflict, "same operation ID with a changed version was accepted");
                 boolean disclosed = false;
                 try {
                     service.lifecycle().completedRetry(players[1 - sourceIndex], ids[sourceIndex],
                         oldOperations[sourceIndex], OperationRecord.Kind.END_TURN,
-                        oldVersions[sourceIndex], null, true);
+                        oldVersions[sourceIndex], null);
                 } catch (IllegalStateException expected) { disclosed = true; }
                 helper.assertTrue(disclosed, "old encounter result was disclosed to a different participant");
                 service.lifecycle().leave(players[sourceIndex].getUUID());
@@ -1223,7 +1222,7 @@ public final class LocalTimeGameTests {
                 helper.assertTrue(service.encounterOf(players[sourceIndex].getUUID()) == null
                     && oldResults[sourceIndex].equals(service.lifecycle().completedRetry(players[sourceIndex],
                         ids[sourceIndex], oldOperations[sourceIndex], OperationRecord.Kind.END_TURN,
-                        oldVersions[sourceIndex], null, true))
+                        oldVersions[sourceIndex], null))
                     && service.state(canonical).version() == versionAfterLeave
                     && service.lifecycle().results(canonical, 0, 100).results().size() == resultsAfterLeave,
                     "departed source owner could not replay an immutable merged receipt");
@@ -1460,12 +1459,12 @@ public final class LocalTimeGameTests {
             float playerHealth = player.getHealth();
             float zombieHealth = zombie.getHealth();
             helper.assertTrue(original.equals(service.lifecycle().completedRetry(player, encounterId, operationId,
-                OperationRecord.Kind.END_TURN, version, null, true)),
+                OperationRecord.Kind.END_TURN, version, null)),
                 "departed owner could not read a completed result from an active encounter");
             boolean foreign = false;
             try {
                 service.lifecycle().completedRetry(other, encounterId, operationId,
-                    OperationRecord.Kind.END_TURN, version, null, true);
+                    OperationRecord.Kind.END_TURN, version, null);
             } catch (IllegalStateException expected) { foreign = true; }
             helper.assertTrue(foreign, "another connection read the departed owner's result");
             for (int change = 0; change < 3; change++) {
@@ -1474,12 +1473,12 @@ public final class LocalTimeGameTests {
                     service.lifecycle().completedRetry(player, encounterId, operationId,
                         change == 0 ? OperationRecord.Kind.ATTACK : OperationRecord.Kind.END_TURN,
                         change == 1 ? version + 1 : version,
-                        change == 2 ? UUID.randomUUID() : null, true);
+                        change == 2 ? UUID.randomUUID() : null);
                 } catch (IllegalStateException expected) { conflict = true; }
                 helper.assertTrue(conflict, "changed completed request payload was accepted: " + change);
             }
             helper.assertTrue(service.lifecycle().completedRetry(player, encounterId, UUID.randomUUID(),
-                OperationRecord.Kind.END_TURN, version, null, true) == null,
+                OperationRecord.Kind.END_TURN, version, null) == null,
                 "unknown operation ID acquired a historical result");
             helper.assertTrue(service.state(encounterId).version() == unchangedVersion
                 && service.lifecycle().results(encounterId, 0, 100).results().size() == unchangedResults
@@ -1488,13 +1487,13 @@ public final class LocalTimeGameTests {
                 "old receipt lookup changed rules or world effects");
             service.lifecycle().leave(zombie.getUUID());
             helper.assertTrue(original.equals(service.lifecycle().completedRetry(player, encounterId, operationId,
-                OperationRecord.Kind.END_TURN, version, null, true)),
+                OperationRecord.Kind.END_TURN, version, null)),
                 "departed owner could not query the closed encounter");
             var next = startEncounter(helper, player);
             nextId = next.id();
             helper.assertTrue(!nextId.equals(encounterId)
                 && original.equals(service.lifecycle().completedRetry(player, encounterId, operationId,
-                    OperationRecord.Kind.END_TURN, version, null, true)),
+                    OperationRecord.Kind.END_TURN, version, null)),
                 "joining a new encounter obscured the owner's earlier result");
             helper.succeed();
         } finally {

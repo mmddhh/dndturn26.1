@@ -402,7 +402,7 @@ public final class ClientTacticalPlan {
         if (endAfterCancel && !running() && state != null && state.version() >= terminalVersion
             && mc.screen == null && mc.isWindowActive() && !ClientControl.modal()) {
             endAfterCancel = false;
-            CombatControls.requestFromUi(EncounterProtocol.IntentKind.END_TURN, null);
+            CombatControls.requestFromUi(EncounterProtocol.IntentKind.END_TURN);
         }
     }
     public static boolean running() { return requested != null; }
@@ -421,7 +421,7 @@ public final class ClientTacticalPlan {
     }
     static boolean hasSelection() { return itemSelected || behavior != null || preferredCost != null; }
     public static void endTurn() {
-        if (!running()) { CombatControls.requestFromUi(EncounterProtocol.IntentKind.END_TURN, null); return; }
+        if (!running()) { CombatControls.requestFromUi(EncounterProtocol.IntentKind.END_TURN); return; }
         endAfterCancel = true; cancel();
     }
     public static void cancel() {

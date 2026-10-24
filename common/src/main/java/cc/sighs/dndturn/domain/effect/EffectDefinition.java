@@ -4,7 +4,7 @@ import cc.sighs.dndturn.domain.fact.FactKey;
 import cc.sighs.dndturn.domain.fact.StatKey;
 import java.util.*;
 
-/** Tactical effect definition (legacy source name). Native effects remain native-owned observations. */
+/** Tactical effect definition. Native effects remain native-owned observations. */
 public record EffectDefinition(String id, int version, Clock clock, Stacking stacking,
                                   int maxStacks, boolean surviveDeath, boolean persist,
                                   List<Modifier> modifiers, List<Grant> grants, Set<String> tags,

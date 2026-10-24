@@ -2,7 +2,26 @@
 
 同步日期：**2026-10-24**。基线为本地 `dev_` / `b2e939ba7353d1a47f1e4d8542a011dd5c2d32a4` **加现有未提交工作区**。本页按当前实现重写，保留先前记录的验证结论及限制，不再把逐轮审阅作为并列当前状态。
 
-本次追加修复 26.1 旧战斗存档读取：用户明确放弃旧版，移除捕获设置的旧字段默认值兼容，读取时明确检查字段完整性。此前活动文档同步与 AutoJS 调整的证据仍保留。剩余任务只在[路线](02_ROADMAP.md)维护；玩法以[合同](01_RULES_AND_CONTRACTS.md)为准。
+本次按用户要求全面清理本模组旧版兼容，恢复考虑兼容的条件仅为用户修改有效文档明确 MOD 已发布。变更与本次检查见下节。此前活动文档同步与 AutoJS 调整的证据仍保留。剩余任务只在[路线](02_ROADMAP.md)维护；玩法以[合同](01_RULES_AND_CONTRACTS.md)为准。
+
+## 本轮：移除本模组版本间兼容
+
+基线 `dev_` / `a945183` 加进入时工作区（已有暂存日志删除保持不动）。重新核对共同祖先为 `9c05747ed7a474a2c95264ddf2758fa6a11dc6c9`，field 修复已包含，不重复合并。扫描 common、四个 target 的源码/资源/构建入口及有效文档，按调用点区分本模组版本兼容与当前第三方/平台适配；未修改历史归档或用户世界存档。
+
+- 删除 Actor 旧容量故障修复的候选、对账记录、加载后自动解除故障与 tick 检查队列；删除其持久化字段和旧世界修复测试入口。当前历史压缩、精确区间、去重、故障隔离继续保留。
+- 删除 `simulationArchive`、意图 parameters、来源 dependencies、能力 executionKind/parameters 缺失时的补值兼容。Actor 顶层、战斗 envelope/rules 和捕获设置要求当前字段，额外旧字段也拒绝；不维护 schema/protocol 格式版本。删除缺 processes 的 envelope 旧构造入口，调用点显式传当前字段。
+- 删除网络 `MOVE_BEGIN` / `MOVE_END` / `ATTACK` 旧意图与旧编号保留规则；当前动作编号重新连续排列，UI 走当前战术计划。删除旧移动 END 的独立回执、存储字段、导出/恢复/清理及绕过版本比较的重试分支；当前计划移动和租约证据保留。
+- 删除 `MeleeAdapters.Receiver` 及注册/查询别名、`MinecraftCellProbe` 固定 Bounds 废弃入口、无证据的旧感知构造入口，并更新现有调用/夹具。同步近战介入、当前无观察世代的纯规则值、其他 target 的独立预算、语义版本及第三方适配是当前功能，不作为旧档迁移删除。
+
+约束已写入根 AGENTS 与有效合同：用户明确记录 MOD 发布之前，不维护本模组旧存档、旧配置、旧协议或旧 API 兼容，不以“稳定了”作为自动恢复条件。当前格式活动保存/恢复仍是 P4 目标；P7 的兼容仅指第三方内容适配。
+
+未新增测试文件。删除仅验证旧容量故障自动修复的断言；既有 ActorHistoryTest/ActorHistoryChecks 继续保护压缩、去重、恢复和故障保留。复用 PersistencePolicyChecks 检查当前格式往返、缺失/多余字段拒绝且原文不改；原覆盖没有 Actor 缺 simulationArchive 的检查，必须在实际 Gson 持久化接缝验证，纯规则构造不能证明 JSON 缺字段行为。
+
+本次 JDK25 + JDK17 toolchain、26.1 Gradle 9.8 执行 `build --offline` 通过，包含 common 测试、生产/GameTest/UI 编译及既有 check。`runGameTestServer` 分别选择 `combat_save_values`、`actor_history`、`presentation_protocol`、`repair_values` 均实际运行并通过。最初从根 wrapper 使用 9.7.1 后改用 target 的 9.8；编译曾指出 UI 两处旧签名和旧回执引用未移除，已修正。两次编辑脚本分别因相对路径和默认编码未生效，修正后重跑；存档检查曾因通用字段数错误遮蔽具体缺字段原因失败，调整检查顺序后通过。逗号组合选择实际只运行首项，其余已单独补跑，不把组合参数当作全部运行证据。
+
+另串行执行 Fabric 1.20.1、Forge 1.20.1、NeoForge 1.21.1 的 `compileJava --offline` 均通过。`git diff --check` 通过，修改文档的本地文件链接有效。
+
+未运行真实双客户端、普通专服第二进程续战、第三方内容和性能检查；本次原生夹具不能替代这些验证。旧版存档不会转换为新格式，旧客户端/服务端/API 不提供混用保证。
 
 ## 基线与阶段
 

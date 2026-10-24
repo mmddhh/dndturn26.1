@@ -103,9 +103,7 @@ public final class EncounterProtocol {
     }
 
     public enum IntentKind {
-        // Code 6 belonged to the removed combat-log subscription; never reuse it.
-        START(0), EXIT(1), MOVE_BEGIN(2), MOVE_END(3), ATTACK(4), END_TURN(5), DASH(7),
-        DODGE(8), DISENGAGE(9);
+        START(0), EXIT(1), END_TURN(2), DASH(3), DODGE(4), DISENGAGE(5);
         private final int code;
         IntentKind(int code) { this.code = code; }
         public int code() { return code; }

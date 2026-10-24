@@ -133,7 +133,7 @@ public final class RepairGameTests {
         CombatSavedData saved = PersistenceTestAccess.saved();
         saved.update(new CombatPersistenceEnvelope(snapshot,
             20, 1, Map.of(encounter, 1L), Map.of(), Map.of(), Map.of(), Map.of(), List.of(),
-            Map.of(), Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of()));
+            Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of(), java.util.Map.of()));
         String original = saved.json();
         var server = helper.getLevel().getServer();
         var live = ServerRuntime.encounters(server);
@@ -151,7 +151,7 @@ public final class RepairGameTests {
         var settings = Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 2, 16, 64, false, 16));
         saved.update(new CombatPersistenceEnvelope(snapshot,
             40, 1, Map.of(encounter, 1L), settings, Map.of(), Map.of(), Map.of(), List.of(),
-            Map.of(), Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of()));
+            Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of(), java.util.Map.of()));
         var restored = EncounterRuntime.restoreForGameTest(server, saved);
         helper.assertTrue(encounter.equals(restored.encounterOf(member))
             && restored.state(encounter).members().containsKey(member), "valid recovery did not install member");

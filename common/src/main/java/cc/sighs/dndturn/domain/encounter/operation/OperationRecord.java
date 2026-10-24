@@ -32,7 +32,7 @@ public final class OperationRecord {
             this(operationId, parentId, encounterId, owner, source, target, serverTick, encounterVersion,
                 sourceCell, targetCell, kind, observationEpoch, null);
         }
-        /** Legacy/test input has an explicitly unknown clock; do not compare it with server observations. */
+        /** Input without an observation epoch has an explicitly unknown clock; do not compare it with server observations. */
         public Snapshot(UUID operationId, UUID parentId, UUID encounterId, UUID owner,
                         UUID source, UUID target, long serverTick, long encounterVersion,
                         GridCell sourceCell, GridCell targetCell, Kind kind) {

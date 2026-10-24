@@ -35,8 +35,7 @@ public final class ActorHistoryChecks {
         level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base), 1);
         for (var pos : BlockPos.betweenClosed(base.offset(-5,-1,-5),base.offset(5,4,5)))
             level.setBlockAndUpdate(pos,pos.getY()<base.getY()?Blocks.STONE.defaultBlockState():Blocks.AIR.defaultBlockState());
-        String source = System.getenv("DNDTURN_CAPACITY_ACTOR");
-        var player = TestPlayers.survival(h, source == null ? UUID.randomUUID() : UUID.fromString(source));
+        var player = TestPlayers.survival(h, UUID.randomUUID());
         for (int id=0;id<8;id++) player.connection.handleAcceptTeleportPacket(new net.minecraft.network.protocol.game.ServerboundAcceptTeleportationPacket(id));
         player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5); player.connection.resetPosition();
         var mob = EntityType.CREEPER.create(level, EntitySpawnReason.COMMAND);
@@ -54,10 +53,6 @@ public final class ActorHistoryChecks {
                 h.assertTrue(service.actorStates().fault(player.getUUID()) == null, "player still quarantined");
                 service.actorStates().close();
                 var saved = server.getDataStorage().computeIfAbsent(ActorSavedData.TYPE).restore();
-                if (source != null) {
-                    h.assertTrue(saved.capacityRecoveries().containsKey(player.getUUID()), "missing capacity reconciliation evidence");
-                    h.assertTrue(saved.deliveries().size() < 100, "empty simulation history still full");
-                }
                 player.getInventory().setItem(3, new ItemStack(Items.IRON_SWORD));
                 // The field only admits mobs with an actual directed lock; presence alone is not enough.
                 mob.setTarget(player);
@@ -77,8 +72,6 @@ public final class ActorHistoryChecks {
                 h.assertTrue(options.offers().stream().anyMatch(o -> o.intent().behaviorId().equals("dndturn:melee") && o.reason().isEmpty()),
                         "context menu missing after recovery: " + options.reason());
                 h.assertTrue(service.state(encounter).members().get(player.getUUID()).action(), "queries charged action");
-                System.out.println("ACTOR_HISTORY_QUERY_PASS restored=" + (source != null) + " deliveries=" + saved.deliveries().size()
-                        + " ranges=" + saved.simulationArchive().size() + " recovery=" + saved.capacityRecoveries().get(player.getUUID()));
                 h.succeed();
             } finally { cleanup.run(); }
         });
@@ -95,13 +88,12 @@ public final class ActorHistoryChecks {
         }
         owner.restoreDeliveries(events); owner.fault(actor,"ACTIVATION_FAILED:IllegalStateException");
         var data = new ActorSavedData(); data.update(owner); var restored = data.restore();
-        h.assertTrue(restored.prepareCapacityRecovery()==16384,"completed clock history not compacted");
+        h.assertTrue(restored.compactSimulationHistory()==16384,"completed clock history not compacted");
         data.update(restored); restored = data.restore();
-        h.assertTrue(restored.reconcileCapacityFault(actor),"eligible inert actor not reconciled");
         data.update(restored); restored = data.restore();
         var first = events.getFirst();
         h.assertTrue(restored.registerReactions(first.root(),actor,first.events()).status()==ActorStates.DeliveryStatus.COMPLETED,
                 "archived event replayed after codec roundtrip");
-        h.assertTrue(restored.capacityRecoveries().containsKey(actor) && restored.faultReason(actor)==null,"recovery audit lost");
+        h.assertTrue("ACTIVATION_FAILED:IllegalStateException".equals(restored.faultReason(actor)),"compaction cleared fault");
     }
 }

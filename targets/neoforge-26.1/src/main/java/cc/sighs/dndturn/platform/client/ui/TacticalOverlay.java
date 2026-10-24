@@ -336,7 +336,7 @@ public final class TacticalOverlay {
         Element element = document.getElementById(id);
         element.addEventListener("click", event -> {
             if (!"true".equals(values.get(id + ":enabled"))) return;
-            CombatControls.requestFromUi(kind, kind == EncounterProtocol.IntentKind.ATTACK ? selectedTarget() : null);
+            CombatControls.requestFromUi(kind);
         });
         element.addEventListener("mouseenter", event -> text("description", element.getAttribute("aria-label") + " · " + CombatControls.keyLabel(id) + " · " + values.getOrDefault(id + ":description", description)));
     }

@@ -36,7 +36,8 @@ class AiControlModelTest {
         var snapshot = new ActorSnapshot(actor, instance, new ActorDefinition("test:actor", 1, Set.of(), new FactSlice(Map.of(), Map.of())),
             new ActorSnapshot.Revision(UUID.randomUUID(), 0, CombatRules.RULES_REVISION), new FactSlice(Map.of(), Map.of()), List.of(binding));
         return new AiDecisionContext(snapshot, d, EncounterPhase.ACTIVE, true, "minecraft:overworld",
-            new PerceptionSnapshot(List.of(new PerceptionSnapshot.ObservedActor(target, visible, current, true, true, 4))),
+            new PerceptionSnapshot(List.of(new PerceptionSnapshot.ObservedActor(target, visible, current, true, true, 4,
+                new PerceptionSnapshot.Evidence(null, 0, "test:sensor", visible ? 1 : 0, Set.of())))),
             hostile ? Set.of(target) : Set.of(), List.of(new AiDecisionContext.Option(target, binding, legal, tags)), null,
             new AiRuntimeState(actor, instance, 1, 0, null));
     }
@@ -49,7 +50,8 @@ class AiControlModelTest {
             for (boolean committed : List.of(false, true)) for (boolean hostile : List.of(false, true)) {
                 var c = new AiDecisionContext(original.actor(), original.definition(), EncounterPhase.CANDIDATE, true,
                     original.dimension(), new PerceptionSnapshot(List.of(new PerceptionSnapshot.ObservedActor(
-                        target, true, committed, false, true, 4))), hostile ? Set.of(target) : Set.of(),
+                        target, true, committed, false, true, 4,
+                        new PerceptionSnapshot.Evidence(null, 0, "test:sensor", 1, Set.of())))), hostile ? Set.of(target) : Set.of(),
                     original.options(), null, original.runtime());
                 assertEquals(preference != AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS && (committed || hostile),
                     AiPlanner.decide(c) instanceof AiPlanner.Propose);

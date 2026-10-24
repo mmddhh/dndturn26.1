@@ -38,9 +38,9 @@ public record AbilityDefinition(String id, int version, String label, ActionInte
         if (cost.requiresReaction() && activation != Activation.TRIGGERED)
             throw new IllegalArgumentException("reaction cost requires triggered admission");
         Objects.requireNonNull(targetPolicy);
-        executionKind = executionKind == null ? defaultExecutionKind(kind) : executionKind;
+        Objects.requireNonNull(executionKind);
         var bounded = new LinkedHashMap<String, Set<String>>();
-        if (parameters != null) parameters.forEach((key, values) -> {
+        Objects.requireNonNull(parameters).forEach((key, values) -> {
             if (key.isBlank() || key.length() > 64 || values.isEmpty() || values.size() > 32
                     || values.stream().anyMatch(v -> v.length() > 128)) throw new IllegalArgumentException("ability parameter contract");
             bounded.put(key, Set.copyOf(values));

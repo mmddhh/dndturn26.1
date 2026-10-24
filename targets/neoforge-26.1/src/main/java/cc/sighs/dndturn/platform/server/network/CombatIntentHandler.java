@@ -87,8 +87,6 @@ public final class CombatIntentHandler {
             }
             service.lifecycle().rejectExitIdReuse(intent.operationId());
             OperationRecord.Kind retryKind = switch (intent.kind()) {
-                case MOVE_BEGIN, MOVE_END -> OperationRecord.Kind.MOVE;
-                case ATTACK -> OperationRecord.Kind.ATTACK;
                 case END_TURN -> OperationRecord.Kind.END_TURN;
                 case DASH -> OperationRecord.Kind.DASH;
                 case DODGE -> OperationRecord.Kind.DODGE;
@@ -97,8 +95,7 @@ public final class CombatIntentHandler {
             };
             if (retryKind != null) {
                 var completed = service.lifecycle().completedRetry(player, intent.encounterId(), intent.operationId(),
-                    retryKind, intent.expectedVersion(), intent.targetId(),
-                    intent.kind() != IntentKind.MOVE_END);
+                    retryKind, intent.expectedVersion(), intent.targetId());
                 if (completed != null) {
                     service.lifecycle().resyncMember(player, intent.encounterId());
                     sendIntentStatus(player, new IntentStatus(service.generation(), intent.encounterId(),
@@ -115,7 +112,6 @@ public final class CombatIntentHandler {
                     service.lifecycle().exitEncounter(player, intent.encounterId(), intent.operationId(),
                         intent.expectedVersion());
                 }
-                case MOVE_BEGIN, MOVE_END, ATTACK -> throw new IllegalStateException("legacy world action disabled; submit a tactical plan");
                 case END_TURN -> service.combat().endTurn(intent.encounterId(), player, intent.operationId(),
                     intent.expectedVersion());
                 case DASH -> {

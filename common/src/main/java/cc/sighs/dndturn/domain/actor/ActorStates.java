@@ -219,63 +219,6 @@ public final class ActorStates {
         deliveries.values().removeIf(this::archiveSimulation);
         return before - deliveries.size();
     }
-    /** Evidence for a narrowly scoped legacy repair; the original fault is never lost. */
-    public record CapacityRecovery(String originalFault, long actorRevision, int archivedDeliveries) {
-        public CapacityRecovery {
-            if (!"ACTIVATION_FAILED:IllegalStateException".equals(originalFault) || actorRevision < 0
-                    || archivedDeliveries < 1 || archivedDeliveries > 16384)
-                throw new IllegalArgumentException("capacity recovery evidence");
-        }
-    }
-    private final Map<UUID, CapacityRecovery> capacityCandidates = new LinkedHashMap<>();
-    private final Map<UUID, CapacityRecovery> capacityRecoveries = new LinkedHashMap<>();
-    public Map<UUID, CapacityRecovery> capacityCandidates() { return Map.copyOf(capacityCandidates); }
-    public Map<UUID, CapacityRecovery> capacityRecoveries() { return Map.copyOf(capacityRecoveries); }
-    public void restoreCapacityRecoveries(Map<UUID, CapacityRecovery> candidates, Map<UUID, CapacityRecovery> recovered) {
-        if (!capacityCandidates.isEmpty() || !capacityRecoveries.isEmpty()
-                || !actors.keySet().containsAll(candidates.keySet()) || !actors.keySet().containsAll(recovered.keySet())
-                || !Collections.disjoint(candidates.keySet(), recovered.keySet()))
-            throw new IllegalArgumentException("capacity recovery owner");
-        candidates.forEach((actor, evidence) -> {
-            if (!evidence.originalFault().equals(faults.get(actor)) || evidence.actorRevision() != state(actor).revision())
-                throw new IllegalArgumentException("capacity recovery fault evidence");
-        });
-        recovered.forEach((actor, evidence) -> {
-            if (evidence.actorRevision() > state(actor).revision()) throw new IllegalArgumentException("capacity recovery revision");
-        });
-        capacityCandidates.putAll(candidates); capacityRecoveries.putAll(recovered);
-    }
-    private boolean inertRecoveryCandidate(UUID actor) {
-        var state = state(actor);
-        return state.persistent().equals(ActorPersistentState.empty()) && state.runtime().effects().isEmpty()
-                && deliveries.values().stream().noneMatch(d -> d.actor().equals(actor) && d.status() != DeliveryStatus.COMPLETED)
-                && invocations.values().stream().noneMatch(i -> i.event().actor().equals(actor))
-                && receipts.values().stream().filter(r -> r.command().actor().equals(actor))
-                    .allMatch(r -> r.command().changes().stream().allMatch(c -> c instanceof Advance)
-                            && r.transitions().isEmpty() && r.command().invocations().isEmpty());
-    }
-    /** Run only after all checkpoint evidence is installed. No old event is executed. */
-    public int prepareCapacityRecovery() {
-        boolean saturated = deliveries.size() == 16384
-                && deliveries.values().stream().allMatch(d -> d.status() == DeliveryStatus.COMPLETED);
-        int archived = compactSimulationHistory();
-        if (saturated && archived > 0) faults.forEach((actor, reason) -> {
-            if (reason.equals("ACTIVATION_FAILED:IllegalStateException") && inertRecoveryCandidate(actor)
-                    && !capacityRecoveries.containsKey(actor))
-                capacityCandidates.putIfAbsent(actor, new CapacityRecovery(reason, state(actor).revision(), archived));
-        });
-        return archived;
-    }
-    /** Platform must first validate current instance and compile the unchanged candidate state. */
-    public boolean reconcileCapacityFault(UUID actor) {
-        var evidence = capacityCandidates.get(actor);
-        if (evidence == null || !evidence.originalFault().equals(faults.get(actor))
-                || evidence.actorRevision() != state(actor).revision() || !inertRecoveryCandidate(actor)) return false;
-        capacityRecoveries.put(actor, evidence);
-        capacityCandidates.remove(actor);
-        faults.remove(actor);
-        return true;
-    }
     /**
      * Drop terminal actor receipts older than the retention horizon. Pending work, live roots and
      * records without a timestamp are kept; the caller supplies the actual-tick clock.

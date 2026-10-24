@@ -219,14 +219,12 @@ public final class CombatControls {
     }
 
     /** AUI and key bindings share the same pending movement/stop state machine. */
-    public static void requestFromUi(EncounterProtocol.IntentKind kind, UUID target) {
+    public static void requestFromUi(EncounterProtocol.IntentKind kind) {
         Minecraft game = Minecraft.getInstance();
         if (game.player == null || game.getConnection() == null || game.screen != null) return;
         switch (kind) {
-            case MOVE_BEGIN -> ClientTacticalPlan.select(ActionIntent.Capability.MOVE);
             case END_TURN -> requestEndTurn();
             case EXIT -> requestExit();
-            case ATTACK -> ClientTacticalPlan.select(ActionIntent.Capability.ATTACK);
             case DASH, DODGE, DISENGAGE -> send(kind, null);
             default -> throw new IllegalArgumentException("unsupported UI action");
         }

@@ -30,8 +30,6 @@ public final class MeleeAdapters {
             this(id, version, matches, e -> e instanceof ServerPlayer ? 1.0 : e.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE));
         }
     }
-    /** Compatibility registration alias; DamageReceivers owns all receiver state. */
-    @Deprecated public interface Receiver extends DamageReceivers.Receiver {}
     private final Map<String, Attacker> attackers = new LinkedHashMap<>();
     private final DamageReceivers receivers;
     public MeleeAdapters() { this(new DamageReceivers()); }
@@ -48,7 +46,6 @@ public final class MeleeAdapters {
         if (attackers.putIfAbsent(adapter.id(), adapter) != null)
             throw new IllegalArgumentException("duplicate melee attacker " + adapter.id());
     }
-    @Deprecated public void register(Receiver adapter) { receivers.register(adapter); }
     /** Explicit fallback registration; fresh registries remain unsupported until installed. */
     public synchronized void registerFallback(Attacker value) {
         Objects.requireNonNull(value);
@@ -71,7 +68,6 @@ public final class MeleeAdapters {
             throw new IllegalStateException("ambiguous melee attackers: " + found.id() + ", " + other.id());
         return found == null && fallback != null && fallback.matches().test(actor) ? fallback : found;
     }
-    @Deprecated public DamageReceivers.Receiver receiver(LivingEntity target) { return receivers.find(target); }
     private void writable(int size) {
         if (frozen) throw new IllegalStateException("melee registry is frozen");
         if (size >= 64) throw new IllegalStateException("melee registry capacity exceeded");

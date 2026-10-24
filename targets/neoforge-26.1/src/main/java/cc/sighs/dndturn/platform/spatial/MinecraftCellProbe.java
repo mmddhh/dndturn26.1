@@ -1,7 +1,6 @@
 package cc.sighs.dndturn.platform.spatial;
 
 import cc.sighs.dndturn.application.planning.MovementPlanner.CellProbe;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority.Bounds;
 import cc.sighs.dndturn.domain.encounter.EncounterRegion;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import java.util.Objects;
@@ -16,21 +15,11 @@ import net.minecraft.world.phys.AABB;
 public final class MinecraftCellProbe implements CellProbe {
     private final ServerLevel level;
     private final Entity mover;
-    private final Bounds bounds;
     private final EncounterRegion region;
-
-    @Deprecated
-    public MinecraftCellProbe(ServerLevel level, Entity mover, Bounds bounds) {
-        this.level = Objects.requireNonNull(level);
-        this.mover = Objects.requireNonNull(mover);
-        this.bounds = Objects.requireNonNull(bounds);
-        this.region = null;
-    }
 
     public MinecraftCellProbe(ServerLevel level, Entity mover, EncounterRegion region) {
         this.level = Objects.requireNonNull(level);
         this.mover = Objects.requireNonNull(mover);
-        this.bounds = null;
         this.region = Objects.requireNonNull(region);
     }
 
@@ -40,9 +29,7 @@ public final class MinecraftCellProbe implements CellProbe {
         if (cell.y() == Integer.MIN_VALUE) return false;
         BlockPos floor = new BlockPos(cell.x(), cell.y() - 1, cell.z());
         AABB footprint = footprint(cell);
-        if (region != null) {
-            if (!region.dimension().equals(level.dimension().identifier().toString())) return false;
-        } else if (!bounds.dimension().equals(level.dimension().toString()) || !bounds.contains(cell)) return false;
+        if (!region.dimension().equals(level.dimension().identifier().toString())) return false;
         if (!isLoaded(footprint) || !level.hasChunkAt(floor)) return false;
         AABB supportProbe = new AABB(footprint.minX, footprint.minY - 0.01, footprint.minZ,
             footprint.maxX, footprint.minY, footprint.maxZ);

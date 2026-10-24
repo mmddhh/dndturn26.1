@@ -31,7 +31,6 @@ class ActorHistoryTest {
         var restored = new ActorStates(); restored.restore(source.snapshot(), source.receipts());
         restored.restoreFaults(source.faults()); restored.restoreDeliveries(source.deliveries());
         restored.restoreInvocations(source.invocations()); restored.restoreSimulationArchive(source.simulationArchive());
-        restored.restoreCapacityRecoveries(source.capacityCandidates(), source.capacityRecoveries());
         return restored;
     }
     @Test void twentyThousandCompletedStepsStayBoundedAndReplayAfterRestore() {
@@ -66,39 +65,20 @@ class ActorHistoryTest {
         assertEquals(owner.pendingReactions(actor), restored.pendingReactions(actor));
         assertEquals(owner.receipts(), restored.receipts());
     }
-    @Test void saturatedLegacyFaultRequiresInertStateAndRetainsReconciliationEvidence() {
-        var owner = owner(16384);
-        owner.restoreDeliveries(java.util.stream.LongStream.rangeClosed(1, 16384)
-                .mapToObj(n -> delivery(n, ActorStates.DeliveryStatus.COMPLETED)).toList());
-        owner.fault(actor, "ACTIVATION_FAILED:IllegalStateException");
-        assertEquals(16384, owner.prepareCapacityRecovery());
-        assertNotNull(owner.faultReason(actor)); // Compaction alone cannot release control.
-        assertEquals(1, owner.capacityCandidates().size());
-        var restored = restore(owner);
-        var state = restored.state(actor);
-        assertTrue(restored.reconcileCapacityFault(actor));
-        assertSame(state, restored.state(actor));
-        assertNull(restored.faultReason(actor));
-        assertFalse(restored.reconcileCapacityFault(actor));
-        var finalOwner = restore(restored);
-        assertEquals("ACTIVATION_FAILED:IllegalStateException", finalOwner.capacityRecoveries().get(actor).originalFault());
-        assertTrue(finalOwner.capacityCandidates().isEmpty());
-    }
     @Test void unrelatedOrUncertainFaultIsNotRecovered() {
         for (boolean pending : List.of(false, true)) {
             var owner = owner(16384);
             owner.restoreDeliveries(java.util.stream.LongStream.rangeClosed(1, 16384)
                     .mapToObj(n -> delivery(n, pending && n == 16384 ? ActorStates.DeliveryStatus.PENDING : ActorStates.DeliveryStatus.COMPLETED)).toList());
             owner.fault(actor, pending ? "ACTIVATION_FAILED:IllegalStateException" : "EFFECT_DEPTH_LIMIT");
-            owner.prepareCapacityRecovery();
-            assertFalse(owner.reconcileCapacityFault(actor));
+            owner.compactSimulationHistory();
             assertNotNull(owner.faultReason(actor));
         }
         var small = owner(1);
         small.restoreDeliveries(List.of(delivery(1, ActorStates.DeliveryStatus.COMPLETED)));
         small.fault(actor, "ACTIVATION_FAILED:IllegalStateException");
-        small.prepareCapacityRecovery();
-        assertFalse(small.reconcileCapacityFault(actor));
+        small.compactSimulationHistory();
+        assertNotNull(small.faultReason(actor));
     }
     @Test void malformedArchiveCannotPartiallyInstall() {
         var owner = owner(2);
@@ -106,15 +86,14 @@ class ActorHistoryTest {
                 List.of(new ActorStates.SimulationRange(1, 3)))));
         assertTrue(owner.simulationArchive().isEmpty());
     }
-    @Test void legacyActorWithRuleMutationsKeepsItsFault() {
+    @Test void actorWithRuleMutationsKeepsItsFault() {
         var owner = owner(16384);
         owner.apply(new ActorStates.Command(UUID.randomUUID(), actor, 1,
                 List.of(new ActorStates.Resource(new ResourceKey("test:resource"), 1, true))));
         owner.restoreDeliveries(java.util.stream.LongStream.rangeClosed(1, 16384)
                 .mapToObj(n -> delivery(n, ActorStates.DeliveryStatus.COMPLETED)).toList());
         owner.fault(actor, "ACTIVATION_FAILED:IllegalStateException");
-        owner.prepareCapacityRecovery();
-        assertFalse(owner.reconcileCapacityFault(actor));
+        owner.compactSimulationHistory();
         assertEquals(1.0, owner.state(actor).persistent().resources().get("test:resource"));
         assertNotNull(owner.faultReason(actor));
     }

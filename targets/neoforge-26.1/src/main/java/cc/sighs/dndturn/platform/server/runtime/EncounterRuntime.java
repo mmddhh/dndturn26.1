@@ -355,7 +355,7 @@ public final class EncounterRuntime {
             projections.restore(saved.nextSessionSequence(), saved.sessionSequences());
             lifecycle.restore(saved);
             projectiles.restore(saved);
-            movement.restoreReceipts(saved.moveEndReceipts(), saved.leases());
+            movement.restoreLeaseEvidence(saved.leases());
             vanillaEffects.restore(saved.participantEffects(),saved.turnSettlements());
 
         }
@@ -410,14 +410,13 @@ public final class EncounterRuntime {
         var pendingArrows = projectiles.pendingSnapshot();
         var starts = lifecycle.startReceipts();
         var exits = lifecycle.exitReceipts();
-        var moveEnds = movement.receipts();
         var leases = movement.leaseEvidence();
         return new CombatPersistenceEnvelope(rules, cumulativeServerTicks, projections.lastSequence(),
             projections.sessions(), lifecycle.capturedSettings(), projectiles.origins(),
             projectiles.domains(), pendingArrows,
             lifecycle.pendingMerges().values().stream()
                 .map(EncounterStateSnapshot.MergePlanState::capture).toList(),
-            starts, exits, moveEnds, leases, projectiles.quarantines(), lifecycle.exitAuthorizations().snapshot(), persistence.checkpoints(), lifecycle.mergeBindings(), projectiles.abilities(), persistence.audits(),
+            starts, exits, leases, projectiles.quarantines(), lifecycle.exitAuthorizations().snapshot(), persistence.checkpoints(), lifecycle.mergeBindings(), projectiles.abilities(), persistence.audits(),
             vanillaEffects.owners(),vanillaEffects.settlements(), processes.snapshot());
     }
 

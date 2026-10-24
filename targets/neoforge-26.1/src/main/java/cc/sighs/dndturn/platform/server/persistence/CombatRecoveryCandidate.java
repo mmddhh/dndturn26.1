@@ -46,10 +46,6 @@ public final class CombatRecoveryCandidate {
                 throw new IllegalArgumentException("exit authorization dimension mismatch");
             // Active members never inherit an old exit grant. Reconciliation revokes it on install.
         });
-        saved.moveEndReceipts().values().forEach(receipt -> {
-            Objects.requireNonNull(receipt.owner()); Objects.requireNonNull(receipt.encounterId());
-            if (receipt.expectedVersion() < 0) throw new IllegalArgumentException("negative movement version");
-        });
         saved.leases().forEach(lease -> {
             Objects.requireNonNull(lease.encounterId()); Objects.requireNonNull(lease.operationId());
             Objects.requireNonNull(lease.ownerId()); Objects.requireNonNull(lease.kind());

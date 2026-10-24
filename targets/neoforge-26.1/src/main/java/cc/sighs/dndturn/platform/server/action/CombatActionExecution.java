@@ -383,11 +383,11 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             && !engine.hasAttemptedAttack(encounterId, actor.getUUID())
             && receiver.unawareOf(target, actor);
         var plan = planParent == null ? null : engine.pendingOperation(encounterId, planParent);
-        double legacyDamage = plan != null ? 0 : actor instanceof ServerPlayer
+        double directMeleeDamage = plan != null ? 0 : actor instanceof ServerPlayer
             ? actor.getMainHandItem().getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY)
                 .compute(Attributes.ATTACK_DAMAGE, 0.0, EquipmentSlot.MAINHAND)
             : MeleeAdapters.server().attacker(actor).intrinsicDamage().applyAsDouble(actor);
-        var effects = plan == null ? new AbilityExecutor.MeleeEffects(Math.max(0, legacyDamage),
+        var effects = plan == null ? new AbilityExecutor.MeleeEffects(Math.max(0, directMeleeDamage),
             host.knockback(encounterId), false, actor instanceof ServerPlayer)
             : AbilityExecutors.resolve(plan.intent()).meleeEffects(actorStates.context(actor), host.knockback(encounterId));
         double weaponAttribute = effects.baseDamage();

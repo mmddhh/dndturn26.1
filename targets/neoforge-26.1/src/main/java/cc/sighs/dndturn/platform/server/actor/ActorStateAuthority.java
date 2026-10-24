@@ -57,7 +57,6 @@ public final class ActorStateAuthority {
     private final ActorStates owner;
     private final RuntimeException recoveryFailure;
     private final Set<UUID> advanced = new HashSet<>();
-    private final ArrayDeque<UUID> capacityChecks = new ArrayDeque<>();
     private boolean dirty;
     private long recordedTick;
     private int saveDelay;
@@ -74,11 +73,10 @@ public final class ActorStateAuthority {
         ActorStates restored = null; RuntimeException failed = null;
         try {
             restored = saved.restore();
-            int archived = restored.prepareCapacityRecovery();
+            int archived = restored.compactSimulationHistory();
             if (archived > 0) {
                 dirty = true;
-                com.mojang.logging.LogUtils.getLogger().info("Actor simulation history compacted: deliveries={}, recoveryCandidates={}",
-                        archived, restored.capacityCandidates().size());
+                com.mojang.logging.LogUtils.getLogger().info("Actor simulation history compacted: deliveries={}", archived);
             }
             for (var invocation : restored.invocations()) if (invocation.status() == TriggeredExecutionRecord.Status.STARTED) {
                 restored.invocationStatus(invocation.operation(), TriggeredExecutionRecord.Status.UNKNOWN, "native execution interrupted; not replayed");
@@ -90,7 +88,6 @@ public final class ActorStateAuthority {
             com.mojang.logging.LogUtils.getLogger().error("Actor checkpoint rejected; original data retained and actor rules unavailable", invalid);
         }
         this.owner = restored; this.recoveryFailure = failed;
-        if (failed == null) capacityChecks.addAll(restored.capacityCandidates().keySet());
     }
     private void thread() { if (!server.isSameThread()) throw new IllegalStateException("actor server thread required"); }
     private void available() { if (recoveryFailure != null) throw new IllegalStateException("actor checkpoint unavailable; original retained", recoveryFailure); }
@@ -218,14 +215,6 @@ public final class ActorStateAuthority {
         recordedTick = tick;
         owner.setRecordedTick(tick);
         advanced.clear();
-        // Reconciliation is a server lifecycle task, independent of body simulation or input packets.
-        int count = Math.min(8, capacityChecks.size());
-        for (int n = 0; n < count; n++) {
-            UUID id = capacityChecks.removeFirst();
-            var entity = find(id);
-            if (entity == null) capacityChecks.addLast(id);
-            else reconcileCapacityFault(new LiveActorContext(entity));
-        }
     }
     public void persist() {
         thread();
@@ -240,20 +229,6 @@ public final class ActorStateAuthority {
         int removed = owner.expireHistory(now, retentionTicks);
         if (removed > 0) dirty = true;
         return removed;
-    }
-    private void reconcileCapacityFault(LiveActorContext actor) {
-        if (!owner.capacityCandidates().containsKey(actor.id())) return;
-        // Validate unchanged rule values against current native facts; never replay the missing event.
-        try { snapshots.validateActorState(actor, owner.state(actor.id())); }
-        catch (RuntimeException invalid) {
-            com.mojang.logging.LogUtils.getLogger().warn("Actor capacity reconciliation retained quarantine: actor={}", actor.id(), invalid);
-            return;
-        }
-        if (owner.reconcileCapacityFault(actor.id())) {
-            dirty = true;
-            com.mojang.logging.LogUtils.getLogger().info("Actor capacity fault reconciled after current-instance validation: actor={}, evidence={}",
-                    actor.id(), owner.capacityRecoveries().get(actor.id()));
-        }
     }
     private void enrollDefinition(LiveActorContext actor) {
         if (!ActorDefinitions.hasProviders() || owner.state(actor.id()).revision() != 0 || ActorDefinitions.capture(actor).intrinsicGrants().isEmpty()) return;

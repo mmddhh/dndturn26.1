@@ -59,17 +59,13 @@ public final class ActorSavedData extends SavedData {
     }
     private record Checkpoint(Map<UUID, ActorStates.State> actors, List<ActorStates.Receipt> receipts,
                               Map<UUID, String> faults, List<ActorStates.ReactionDelivery> deliveries, List<TriggeredExecutionRecord> invocations,
-                              Map<UUID, List<ActorStates.SimulationRange>> simulationArchive,
-                              Map<UUID, ActorStates.CapacityRecovery> capacityCandidates,
-                              Map<UUID, ActorStates.CapacityRecovery> capacityRecoveries) {
+                              Map<UUID, List<ActorStates.SimulationRange>> simulationArchive) {
         Checkpoint {
             actors = Map.copyOf(actors); receipts = List.copyOf(receipts);
             faults = Map.copyOf(faults);
             deliveries = List.copyOf(deliveries);
             invocations = List.copyOf(invocations);
-            simulationArchive = simulationArchive == null ? Map.of() : Map.copyOf(simulationArchive);
-            capacityCandidates = capacityCandidates == null ? Map.of() : Map.copyOf(capacityCandidates);
-            capacityRecoveries = capacityRecoveries == null ? Map.of() : Map.copyOf(capacityRecoveries);
+            simulationArchive = Map.copyOf(simulationArchive);
         }
     }
     private static final Codec<ActorSavedData> CODEC = Codec.STRING.listOf().xmap(
@@ -78,7 +74,7 @@ public final class ActorSavedData extends SavedData {
             Identifier.fromNamespaceAndPath("dndturn", "actor_state"), ActorSavedData::new, CODEC);
     private String json;
     public ActorSavedData() { this(""); }
-    private ActorSavedData(String json) { this.json = json; }
+    ActorSavedData(String json) { this.json = json; }
     private static String join(List<String> chunks) {
         long length = chunks.stream().mapToLong(s -> s.getBytes(java.nio.charset.StandardCharsets.UTF_8).length).sum();
         if (length > MAX_BYTES || chunks.size() > 1024) throw new IllegalArgumentException("actor checkpoint size");
@@ -89,6 +85,7 @@ public final class ActorSavedData extends SavedData {
         for (int start = 0; start < json.length(); start += 30000) chunks.add(json.substring(start, Math.min(start + 30000, json.length())));
         return List.copyOf(chunks);
     }
+    String json() { return json; }
     public ActorStates restore() {
         var owner = new ActorStates();
         if (json.isBlank()) return owner;
@@ -108,7 +105,9 @@ public final class ActorSavedData extends SavedData {
         }
         if (depth != 0 || quoted) throw new IllegalArgumentException("actor checkpoint structure");
         var document = JsonParser.parseString(json).getAsJsonObject();
-        for (String field : List.of("actors", "receipts", "faults", "deliveries", "invocations"))
+        if (document.size() != Checkpoint.class.getRecordComponents().length)
+            throw new IllegalArgumentException("unexpected actor checkpoint fields");
+        for (String field : List.of("actors", "receipts", "faults", "deliveries", "invocations", "simulationArchive"))
             if (!document.has(field) || document.get(field).isJsonNull())
                 throw new IllegalArgumentException("missing actor checkpoint field: " + field);
         var saved = GSON.fromJson(document, Checkpoint.class);
@@ -122,12 +121,11 @@ public final class ActorSavedData extends SavedData {
         owner.restore(states, saved.receipts()); owner.restoreFaults(saved.faults()); owner.restoreDeliveries(saved.deliveries());
         owner.restoreInvocations(saved.invocations());
         owner.restoreSimulationArchive(saved.simulationArchive());
-        owner.restoreCapacityRecoveries(saved.capacityCandidates(), saved.capacityRecoveries());
         return owner;
     }
     public void update(ActorStates owner) {
         String encoded = GSON.toJson(new Checkpoint(owner.snapshot(), owner.receipts(), owner.faults(), owner.deliveries(), owner.invocations(),
-                owner.simulationArchive(), owner.capacityCandidates(), owner.capacityRecoveries()));
+                owner.simulationArchive()));
         if (encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_BYTES) throw new IllegalStateException("actor checkpoint capacity");
         if (!encoded.equals(json)) { json = encoded; setDirty(); }
     }

@@ -15,11 +15,6 @@ public record PerceptionSnapshot(List<ObservedActor> actors) {
     }
     public record ObservedActor(UUID id, boolean visible, boolean currentTarget, boolean player,
                                 boolean nativeAttackable, double distanceSquared, Evidence evidence) {
-        public ObservedActor(UUID id, boolean visible, boolean currentTarget, boolean player,
-                             boolean nativeAttackable, double distanceSquared) {
-            this(id, visible, currentTarget, player, nativeAttackable, distanceSquared,
-                    new Evidence(null, 0, "dndturn:legacy_observation", visible ? 1 : 0, Set.of()));
-        }
         public ObservedActor { Objects.requireNonNull(id);
             Objects.requireNonNull(evidence);
             if (!Double.isFinite(distanceSquared) || distanceSquared < 0) throw new IllegalArgumentException("distance"); }

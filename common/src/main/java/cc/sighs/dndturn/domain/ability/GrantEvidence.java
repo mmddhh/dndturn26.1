@@ -24,7 +24,7 @@ public record GrantEvidence(Kind kind, ActionIntent.Hand hand, ActionIntent.Item
     }
     public GrantEvidence {
         Objects.requireNonNull(kind);
-        dependencies = dependencies == null ? Map.of() : Map.copyOf(dependencies);
+        dependencies = Map.copyOf(dependencies);
         if (dependencies.size() > 16 || dependencies.entrySet().stream().anyMatch(e ->
                 e.getKey().isBlank() || e.getKey().length() > 64 || e.getValue().length() > 256))
             throw new IllegalArgumentException("source dependency bounds");

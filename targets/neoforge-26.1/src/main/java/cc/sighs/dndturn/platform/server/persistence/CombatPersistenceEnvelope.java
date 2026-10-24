@@ -27,7 +27,6 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
                                         List<EncounterStateSnapshot.MergePlanState> pendingMerges,
                                         Map<UUID, StartReceipt> startReceipts,
                                         Map<UUID, ExitReceipt> exitReceipts,
-                                        Map<UUID, MoveEndReceipt> moveEndReceipts,
                                         List<LeaseEvidence> leases,
                                         Map<UUID, QuarantinedProjectile> quarantinedProjectiles,
                                         List<ExitAuthorizations.Grant> exitAuthorizations,
@@ -38,32 +37,6 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
                                         Map<UUID, VanillaEffectSettlementState.Owner> participantEffects,
                                         Map<UUID, VanillaEffectSettlementState.Settlement> turnSettlements,
                                         Map<UUID, ProcessState> processes) {
-
-    public CombatPersistenceEnvelope(EncounterStateSnapshot rules,
-                                        long cumulativeServerTicks, long nextSessionSequence,
-                                        Map<UUID, Long> sessionSequences,
-                                        Map<UUID, CapturedSettings> capturedSettings,
-                                        Map<UUID, ProjectileOrigin> projectileOrigins,
-                                        Map<UUID, UUID> projectileDomains,
-                                        Map<UUID, PendingProjectileAttack> pendingProjectileAttacks,
-                                        List<EncounterStateSnapshot.MergePlanState> pendingMerges,
-                                        Map<UUID, StartReceipt> startReceipts,
-                                        Map<UUID, ExitReceipt> exitReceipts,
-                                        Map<UUID, MoveEndReceipt> moveEndReceipts,
-                                        List<LeaseEvidence> leases,
-                                        Map<UUID, QuarantinedProjectile> quarantinedProjectiles,
-                                        List<ExitAuthorizations.Grant> exitAuthorizations,
-                                        Map<UUID, AbilityCheckpoint> abilities,
-                                        Map<UUID, MergeBinding> mergeBindings,
-                                        Map<UUID, ProjectileAbility> projectileAbilities,
-                                        Map<UUID, RecoveryAudit> recoveryAudits,
-                                        Map<UUID, VanillaEffectSettlementState.Owner> participantEffects,
-                                        Map<UUID, VanillaEffectSettlementState.Settlement> turnSettlements) {
-        this(rules, cumulativeServerTicks, nextSessionSequence, sessionSequences, capturedSettings, projectileOrigins,
-                projectileDomains, pendingProjectileAttacks, pendingMerges, startReceipts, exitReceipts, moveEndReceipts,
-                leases, quarantinedProjectiles, exitAuthorizations, abilities, mergeBindings, projectileAbilities,
-                recoveryAudits, participantEffects, turnSettlements, Map.of());
-    }
 
     public CombatPersistenceEnvelope {
         if (cumulativeServerTicks < 0 || nextSessionSequence < 0)
@@ -77,7 +50,6 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
         pendingMerges = List.copyOf(pendingMerges);
         startReceipts = Map.copyOf(startReceipts);
         exitReceipts = Map.copyOf(exitReceipts);
-        moveEndReceipts = Map.copyOf(moveEndReceipts);
         leases = List.copyOf(leases);
         quarantinedProjectiles = Map.copyOf(quarantinedProjectiles);
         exitAuthorizations = List.copyOf(exitAuthorizations);
@@ -146,7 +118,6 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
     }
     public record StartReceipt(UUID owner, UUID encounterId) {}
     public record ExitReceipt(UUID owner, UUID encounterId, long expectedVersion) {}
-    public record MoveEndReceipt(UUID owner, UUID encounterId, long expectedVersion) {}
     public record LeaseEvidence(UUID encounterId, UUID operationId, UUID ownerId,
                                 String kind, int nextStep, int spentTicks) {}
 }

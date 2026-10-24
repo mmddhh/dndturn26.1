@@ -145,7 +145,6 @@ public final class EncounterLifecycleCoordinator {
     private record ExitRequestReceipt(UUID owner, UUID encounterId, long expectedVersion) {}
     private final Map<UUID, ExitRequestReceipt> exitReceipts = new HashMap<>();
     private final ExitAuthorizations exitAuthorizations = new ExitAuthorizations();
-    /** The END intent observes a later version than its MOVE_BEGIN operation snapshot. */
     private final Map<UUID, EncounterAuthority.MergePlan> pendingMerges = new HashMap<>();
     private final Map<UUID, String> mergeFailures = new HashMap<>();
     private int worldOutcomeDepth;
@@ -868,8 +867,7 @@ public final class EncounterLifecycleCoordinator {
     /** Resolve a terminal retry before checking current membership; this grants no new execution. */
     public OperationRecord.Result completedRetry(ServerPlayer player, UUID requestedEncounter,
                                                   UUID operationId, OperationRecord.Kind kind,
-                                                  long expectedVersion, UUID targetId,
-                                                  boolean checkVersion) {
+                                                  long expectedVersion, UUID targetId) {
         requireThread();
         Objects.requireNonNull(requestedEncounter);
         Objects.requireNonNull(operationId);
@@ -880,14 +878,8 @@ public final class EncounterLifecycleCoordinator {
         if (snapshot.kind() != kind || !snapshot.owner().equals(player.getUUID())
             || !snapshot.encounterId().equals(requestedEncounter)
             || !Objects.equals(snapshot.target(), targetId)
-            || checkVersion && snapshot.encounterVersion() != expectedVersion)
+            || snapshot.encounterVersion() != expectedVersion)
             throw new IllegalStateException("operation ID payload conflict");
-        if (!checkVersion) {
-            if (kind != OperationRecord.Kind.MOVE)
-                throw new IllegalStateException("only MOVE_END uses the later version contract");
-            movement.validateMoveEndReceipt(player.getUUID(), requestedEncounter, operationId,
-                expectedVersion, result);
-        }
         return result;
     }
 
@@ -1080,7 +1072,6 @@ public final class EncounterLifecycleCoordinator {
         Set<UUID> referenced = new HashSet<>();
         for (StartRequestReceipt receipt : startReceipts.values()) referenced.add(receipt.encounterId());
         for (ExitRequestReceipt receipt : exitReceipts.values()) referenced.add(receipt.encounterId());
-        for (var receipt : movement.receipts().values()) referenced.add(receipt.encounterId());
         for (ExitAuthorizations.Grant grant : exitAuthorizations.snapshot()) referenced.add(grant.encounter());
         for (var origin : projectiles.origins().values())
             if (origin.sourceEncounterId() != null) referenced.add(origin.sourceEncounterId());
@@ -1092,7 +1083,6 @@ public final class EncounterLifecycleCoordinator {
         if (!removed.isEmpty()) {
             startReceipts.values().removeIf(receipt -> removed.contains(receipt.encounterId()));
             exitReceipts.values().removeIf(receipt -> removed.contains(receipt.encounterId()));
-            movement.removeReceipts(removed);
             DebugDiagnostics.log("HISTORY_EXPIRED", () -> "encounters=" + removed.size());
             persistence.changed();
         }

@@ -81,7 +81,7 @@ public record ActionIntent(String behaviorId, int behaviorVersion, Hand hand,
         }
     }
     public ActionIntent {
-        parameters = parameters == null ? java.util.Map.of() : java.util.Map.copyOf(parameters);
+        parameters = java.util.Map.copyOf(parameters);
         if (parameters.size() > 16 || parameters.entrySet().stream().anyMatch(e -> e.getKey().isBlank()
                 || e.getKey().length() > 64 || e.getValue().length() > 128)) throw new IllegalArgumentException("ability parameter bounds");
         Objects.requireNonNull(ruleset);

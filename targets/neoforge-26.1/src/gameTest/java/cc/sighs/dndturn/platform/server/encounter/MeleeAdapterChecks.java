@@ -12,7 +12,7 @@ import net.minecraft.world.entity.LivingEntity;
 public final class MeleeAdapterChecks {
     private MeleeAdapterChecks() {}
     public static void register() {
-        MeleeAdapters.server().register(new MeleeAdapters.Receiver() {
+        DamageReceivers.server().register(new DamageReceivers.Receiver() {
             public String id() { return "test:tagged_cow_receiver"; }
             public int version() { return 1; }
             public boolean matches(LivingEntity entity) {
@@ -26,9 +26,9 @@ public final class MeleeAdapterChecks {
         var cow = EntityType.COW.create(helper.getLevel(), EntitySpawnReason.STRUCTURE);
         rejected(helper, () -> new LiveActorContext(cow), "unloaded actor acquired a runtime context");
         helper.assertTrue(MeleeAdapters.server().attacker(zombie) != null
-            && MeleeAdapters.server().receiver(zombie) != null, "built-in zombie contracts missing");
+            && DamageReceivers.server().find(zombie) != null, "built-in zombie contracts missing");
         helper.assertTrue(MeleeAdapters.server().attacker(cow) != null
-            && MeleeAdapters.server().receiver(cow) != null, "default cow support missing");
+            && DamageReceivers.server().find(cow) != null, "default cow support missing");
         for (var type : java.util.List.of(EntityType.CREEPER, EntityType.SKELETON, EntityType.STRAY, EntityType.BOGGED, EntityType.WITHER_SKELETON)) {
             var target = type.create(helper.getLevel(), EntitySpawnReason.STRUCTURE);
             helper.assertTrue(DamageReceivers.server().find(target) != null, "audited receiving chain unavailable: " + type);
@@ -37,18 +37,19 @@ public final class MeleeAdapterChecks {
         var unknownOverride = new net.minecraft.world.entity.monster.Creeper(EntityType.CREEPER, helper.getLevel()) {};
         helper.assertTrue(DamageReceivers.server().find(unknownOverride) != null, "subclass lost default receiver support");
         var registry = new MeleeAdapters();
+        var receivers = new DamageReceivers();
         var attacker = new MeleeAdapters.Attacker("test:cow", 1, e -> e == cow);
         registry.register(attacker);
-        helper.assertTrue(registry.attacker(cow) == attacker && registry.receiver(cow) == null,
+        helper.assertTrue(registry.attacker(cow) == attacker && receivers.find(cow) == null,
             "attacker registration implicitly installed receiver support");
         rejected(helper, () -> registry.register(attacker), "duplicate attacker accepted");
-        registry.register(new MeleeAdapters.Receiver() {
+        receivers.register(new DamageReceivers.Receiver() {
             public String id() { return "test:cow_receiver"; }
             public int version() { return 1; }
             public boolean matches(LivingEntity entity) { return entity == cow; }
             public boolean unawareOf(LivingEntity receiver, LivingEntity actor) { return false; }
         });
-        helper.assertTrue(registry.receiver(cow) != null && registry.receiver(zombie) == null,
+        helper.assertTrue(receivers.find(cow) != null && receivers.find(zombie) == null,
             "receiver matcher widened support");
         registry.register(new MeleeAdapters.Attacker("test:conflict", 1, e -> e == cow));
         rejected(helper, () -> registry.attacker(cow), "ambiguous attacker selected by order");

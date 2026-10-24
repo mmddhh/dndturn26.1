@@ -89,8 +89,6 @@ public final class MovementExecutionCoordinator {
     /** Short-lived observed force events; vanilla's impulse grace is not proof of movement. */
     private final Map<UUID, ForcedMovementEvidence> forcedMovements = new HashMap<>();
     private final Map<UUID, MobMoveLease> mobMoves = new HashMap<>();
-    private record MoveEndReceipt(UUID owner, UUID encounterId, long expectedVersion) {}
-    private final Map<UUID, MoveEndReceipt> moveEndReceipts = new HashMap<>();
     private static final class PlayerMoveLease {
         final UUID encounterId;
         final UUID operationId;
@@ -256,8 +254,6 @@ public final class MovementExecutionCoordinator {
                 throw new IllegalStateException("operation ID payload conflict");
             return null;
         }
-        if (moveEndReceipts.containsKey(operationId))
-            throw new IllegalStateException("operation ID payload conflict");
         StateView state = engine.stateView(encounterId);
         if (state.version() != expectedVersion || (state.phase() != EncounterPhase.ACTIVE && state.phase() != EncounterPhase.CANDIDATE)
             || !actor.getUUID().equals(state.current()) || unsupportedPlayerMovement(actor)
@@ -530,58 +526,6 @@ public final class MovementExecutionCoordinator {
         return result;
     }
 
-    public OperationRecord.Result finishPlayerMove(ServerPlayer actor, UUID operationId,
-                                                               long expectedVersion) {
-        requireThread();
-        PlayerMoveLease lease = playerMoves.get(actor.getUUID());
-        if (lease != null) {
-            if (!lease.operationId.equals(operationId))
-                throw new IllegalStateException("movement operation ID payload conflict");
-            OperationRecord.Snapshot pending = engine.pendingOperation(lease.encounterId, operationId);
-            if (pending == null || expectedVersion < pending.encounterVersion()
-                || expectedVersion > engine.stateView(lease.encounterId).version())
-                throw ActionFailure.staleEncounter();
-            MoveEndReceipt prior = moveEndReceipts.get(operationId);
-            if (prior != null && (!prior.owner().equals(actor.getUUID())
-                || !prior.encounterId().equals(lease.encounterId)
-                || prior.expectedVersion() != expectedVersion))
-                throw new IllegalStateException("operation ID payload conflict");
-            OperationRecord.Result result = finishPlayerMove(actor);
-            validateMoveEndReceipt(actor.getUUID(), lease.encounterId, operationId,
-                expectedVersion, result);
-            return result;
-        }
-        UUID encounterId = engine.encounterOf(actor.getUUID());
-        if (encounterId != null) {
-            OperationRecord.Result prior = engine.resultFor(encounterId, operationId);
-            if (prior != null && prior.snapshot().kind() == OperationRecord.Kind.MOVE
-                && prior.snapshot().owner().equals(actor.getUUID())
-                && prior.snapshot().encounterId().equals(encounterId)) {
-                validateMoveEndReceipt(actor.getUUID(), encounterId, operationId,
-                    expectedVersion, prior);
-                return prior;
-            }
-        }
-        throw new IllegalStateException("no matching movement operation");
-    }
-
-    public void validateMoveEndReceipt(UUID owner, UUID encounterId, UUID operationId,
-                                        long expectedVersion, OperationRecord.Result result) {
-        MoveEndReceipt receipt = moveEndReceipts.get(operationId);
-        if (receipt != null) {
-            if (!receipt.owner().equals(owner) || !receipt.encounterId().equals(encounterId)
-                || receipt.expectedVersion() != expectedVersion)
-                throw new IllegalStateException("operation ID payload conflict");
-            return;
-        }
-        // An automatically completed MOVE can receive its first END request after the
-        // terminal publication. Its observed version must lie in that operation's window.
-        if (expectedVersion < result.snapshot().encounterVersion()
-            || expectedVersion > result.publishedVersion())
-            throw new IllegalStateException("operation ID payload conflict");
-        moveEndReceipts.put(operationId, new MoveEndReceipt(owner, encounterId, expectedVersion));
-    }
-
     private void settleMoveTick(PlayerMoveLease lease) {
         if (!lease.moved || playerMoves.get(lease.playerId) != lease) return;
         StateView state = engine.stateView(lease.encounterId);
@@ -716,16 +660,8 @@ public final class MovementExecutionCoordinator {
         } finally { playerMoves.clear(); forcedMovements.clear(); }
     }
     private final List<cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.LeaseEvidence> restoredLeaseEvidence = new ArrayList<>();
-    public void restoreReceipts(Map<UUID, cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.MoveEndReceipt> saved, List<cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.LeaseEvidence> leases) {
+    public void restoreLeaseEvidence(List<cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.LeaseEvidence> leases) {
         restoredLeaseEvidence.addAll(leases);
-        saved.forEach((id, receipt) -> moveEndReceipts.put(id, new MoveEndReceipt(
-                receipt.owner(), receipt.encounterId(), receipt.expectedVersion())));
-    }
-    public Map<UUID, cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.MoveEndReceipt> receipts() {
-        var result = new HashMap<UUID, cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.MoveEndReceipt>();
-        moveEndReceipts.forEach((id, receipt) -> result.put(id, new cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.MoveEndReceipt(
-                receipt.owner(), receipt.encounterId(), receipt.expectedVersion())));
-        return Map.copyOf(result);
     }
     public List<cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.LeaseEvidence> leaseEvidence() {
         var result = new ArrayList<cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope.LeaseEvidence>(restoredLeaseEvidence);
@@ -735,8 +671,6 @@ public final class MovementExecutionCoordinator {
                 lease.encounterId, lease.operationId, lease.mobId, "MOB_MOVE", lease.step, lease.spent));
         return List.copyOf(result);
     }
-    public void removeReceipts(Set<UUID> encounters) {
-        moveEndReceipts.values().removeIf(receipt -> encounters.contains(receipt.encounterId()));
-    }
+
 
 }
