@@ -22,8 +22,10 @@ public final class AuthorityProjection {
     }
     public static InputPolicy.Facts input(ServerPlayer player) {
         var service = ServerRuntime.existingEncounter(player.level().getServer());
+        // Membership (not region containment) decides who the encounter controls; a non-member
+        // passing through the player-centered field keeps vanilla input and can leave freely.
         return new InputPolicy.Facts(service != null && service.isMember(player.getUUID()),
-            service != null && service.isEntityInsidePausedRegion(player),
+            service != null && service.isMember(player.getUUID()),
             service != null && service.hasPlayerMoveLease(player.getUUID()),
             service == null ? null : service.controlFacts().captureAdmission(player, true),
             false);
@@ -37,7 +39,9 @@ public final class AuthorityProjection {
     public static ActorControlPolicy.Facts actor(LivingEntity entity) {
         if (!(entity.level() instanceof ServerLevel level)) return new ActorControlPolicy.Facts(false, false, false, null);
         var service = ServerRuntime.existingEncounter(level.getServer());
-        return new ActorControlPolicy.Facts(service != null && service.isEntityInsidePausedRegion(entity),
+        // Only members' autonomy is held. A non-member mob inside the field keeps its AI so it can
+        // acquire the player as a target and be pulled in; region containment alone must not freeze it.
+        return new ActorControlPolicy.Facts(service != null && service.isMember(entity.getUUID()),
             service != null && (entity instanceof ServerPlayer ? service.hasPlayerMoveLease(entity.getUUID())
                 : service.hasMobMoveLease(entity.getUUID())), ActiveBodyControl.inUseStep(entity),
             service == null ? null : service.controlFacts().controlEvidence(entity));

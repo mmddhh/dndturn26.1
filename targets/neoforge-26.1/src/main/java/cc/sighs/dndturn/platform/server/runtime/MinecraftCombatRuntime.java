@@ -17,7 +17,6 @@ import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
-import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
@@ -56,6 +55,7 @@ public final class MinecraftCombatRuntime {
             formal.confirmPendingDeaths();
             formal.finishMovementTicks();
             formal.reconcileMemberLocations();
+            formal.drainIntrusionAttacks();
             formal.advanceMobTurns();
             formal.flushResultPages();
             formal.syncBodyStateTransitions();
@@ -95,17 +95,6 @@ public final class MinecraftCombatRuntime {
         if (mob.level().getServer() == null) return;
         EncounterRuntime formal = ServerRuntime.existingEncounter(mob.level().getServer());
         if (formal != null) formal.pullHostile(mob, player.getUUID());
-    }
-
-    /**
-     * A player attacking an entity already inside a turn-based field is pulled into that encounter;
-     * the vanilla attack is cancelled so the attack resolves as a tactical action once joined.
-     */
-    public static void onPlayerAttack(AttackEntityEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        if (!(event.getTarget() instanceof Mob mob)) return;
-        EncounterRuntime formal = ServerRuntime.existingEncounter(player.level().getServer());
-        if (formal != null && formal.pullAttackingPlayer(player, mob.getUUID())) event.setCanceled(true);
     }
 
     public static void onDeath(LivingDeathEvent event) {

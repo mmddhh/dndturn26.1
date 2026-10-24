@@ -68,9 +68,6 @@ public final class MobTurnStrategies {
             if (id.equals(actor.id())) return null;
             var entity = actor.level().getEntity(id);
             if (!(entity instanceof net.minecraft.world.entity.LivingEntity living) || !living.isAlive()) return null;
-            // Region containment disabled while the field follows its participants.
-            // var center = living.getBoundingBox().getCenter();
-            // if (!state.region().containsPoint(center.x, center.y, center.z)) return null;
             boolean visible = mob.hasLineOfSight(living), current = mob.getTarget() == living;
             // A native commitment does not reveal the target's new position through walls.
             if (!visible) {

@@ -24,6 +24,9 @@ public interface ActionHost {
     boolean maySubmitPlan(LiveActorContext actor);
     OperationRecord.Result attackPlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
                                      java.util.function.Consumer<OperationRecord.Result> complete);
+    /** One immediate root attack by a just-admitted out-of-encounter attacker; charged to its next turn. */
+    OperationRecord.Result intrusionAttack(LiveActorContext context, UUID target, UUID operation,
+                                           java.util.function.Consumer<OperationRecord.Result> complete);
     DamageTrace rangedTrace(LivingEntity player, UUID targetId, UUID operation, boolean opening);
     boolean ownsItemProjectile(ServerPlayer player,net.minecraft.world.entity.projectile.Projectile projectile);
 }

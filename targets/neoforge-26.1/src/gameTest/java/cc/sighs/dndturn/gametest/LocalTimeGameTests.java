@@ -493,7 +493,7 @@ public final class LocalTimeGameTests {
         engine.leave(emptyOrder, departing);
         CombatSavedData saved = PersistenceTestAccess.saved();
         saved.update(new CombatPersistenceEnvelope(engine.exportSnapshot(), 24100, 1, java.util.Map.of(encounter, 1L),
-            java.util.Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(8, 16, 64, false)),
+            java.util.Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 8, 16, 64, false)),
             java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.List.of(),
             java.util.Map.of(member, new CombatPersistenceEnvelope.StartReceipt(member, encounter)),
             java.util.Map.of(departing, new CombatPersistenceEnvelope.ExitReceipt(departing, emptyOrder, 2)),

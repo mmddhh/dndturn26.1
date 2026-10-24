@@ -72,6 +72,7 @@ import cc.sighs.dndturn.platform.server.world.SimulationPreparation;
 import cc.sighs.dndturn.platform.server.world.WorldOutcomeHost;
 import com.mojang.logging.LogUtils;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -122,6 +123,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         public boolean maySubmitPlan(LiveActorContext actor) { return EncounterRuntime.this.maySubmitPlan(actor); }
         public OperationRecord.Result attackPlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
                                      java.util.function.Consumer<OperationRecord.Result> complete) { return EncounterRuntime.this.attackPlan(context, target, operation, parent, complete); }
+        public OperationRecord.Result intrusionAttack(LiveActorContext context, UUID target, UUID operation,
+                                     java.util.function.Consumer<OperationRecord.Result> complete) { return EncounterRuntime.this.intrusionAttack(context, target, operation, complete); }
         public DamageTrace rangedTrace(LivingEntity player, UUID targetId, UUID operation, boolean opening) { return EncounterRuntime.this.rangedTrace(player, targetId, operation, opening); }
         public boolean ownsItemProjectile(ServerPlayer player,net.minecraft.world.entity.projectile.Projectile projectile) { return EncounterRuntime.this.ownsItemProjectile(player, projectile); }
     };
@@ -349,6 +352,10 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
     private final EnvironmentScheduler environment;
     private final RegionalScheduledTicks scheduledTicks = new RegionalScheduledTicks(this);
     private int worldOutcomeDepth;
+    /** Out-of-encounter melee hits detected on the damage boundary, settled in the same tick. */
+    private static final int MAX_PENDING_INTRUSIONS = 64;
+    private record PendingIntrusion(UUID attackerId, UUID targetId, long tick) {}
+    private final ArrayDeque<PendingIntrusion> pendingIntrusions = new ArrayDeque<>();
 
     private static final class PlayerMoveLease {
         final UUID encounterId;
@@ -550,6 +557,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
                 try { this.scheduledTicks.releaseAll(); }
                 finally {
                     this.playerMoves.clear();
+                    this.pendingIntrusions.clear();
                     this.regions.clear();
                     this.regionChunks.clear();
                     this.projections.close();
@@ -1187,8 +1195,6 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         if (state.version() != expectedVersion || (state.phase() != EncounterPhase.ACTIVE && state.phase() != EncounterPhase.CANDIDATE)
             || !actor.getUUID().equals(state.current()) || unsupportedPlayerMovement(actor)
             || !state.region().dimension().equals(actor.level().dimension().identifier().toString())
-            // region containment disabled while the field follows its participants:
-            // || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z())
             || state.members().get(actor.getUUID()).movementTicks() < 1
             || playerMoves.containsKey(actor.getUUID()))
             throw new IllegalStateException("player movement is not authorized in this phase");
@@ -1292,13 +1298,6 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         lease.baseCost = Math.max(lease.baseCost, waterBefore || actor.isInWater()
             || waterInLoadedBody(actor.level(), actor.getBoundingBox()) != 0 ? 2 : 1);
         lease.jumped |= jumped;
-        // Region containment disabled: leaving the field no longer ends the movement.
-        // EncounterAuthority.StateView state = engine.stateView(lease.encounterId);
-        // Vec3 center = actor.getBoundingBox().getCenter();
-        // if (!state.region().containsPoint(center.x, center.y, center.z)) {
-        //     settleMoveTick(lease);
-        //     if (playerMoves.get(actor.getUUID()) == lease) finishPlayerMove(actor);
-        // }
     }
 
     private static boolean unsupportedPlayerMovement(ServerPlayer player) {
@@ -1374,32 +1373,95 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
     public void pullHostile(Mob mob, UUID playerId) {
         requireThread();
         if (mob == null || mob.isRemoved() || !mob.isAlive()) return;
-        UUID encounterId = engine.encounterOf(playerId);
-        if (encounterId == null || engine.encounterOf(mob.getUUID()) != null) return;
-        if (engine.join(encounterId, mob.getUUID())) {
+        UUID playerEncounter = engine.encounterOf(playerId);
+        if (playerEncounter == null) return;
+        UUID mobEncounter = engine.encounterOf(mob.getUUID());
+        if (mobEncounter != null) {
+            if (engine.canonicalEncounterId(mobEncounter).equals(engine.canonicalEncounterId(playerEncounter))) {
+                // Same field: update the real directed hostility pair instead of early-returning.
+                engine.setHostile(playerEncounter, mob.getUUID(), playerId, true);
+                engine.setHostile(playerEncounter, playerId, mob.getUUID(), true);
+                persistence.changed();
+                sync(engine.stateView(playerEncounter));
+                syncBodyStateTransitions();
+            } else {
+                // Different field: route through the existing causal merge boundary.
+                queueMerge(engine.requestCausalMerge(mobEncounter, playerEncounter));
+                persistence.changed();
+            }
+            return;
+        }
+        if (engine.join(playerEncounter, mob.getUUID())) {
             participantEffects.capture(mob);
-            engine.setHostile(encounterId, mob.getUUID(), playerId, true);
-            engine.setHostile(encounterId, playerId, mob.getUUID(), true);
+            engine.setHostile(playerEncounter, mob.getUUID(), playerId, true);
+            engine.setHostile(playerEncounter, playerId, mob.getUUID(), true);
             persistence.changed();
-            sync(engine.stateView(encounterId));
+            sync(engine.stateView(playerEncounter));
             syncBodyStateTransitions();
         }
     }
 
     /**
-     * A player attacked an entity that is already a field member: pull the attacker into that
-     * encounter, mark mutual hostility and re-anchor the field to include them.
-     * Returns true when the vanilla attack should be cancelled (the attack resolves through the
-     * tactical action pipeline once the attacker is a member).
+     * Detect a direct melee hit on a member by an out-of-encounter living attacker. The vanilla
+     * damage is cancelled by the caller; the hit is queued and settled in the same tick.
      */
-    public boolean pullAttackingPlayer(ServerPlayer player, UUID targetId) {
+    public boolean enqueueMeleeIntrusion(LivingEntity target, DamageSource source) {
         requireThread();
-        if (player == null || player.getUUID().equals(targetId)) return false;
+        Entity attacker = source.getEntity();
+        if (!(attacker instanceof LivingEntity) || source.getDirectEntity() != attacker) return false;
+        if (attacker.getUUID().equals(target.getUUID())) return false;
+        if (engine.encounterOf(target.getUUID()) == null) return false;
+        if (engine.encounterOf(attacker.getUUID()) != null) return false;
+        if (attacker instanceof ServerPlayer && target instanceof ServerPlayer) return false;
+        if (pendingIntrusions.size() >= MAX_PENDING_INTRUSIONS) {
+            DebugDiagnostics.log("INTRUSION_QUEUE_FULL", () -> "attacker=" + attacker.getUUID());
+            return false;
+        }
+        pendingIntrusions.add(new PendingIntrusion(attacker.getUUID(), target.getUUID(), cumulativeServerTicks));
+        return true;
+    }
+
+    /** Settle queued out-of-encounter melee hits; called once per tick after entity ticks unwind. */
+    public void drainIntrusionAttacks() {
+        requireThread();
+        for (PendingIntrusion pending = pendingIntrusions.poll(); pending != null; pending = pendingIntrusions.poll()) {
+            final PendingIntrusion current = pending;
+            try { resolveIntrusion(current); }
+            catch (RuntimeException failure) {
+                DebugDiagnostics.log("INTRUSION_ATTACK_FAILED", () -> "attacker=" + current.attackerId()
+                    + " target=" + current.targetId() + " error=" + failure.getMessage());
+            }
+        }
+    }
+
+    private void resolveIntrusion(PendingIntrusion pending) {
+        UUID encounterId = engine.encounterOf(pending.targetId());
+        if (encounterId == null) return;
+        if (!(resolve(pending.attackerId()) instanceof LivingEntity attacker) || attacker.isDeadOrDying()) return;
+        UUID attackerDomain = engine.encounterOf(pending.attackerId());
+        if (attackerDomain == null) {
+            if (!admitIntruder(pending.attackerId(), pending.targetId())) return;
+        } else if (!attackerDomain.equals(encounterId)) {
+            return; // cross-encounter interception is the merge contract, not an intrusion
+        }
+        UUID operation = UUID.nameUUIDFromBytes(("dndturn:intrusion:" + pending.attackerId() + ":"
+            + pending.targetId() + ":" + pending.tick()).getBytes(StandardCharsets.UTF_8));
+        actionHost.intrusionAttack(new LiveActorContext(attacker), pending.targetId(), operation, result -> {});
+    }
+
+    /**
+     * A player or Mob attacked an entity that is already a field member: pull the attacker into that
+     * encounter, mark mutual hostility and re-anchor the field to include them. Its own next turn is
+     * charged one action by the intrusion admission, so intervening is never free.
+     */
+    private boolean admitIntruder(UUID attackerId, UUID targetId) {
+        requireThread();
+        if (attackerId.equals(targetId)) return false;
         UUID encounterId = engine.encounterOf(targetId);
-        if (encounterId == null || engine.encounterOf(player.getUUID()) != null) return false;
-        if (!engine.join(encounterId, player.getUUID())) return false;
-        engine.setHostile(encounterId, player.getUUID(), targetId, true);
-        engine.setHostile(encounterId, targetId, player.getUUID(), true);
+        if (encounterId == null || engine.encounterOf(attackerId) != null) return false;
+        if (!engine.join(encounterId, attackerId)) return false;
+        engine.setHostile(encounterId, attackerId, targetId, true);
+        engine.setHostile(encounterId, targetId, attackerId, true);
         persistence.changed();
         reanchor(encounterId);
         sync(engine.stateView(encounterId));
@@ -1412,6 +1474,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         EncounterAuthority.StateView state = engine.stateView(encounterId);
         EncounterRegion current = state.region();
         if (current == null) return;
+        // Session-captured settings, not live config, so an active session does not change meaning when config reloads.
+        CombatPersistenceEnvelope.CapturedSettings settings = settingsFor(encounterId);
         List<ServerPlayer> players = new ArrayList<>();
         double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY, minZ = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
@@ -1424,21 +1488,28 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             maxX = Math.max(maxX, center.x); maxY = Math.max(maxY, center.y); maxZ = Math.max(maxZ, center.z);
         }
         if (players.isEmpty()) return;
-        double horizontal = config.discoveryHorizontal(), vertical = config.discoveryVertical();
+        double horizontal = settings.discoveryHorizontal(), vertical = settings.discoveryVertical();
         EncounterRegion.Discovery discovery = new EncounterRegion.Discovery(
             minX - horizontal, minY - vertical, minZ - horizontal,
             maxX + horizontal, maxY + vertical, maxZ + horizontal);
+        // Prepare and validate the complete replacement before mutating any authoritative or derived owner.
+        EncounterRegion next;
         try {
-            EncounterRegion next = MinecraftRegionSampler.capturePlayers(players.get(0).level(), players.get(0),
-                discovery, players, config.regionRadius(), Math.addExact(current.version(), 1),
-                config.maxSampledChunks(), config.maxAnchors());
-            engine.updateRegion(encounterId, next);
-            regions.put(encounterId, next);
-            regionChunks.put(encounterId, exactRegionChunks(next));
-            sync(engine.stateView(encounterId));
-        } catch (RuntimeException ignored) {
-            // Keep the previous field when a new one cannot be built (unloaded chunks / too large).
+            next = MinecraftRegionSampler.capturePlayers(players.get(0).level(), players.get(0),
+                discovery, players, settings.regionRadius(), Math.addExact(current.version(), 1),
+                settings.maxSampledChunks(), settings.maxAnchors());
+        } catch (IllegalArgumentException | IllegalStateException samplingFailure) {
+            // Bounded, expected sampling failure (unloaded chunk / too large): keep the previous field.
+            DebugDiagnostics.log("FIELD_REANCHOR_DEFERRED", () -> "encounter=" + encounterId
+                + " reason=" + samplingFailure.getMessage());
+            return;
         }
+        var chunks = exactRegionChunks(next);
+        // Commit: authoritative region first, then derived owners, then observers.
+        engine.updateRegion(encounterId, next);
+        regions.put(encounterId, next);
+        regionChunks.put(encounterId, chunks);
+        sync(engine.stateView(encounterId));
     }
 
     public void advanceMobTurns() {
@@ -1492,7 +1563,6 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         requireThread();
         UUID encounter = engine.encounterOf(actor.getUUID());
         var state = encounter == null ? null : engine.stateView(encounter);
-        var center = actor.getBoundingBox().getCenter();
         boolean player = actor instanceof ServerPlayer;
         return new OperationAdmissionPolicy.Facts(generation, encounter, state == null ? -1 : state.version(),
             closing, persistence.recoveryFailed(), encounter != null && recoveryPending.contains(encounter), worldOutcomeDepth != 0,
@@ -1501,7 +1571,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             state != null && actor.getUUID().equals(state.current()),
             state != null && (player ? state.phase() == EncounterPhase.ACTIVE || state.phase() == EncounterPhase.CANDIDATE
                 : state.phase() != EncounterPhase.ENVIRONMENT),
-            state != null && (player ? isEntityInsidePausedRegion(actor) : state.region().containsPoint(center.x, center.y, center.z)),
+            state != null,
             player || actor instanceof Mob);
     }
 
@@ -1620,18 +1690,10 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
                     if (member != null) break;
                 }
                 if (member == null) continue;
-                Vec3 center = member.getBoundingBox().getCenter();
                 if (!state.region().dimension().equals(member.level().dimension().identifier().toString())) {
                     leave(memberId);
                     continue;
                 }
-                // Region containment disabled: leaving the field no longer settles their movement.
-                // if (!state.region().containsPoint(center.x, center.y, center.z)) {
-                //     PlayerMoveLease playerLease = playerMoves.get(memberId);
-                //     if (playerLease != null) closePlayerMove(playerLease);
-                //     MobMoveLease mobLease = mobMoves.get(memberId);
-                //     if (mobLease != null) closeMobMove(mobLease, "member moved outside fixed region");
-                // }
             }
         }
     }
@@ -2034,7 +2096,6 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             || !actor.getUUID().equals(state.current()) || unsupportedPlayerMovement(actor)
             || playerMoves.containsKey(actor.getUUID())
             || !state.region().dimension().equals(actor.level().dimension().identifier().toString()))
-            // || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z())
             throw new IllegalStateException("DASH is not authorized in this phase or position");
         Math.addExact(expectedVersion, 2);
         BlockPos pos = actor.blockPosition();
@@ -2074,7 +2135,6 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         if (state.version() != expectedVersion || state.phase() != EncounterPhase.ACTIVE
             || !actor.getUUID().equals(state.current()) || playerMoves.containsKey(actor.getUUID())
             || !state.region().dimension().equals(actor.level().dimension().identifier().toString()))
-            // || !state.region().containsPoint(pointOf(actor).x(), pointOf(actor).y(), pointOf(actor).z())
             throw new IllegalStateException(kind + " is not authorized in this phase or position");
         Math.addExact(expectedVersion, 2);
         BlockPos pos = actor.blockPosition();
@@ -2177,7 +2237,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
 
     public OperationRecord.Result attack(LivingEntity actor, UUID targetId,
                                                                   UUID operationId, long expectedVersion) {
-        return attack(actor, targetId, operationId, expectedVersion, null);
+        return attack(actor, targetId, operationId, expectedVersion, null, false);
     }
     OperationRecord.Result attackPlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
                                      java.util.function.Consumer<OperationRecord.Result> complete) {
@@ -2185,7 +2245,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         LivingEntity actor = context.body();
         worldOutcomeDepth++;
         try {
-            var result = attack(actor, target, operation, engine.stateView(engine.encounterOf(actor.getUUID())).version(), parent);
+            var result = attack(actor, target, operation, engine.stateView(engine.encounterOf(actor.getUUID())).version(), parent, false);
             // The confirmed synchronous attack is the final step of this melee plan.
             complete.accept(result);
             return result;
@@ -2200,8 +2260,30 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             }
         }
     }
+    /** Immediate root attack for a just-admitted out-of-encounter attacker; its next own turn is charged. */
+    OperationRecord.Result intrusionAttack(LiveActorContext context, UUID target, UUID operation,
+                                           java.util.function.Consumer<OperationRecord.Result> complete) {
+        context.verifyCurrent();
+        LivingEntity actor = context.body();
+        worldOutcomeDepth++;
+        try {
+            var result = attack(actor, target, operation,
+                engine.stateView(engine.encounterOf(actor.getUUID())).version(), null, true);
+            complete.accept(result);
+            return result;
+        } finally {
+            worldOutcomeDepth--;
+            if (worldOutcomeDepth == 0) {
+                confirmPendingDeaths();
+                for (UUID departed : worldOutcomeDepth == 0 ? Set.copyOf(departuresDuringWorldOutcome) : Set.<UUID>of()) {
+                    departuresDuringWorldOutcome.remove(departed);
+                    leave(departed);
+                }
+            }
+        }
+    }
     private OperationRecord.Result attack(LivingEntity actor, UUID targetId,
-                                          UUID operationId, long expectedVersion, UUID planParent) {
+                                          UUID operationId, long expectedVersion, UUID planParent, boolean intrusion) {
         requireThread();
         Objects.requireNonNull(targetId);
         Objects.requireNonNull(operationId);
@@ -2219,7 +2301,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         if (state.version() != expectedVersion) throw ActionFailure.staleEncounter();
         if (state.phase() != EncounterPhase.CANDIDATE && state.phase() != EncounterPhase.ACTIVE)
             throw new IllegalStateException("not a member attack phase");
-        if (!actor.getUUID().equals(state.current()) || !state.members().containsKey(targetId))
+        if (!state.members().containsKey(targetId) || !intrusion && !actor.getUUID().equals(state.current()))
             throw new IllegalStateException("attacker or target not authorized");
         if (!(actor.level() instanceof ServerLevel level) || actor.isDeadOrDying())
             throw new IllegalStateException("attacker is not a loaded living member");
@@ -2233,11 +2315,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         // Keep the approved player-versus-Mob relation scope separate from type support.
         if ((actor instanceof ServerPlayer) == (target instanceof ServerPlayer))
             throw new IllegalStateException("melee relationship unsupported");
-        Vec3 actorCenter = actor.getBoundingBox().getCenter();
-        Vec3 targetCenter = target.getBoundingBox().getCenter();
         if (!state.region().dimension().equals(level.dimension().identifier().toString())
-            // || !state.region().containsPoint(actorCenter.x, actorCenter.y, actorCenter.z)
-            // || !state.region().containsPoint(targetCenter.x, targetCenter.y, targetCenter.z)
             || !inMeleeReach(actor, target)) throw new IllegalStateException("target is outside supported melee reach");
         boolean openingAdvantage = actor instanceof ServerPlayer
             && !engine.hasAttemptedAttack(encounterId, actor.getUUID())
@@ -2267,7 +2345,9 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             encounterId, actor.getUUID(), actor.getUUID(), targetId, cumulativeServerTicks, expectedVersion,
             new GridCell(origin.getX(), origin.getY(), origin.getZ()),
             new GridCell(destination.getX(), destination.getY(), destination.getZ()), OperationRecord.Kind.ATTACK);
-        if (!(planParent == null ? engine.beginOperation(root) : engine.beginPlanStep(root))) throw new IllegalStateException("attack already executing or unauthorized");
+        boolean admitted = intrusion ? engine.beginIntrusionAttack(root)
+            : planParent == null ? engine.beginOperation(root) : engine.beginPlanStep(root);
+        if (!admitted) throw new IllegalStateException("attack already executing or unauthorized");
         UUID permitId = null;
         UUID damageId = null;
         boolean effectStarted = false;
@@ -2550,7 +2630,19 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             clear(entityId, encounterId, state.version());
             sync(state);
         }
+        // The field is player-centered: once no online player member remains, the encounter is over
+        // and its remaining (Mob) members are released rather than left anchored to a Mob.
+        endIfNoPlayersRemain(encounterId);
         syncBodyStateTransitions();
+    }
+
+    /** Ends an encounter that still has members but no online player; a Mob-only field is not kept. */
+    private void endIfNoPlayersRemain(UUID encounterId) {
+        if (!engine.encounterIds().contains(encounterId)) return;
+        for (UUID member : engine.stateView(encounterId).members().keySet()) {
+            if (server.getPlayerList().getPlayer(member) != null) return;
+        }
+        stop(encounterId);
     }
 
     /** Capture the shooter while it is still resolvable; reloading never overwrites old evidence. */
@@ -2976,6 +3068,9 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         LivingEntity equipmentOwner = owner instanceof LivingEntity living ? living : null;
         Map<EquipmentKey, EquipmentValue> equipmentBefore = equipmentSnapshot(equipmentOwner, target);
         if (!engine.beginCausalProjectileAttack(origin, root)) return true;
+        // A shooter that joined on impact is an out-of-encounter attacker: charge one action to its
+        // next own turn so the immediate projectile settlement is never free.
+        if (shooterDomain == null && ownerId != null) engine.preserveActionOnNextTurn(encounterId, ownerId);
         var diagnosticOrigin = origin;
         DebugDiagnostics.log("PROJECTILE_ATTACK_ACCEPTED", () -> "op=" + root.operationId()
             + " root=" + diagnosticOrigin.rootOperationId() + " actor=" + root.owner() + " projectile=" + root.source()

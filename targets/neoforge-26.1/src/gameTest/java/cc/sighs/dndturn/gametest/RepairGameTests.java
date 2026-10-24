@@ -148,7 +148,7 @@ public final class RepairGameTests {
             "quarantine evidence did not survive serialization");
         helper.assertTrue(ServerRuntime.existingEncounter(server) == live && live.encounterOf(member) == null,
             "isolated recovery replaced or changed live service");
-        var settings = Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(2, 16, 64, false));
+        var settings = Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 2, 16, 64, false));
         saved.update(new CombatPersistenceEnvelope(snapshot,
             40, 1, Map.of(encounter, 1L), settings, Map.of(), Map.of(), Map.of(), List.of(),
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of()));

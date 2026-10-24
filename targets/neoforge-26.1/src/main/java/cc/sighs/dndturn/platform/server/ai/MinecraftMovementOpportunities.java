@@ -23,8 +23,6 @@ final class MinecraftMovementOpportunities {
             var path = mob.getNavigation().getPath();
             var end = path == null || mob.getNavigation().isDone() ? null : path.getEndNode();
             var position = end == null ? stroll(actor, state, mob) : new net.minecraft.world.phys.Vec3(end.x + .5, end.y, end.z + .5);
-            // Region containment disabled while the player-centered field follows its participants.
-            // if (position == null || !state.region().containsPoint(position.x, position.y, position.z)) return null;
             if (position == null) return null;
             var cell = MinecraftCoordinates.cell(net.minecraft.core.BlockPos.containing(position));
             return new ActionIntent("dndturn:move", 1, ActionIntent.Capability.MOVE,

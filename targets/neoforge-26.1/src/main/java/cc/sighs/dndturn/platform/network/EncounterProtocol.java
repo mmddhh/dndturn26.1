@@ -35,9 +35,6 @@ public final class EncounterProtocol {
         registrar.playToClient(EncounterState.TYPE, EncounterState.STREAM_CODEC);
         registrar.playToClient(IntentStatus.TYPE, IntentStatus.STREAM_CODEC);
         registrar.playToClient(ConsentState.TYPE, ConsentState.STREAM_CODEC);
-        // DNDTURN-TEMP-BOUNDARY-VIZ: TEMPORARY encounter field boundary visualization payload.
-        registrar.playToClient(RegionBoundaryProtocol.Boundary.TYPE, RegionBoundaryProtocol.Boundary.STREAM_CODEC);
-
     }
 
     public static boolean sendBodyState(ServerPlayer player, BodyState state) {

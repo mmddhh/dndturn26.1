@@ -193,6 +193,9 @@ public final class TacticalDamageContext {
             EncounterRuntime service = ServerRuntime.existingEncounter(level.getServer());
             if (!WorldOutcomePolicy.unscopedDamage(AuthorityProjection.incomingDamage(event.getEntity(), event.getSource())).allowed()) {
                 event.setCanceled(true);
+                // An out-of-encounter melee hit is converted to an immediate turn-based settlement
+                // (settled later this tick); unsupported external damage keeps its explicit rejection.
+                if (service != null && service.enqueueMeleeIntrusion(event.getEntity(), event.getSource())) return;
                 if (event.getEntity() instanceof ServerPlayer player)
                     player.sendOverlayMessage(Component.literal("DNDTurn: unsupported external damage rejected"));
             }

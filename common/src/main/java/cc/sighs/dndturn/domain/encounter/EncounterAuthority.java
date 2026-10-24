@@ -1098,6 +1098,45 @@ public final class EncounterAuthority {
         return true;
     }
 
+    /**
+     * A just-admitted out-of-encounter attacker resolves one immediate root ATTACK outside its own
+     * turn. The owner need not be the current actor; instead of spending now, its next own turn is
+     * charged one action, so the intrusion is never free and never queue-jumps the initiative order.
+     */
+    public boolean beginIntrusionAttack(OperationRecord.Snapshot snapshot) {
+        Objects.requireNonNull(snapshot);
+        if (closedEncounters.containsKey(snapshot.encounterId())) return false;
+        Encounter encounter = require(snapshot.encounterId());
+        OperationRecord.Snapshot previous = encounter.causes.get(snapshot.operationId());
+        if (previous != null) {
+            if (!previous.equals(snapshot)) throw new IllegalStateException("intrusion operation payload conflict");
+            return false;
+        }
+        if (snapshot.encounterVersion() != encounter.version
+            || snapshot.parentId() != null
+            || snapshot.kind() != OperationRecord.Kind.ATTACK
+            || snapshot.source() == null || !snapshot.source().equals(snapshot.owner())
+            || snapshot.target() == null || snapshot.target().equals(snapshot.owner())
+            || !encounter.members.containsKey(snapshot.owner())
+            || !encounter.members.containsKey(snapshot.target())
+            || !encounter.pending.isEmpty()
+            || (encounter.phase != EncounterPhase.ACTIVE && encounter.phase != EncounterPhase.CANDIDATE)) return false;
+        Member member = encounter.members.get(snapshot.owner());
+        long nextVersion = Math.addExact(encounter.version, 1);
+        encounter.pending.put(snapshot.operationId(), snapshot);
+        encounter.causes.put(snapshot.operationId(), snapshot);
+        encounter.attackersWithRegisteredAttempt.add(snapshot.owner());
+        member.preserveSpentActionOnNextTurn = true;
+        encounter.version = nextVersion;
+        return true;
+    }
+
+    /** Charge one action to a member's next own turn; used by immediate out-of-turn settlements. */
+    public void preserveActionOnNextTurn(UUID encounterId, UUID member) {
+        Member target = require(encounterId).members.get(member);
+        if (target != null) target.preserveSpentActionOnNextTurn = true;
+    }
+
     /** A verified item launch may produce one bounded causal effect in an authorized environment step.
      * This grants no new action and does not debit the shooter's next turn. */
     public boolean beginCausalItemImpact(ProjectileOrigin origin, OperationRecord.Snapshot snapshot) {
