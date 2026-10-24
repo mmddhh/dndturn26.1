@@ -70,10 +70,14 @@ public final class ActorStates {
                 throw new IllegalArgumentException("actor command bounds");
         }
     }
-    public record Receipt(Command command, State result, List<EffectTransition> transitions) {
+    public record Receipt(Command command, State result, List<EffectTransition> transitions, long recordedTick) {
+        public Receipt(Command command, State result, List<EffectTransition> transitions) {
+            this(command, result, transitions, 0);
+        }
         public Receipt {
             Objects.requireNonNull(command); Objects.requireNonNull(result); transitions = List.copyOf(transitions);
             if (result.revision() != Math.addExact(command.expectedRevision(), 1) || transitions.size() > 512
+                    || recordedTick < 0
                     || transitions.stream().map(EffectTransition::instance).distinct().count() != transitions.size())
                 throw new IllegalArgumentException("actor receipt revisions or transition bound");
             for (var transition : transitions)
@@ -89,6 +93,13 @@ public final class ActorStates {
     private final Map<UUID, TriggeredExecutionRecord> invocations = new LinkedHashMap<>();
     // Derived reference index; receipts/outbox remain the owners of this evidence.
     private final Set<UUID> retainedReactionRoots = new HashSet<>();
+    /** Actual server tick stamped on records created after this point; injected by the owner. */
+    private long recordedTick;
+    public void setRecordedTick(long tick) {
+        if (tick < 0) throw new IllegalArgumentException("actor record clock");
+        recordedTick = tick;
+    }
+    public long recordedTick() { return recordedTick; }
     public List<TriggeredExecutionRecord> invocations() { return List.copyOf(invocations.values()); }
     public TriggeredExecutionRecord invocation(UUID operation) { return invocations.get(operation); }
     public void intervention(UUID operation, Intervention decision) {
@@ -126,11 +137,14 @@ public final class ActorStates {
         checked.values().forEach(i -> retainedReactionRoots.add(i.root()));
     }
     public enum DeliveryStatus { PENDING, COMPLETED, FAULTED }
-    public record ReactionDelivery(UUID root, UUID actor, List<ActorActivations.Event> events, DeliveryStatus status) {
+    public record ReactionDelivery(UUID root, UUID actor, List<ActorActivations.Event> events, DeliveryStatus status, long recordedTick) {
+        public ReactionDelivery(UUID root, UUID actor, List<ActorActivations.Event> events, DeliveryStatus status) {
+            this(root, actor, events, status, 0);
+        }
         public ReactionDelivery {
             Objects.requireNonNull(root); Objects.requireNonNull(actor); Objects.requireNonNull(status);
             events = List.copyOf(events);
-            if (events.isEmpty() || events.size() > EffectWave.MAX_EVENTS
+            if (events.isEmpty() || events.size() > EffectWave.MAX_EVENTS || recordedTick < 0
                     || events.stream().anyMatch(event -> !actor.equals(event.actor()))
                     || events.stream().map(ActorActivations.Event::id).distinct().count() != events.size())
                 throw new IllegalArgumentException("reaction delivery payload");
@@ -141,8 +155,12 @@ public final class ActorStates {
     }
     private final Map<UUID, ReactionDelivery> deliveries = new LinkedHashMap<>();
     /** Exact ranges of completed, canonical simulation events with no rule/world receipts. */
-    public record SimulationRange(long first, long last) {
-        public SimulationRange { if (first < 1 || last < first) throw new IllegalArgumentException("simulation archive range"); }
+    public record SimulationRange(long first, long last, long recordedTick) {
+        public SimulationRange(long first, long last) { this(first, last, 0); }
+        public SimulationRange {
+            if (first < 1 || last < first || recordedTick < 0)
+                throw new IllegalArgumentException("simulation archive range");
+        }
         boolean contains(long value) { return first <= value && value <= last; }
     }
     private final Map<UUID, List<SimulationRange>> simulationArchive = new LinkedHashMap<>();
@@ -182,13 +200,14 @@ public final class ActorStates {
         long sequence = value.events().get(0).sequence();
         if (sequence > state(value.actor()).clocks().getOrDefault(EffectDefinition.Clock.SIMULATION_STEP, 0L)) return false;
         var ranges = new ArrayList<>(simulationArchive.getOrDefault(value.actor(), List.of()));
-        ranges.add(new SimulationRange(sequence, sequence));
+        ranges.add(new SimulationRange(sequence, sequence, value.recordedTick()));
         ranges.sort(Comparator.comparingLong(SimulationRange::first));
         var merged = new ArrayList<SimulationRange>();
         for (var range : ranges) {
             if (!merged.isEmpty() && range.first() - 1 <= merged.get(merged.size() - 1).last()) {
                 var previous = merged.remove(merged.size() - 1);
-                merged.add(new SimulationRange(previous.first(), Math.max(previous.last(), range.last())));
+                merged.add(new SimulationRange(previous.first(), Math.max(previous.last(), range.last()),
+                    Math.max(previous.recordedTick(), range.recordedTick())));
             } else merged.add(range);
         }
         if (merged.size() > 128) return false; // Retain exact evidence rather than bridge a gap.
@@ -257,16 +276,95 @@ public final class ActorStates {
         faults.remove(actor);
         return true;
     }
+    /**
+     * Drop terminal actor receipts older than the retention horizon. Pending work, live roots and
+     * records without a timestamp are kept; the caller supplies the actual-tick clock.
+     */
+    public int expireHistory(long now, long retentionTicks) {
+        if (now < 0 || retentionTicks < 1) throw new IllegalArgumentException("actor history retention");
+        int removed = 0;
+        for (var entry : List.copyOf(deliveries.entrySet())) {
+            ReactionDelivery delivery = entry.getValue();
+            if (delivery.status() == DeliveryStatus.PENDING) continue;
+            if (delivery.recordedTick() == 0 || now - delivery.recordedTick() < retentionTicks) continue;
+            if (retainedReactionRoots.contains(delivery.root())) continue;
+            deliveries.remove(entry.getKey());
+            removed++;
+        }
+        Set<UUID> receiptInvocations = new HashSet<>();
+        for (Receipt receipt : receipts.values())
+            for (TriggeredExecutionRecord invocation : receipt.command().invocations())
+                receiptInvocations.add(invocation.operation());
+        for (var entry : List.copyOf(invocations.entrySet())) {
+            TriggeredExecutionRecord invocation = entry.getValue();
+            if (invocation.status() == TriggeredExecutionRecord.Status.PENDING
+                || invocation.status() == TriggeredExecutionRecord.Status.STARTED) continue;
+            if (invocation.recordedTick() == 0 || now - invocation.recordedTick() < retentionTicks) continue;
+            if (receiptInvocations.contains(invocation.operation())) continue;
+            invocations.remove(entry.getKey());
+            removed++;
+        }
+        Set<UUID> liveInvocations = new HashSet<>();
+        for (TriggeredExecutionRecord invocation : invocations.values())
+            if (invocation.status() == TriggeredExecutionRecord.Status.PENDING
+                || invocation.status() == TriggeredExecutionRecord.Status.STARTED)
+                liveInvocations.add(invocation.operation());
+        for (var entry : List.copyOf(receipts.entrySet())) {
+            Receipt receipt = entry.getValue();
+            if (receipt.recordedTick() == 0 || now - receipt.recordedTick() < retentionTicks) continue;
+            boolean live = false;
+            for (TriggeredExecutionRecord invocation : receipt.command().invocations())
+                if (liveInvocations.contains(invocation.operation())) { live = true; break; }
+            if (live) continue;
+            receipts.remove(entry.getKey());
+            removed++;
+        }
+        for (var entry : List.copyOf(simulationArchive.entrySet())) {
+            List<SimulationRange> ranges = entry.getValue();
+            List<SimulationRange> kept = new ArrayList<>();
+            for (SimulationRange range : ranges) {
+                if (range.recordedTick() == 0 || now - range.recordedTick() < retentionTicks) {
+                    kept.add(range); continue;
+                }
+                boolean live = false;
+                for (ReactionDelivery delivery : deliveries.values()) {
+                    if (!delivery.actor().equals(entry.getKey())) continue;
+                    for (ActorActivations.Event event : delivery.events())
+                        if (range.contains(event.sequence())) { live = true; break; }
+                    if (live) break;
+                }
+                if (live) kept.add(range); else removed++;
+            }
+            if (kept.size() == ranges.size()) continue;
+            if (kept.isEmpty()) simulationArchive.remove(entry.getKey());
+            else simulationArchive.put(entry.getKey(), List.copyOf(kept));
+        }
+        if (removed > 0) rebuildRetainedRoots();
+        return removed;
+    }
+
+    private void rebuildRetainedRoots() {
+        retainedReactionRoots.clear();
+        for (Receipt receipt : receipts.values()) {
+            if (receipt.command().cause() != null) retainedReactionRoots.add(receipt.command().cause());
+            for (TriggeredExecutionRecord invocation : receipt.command().invocations())
+                retainedReactionRoots.add(invocation.root());
+        }
+        for (TriggeredExecutionRecord invocation : invocations.values()) retainedReactionRoots.add(invocation.root());
+        // Delivery roots are not external references; including them would make a terminal
+        // delivery retain itself forever.
+    }
+
     public List<ReactionDelivery> deliveries() { return List.copyOf(deliveries.values()); }
     public List<ReactionDelivery> pendingReactions(UUID actor) {
         return deliveries.values().stream().filter(value -> value.actor().equals(actor) && value.status() == DeliveryStatus.PENDING).toList();
     }
     public ReactionDelivery registerReactions(UUID root, UUID actor, List<ActorActivations.Event> events) {
-        var incoming = new ReactionDelivery(root, actor, events, DeliveryStatus.PENDING);
+        var incoming = new ReactionDelivery(root, actor, events, DeliveryStatus.PENDING, recordedTick);
         for (var event : events) if (event.clock() == EffectDefinition.Clock.SIMULATION_STEP
                 && simulationArchive.getOrDefault(actor, List.of()).stream().anyMatch(r -> r.contains(event.sequence()))) {
             if (!canonicalSimulation(incoming)) throw new IllegalArgumentException("archived simulation payload reused");
-            return new ReactionDelivery(root, actor, events, DeliveryStatus.COMPLETED);
+            return new ReactionDelivery(root, actor, events, DeliveryStatus.COMPLETED, recordedTick);
         }
         var previous = deliveries.get(incoming.key());
         if (previous != null) {
@@ -288,7 +386,7 @@ public final class ActorStates {
             if (previous.status() != status) throw new IllegalStateException("reaction delivery terminal conflict");
             return;
         }
-        var terminal = new ReactionDelivery(root, actor, previous.events(), status);
+        var terminal = new ReactionDelivery(root, actor, previous.events(), status, previous.recordedTick());
         if (archiveSimulation(terminal)) deliveries.remove(key);
         else deliveries.put(key, terminal);
     }
@@ -345,7 +443,7 @@ public final class ActorStates {
             throw new IllegalStateException("invocation capacity or duplicate emission");
         State after = reduction.state();
         actors.put(command.actor(), after);
-        receipts.put(command.operation(), new Receipt(command, after, reduction.transitions()));
+        receipts.put(command.operation(), new Receipt(command, after, reduction.transitions(), recordedTick));
         command.invocations().forEach(i -> invocations.put(i.operation(), i));
         if (command.cause() != null) retainedReactionRoots.add(command.cause());
         command.invocations().forEach(i -> retainedReactionRoots.add(i.root()));

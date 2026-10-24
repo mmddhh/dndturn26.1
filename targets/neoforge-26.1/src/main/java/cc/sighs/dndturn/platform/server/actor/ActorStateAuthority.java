@@ -39,6 +39,7 @@ public final class ActorStateAuthority {
     private final Set<UUID> advanced = new HashSet<>();
     private final ArrayDeque<UUID> capacityChecks = new ArrayDeque<>();
     private boolean dirty;
+    private long recordedTick;
     private int saveDelay;
     private record Queued(ActorActivations.Event event, int depth, long order) {}
     private final ArrayDeque<Queued> reactionQueue = new ArrayDeque<>();
@@ -192,8 +193,11 @@ public final class ActorStateAuthority {
         dirty |= before != owner.state(actor); detach(actor);
     }
     public void detach(UUID actor) { thread(); advanced.remove(actor); }
-    public void endServerTick() {
-        thread(); advanced.clear();
+    public void endServerTick(long tick) {
+        thread();
+        recordedTick = tick;
+        owner.setRecordedTick(tick);
+        advanced.clear();
         // Reconciliation is a server lifecycle task, independent of body simulation or input packets.
         int count = Math.min(8, capacityChecks.size());
         for (int n = 0; n < count; n++) {
@@ -209,6 +213,14 @@ public final class ActorStateAuthority {
         if (recoveryFailure == null && dirty) { saved.update(owner); dirty = false; saveDelay = 19; }
     }
     public void close() { thread(); saveDelay = 0; persist(); advanced.clear(); }
+    /** Aged-out terminal actor receipts; the caller supplies the actual-tick clock. */
+    public int expireHistory(long now, long retentionTicks) {
+        thread();
+        if (recoveryFailure != null) return 0;
+        int removed = owner.expireHistory(now, retentionTicks);
+        if (removed > 0) dirty = true;
+        return removed;
+    }
     private void reconcileCapacityFault(LiveActorContext actor) {
         if (!owner.capacityCandidates().containsKey(actor.id())) return;
         // Validate unchanged rule values against current native facts; never replay the missing event.
@@ -362,7 +374,7 @@ public final class ActorStateAuthority {
                                     .getBytes(java.nio.charset.StandardCharsets.UTF_8));
                             invocations.add(new TriggeredExecutionRecord(id, reactionRoot, input.getValue().event(), source,
                                     invocation, TriggeredExecutionRecord.Status.PENDING, "", null,
-                                    ServerRuntime.encounters(server).encounterOf(actor.id())));
+                                    ServerRuntime.encounters(server).encounterOf(actor.id()), recordedTick));
                         }
                     }
                     var grant = input.getValue().binding().source().grant();

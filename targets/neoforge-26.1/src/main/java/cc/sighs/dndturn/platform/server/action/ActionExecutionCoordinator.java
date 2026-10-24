@@ -111,6 +111,7 @@ public final class ActionExecutionCoordinator {
         AbilityCheckpoint.SourceChange sourceChange;
         int cursor;
         int stalled;
+        long startedAt;
         boolean released;
         boolean effectInvoked;
         String releaseFailure = "";
@@ -323,6 +324,7 @@ public final class ActionExecutionCoordinator {
             Execution execution = new Execution(root, path, target,
                 intent.target().kind() == ActionIntent.TargetKind.BLOCK ? actor.level().getBlockState(pos(target)).toString() : "",
                 player.position(), instance(player));
+            execution.startedAt = service.deadlineClock();
             if (intent.target().entity() != null) execution.targetInstance = entityInstance(actor.level().getEntity(intent.target().entity()));
             execution.endpoint = new java.lang.ref.WeakReference<>(player);
             if (precise != null) {
@@ -480,6 +482,15 @@ public final class ActionExecutionCoordinator {
         for (Execution execution : List.copyOf(executions.values())) {
             LivingEntity player = resolve(execution.root.owner());
             if (player == null) { cancel(execution.root.owner(), "actor unavailable"); continue; }
+            long age = service.deadlineClock() - execution.startedAt;
+            // Only movement/approach may be force-terminated; actions complete normally.
+            if (age >= service.executionDeadlineTicks()
+                && execution.phase == AbilityCheckpoint.Phase.APPROACH) {
+                DebugDiagnostics.log("EXECUTION_DEADLINE", () -> "op=" + execution.root.operationId()
+                    + " owner=" + execution.root.owner() + " age=" + age);
+                cancel(execution.root.owner(), "EXECUTION_DEADLINE");
+                continue;
+            }
             try {
                 if (!execution.ownerInstance.equals(instance(player))) throw new IllegalStateException("plan owner instance replaced");
                 if (!execution.root.encounterId().equals(service.encounterOf(player.getUUID())) || !player.isAlive())

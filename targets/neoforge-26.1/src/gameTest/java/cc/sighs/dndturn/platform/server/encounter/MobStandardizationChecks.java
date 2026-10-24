@@ -55,7 +55,11 @@ public final class MobStandardizationChecks {
         };
         h.runAtTickTime(299,cleanup);
         UUID[] operation={null}, encounter={null};
-        h.startSequence().thenIdle(20).thenExecute(()->service.requestStart(player,UUID.randomUUID())).thenWaitUntil(()->{
+        h.startSequence().thenIdle(20).thenExecute(()->{
+            // The field admits a mob with an actual directed lock; presence alone is not enough.
+            mob.setTarget(player);
+            service.requestStart(player,UUID.randomUUID());
+        }).thenWaitUntil(()->{
             UUID id=service.encounterOf(mob.getUUID());h.assertTrue(id!=null,"Skeleton not discovered");
             var state=service.state(id);
             if(player.getUUID().equals(state.current())) service.endTurn(id,player,UUID.randomUUID(),state.version());

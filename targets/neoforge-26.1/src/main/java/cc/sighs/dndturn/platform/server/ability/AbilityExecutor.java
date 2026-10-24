@@ -45,9 +45,11 @@ public abstract class AbilityExecutor {
         return List.of(NativeObservations.body(operation, actor.body()));
     }
     public ProcessDefinition processDefinition() {
+        // Native callbacks cannot be replayed after a restart; the executable contract is
+        // reconcile-observations-without-replay, not blind UNKNOWN.
         return new ProcessDefinition(id(), version(),
                 ProcessDefinition.Clock.AUTHORIZED_EXECUTION_STEP,
-                ProcessDefinition.Recovery.FAIL_UNKNOWN, 1000000,
+                ProcessDefinition.Recovery.RECONCILE_NATIVE, 1000000,
                 Set.of(), "native execution; reconcile observations without callback replay");
     }
     /** Inventory evidence is an adapter concern, independent of actor species or ability ID. */

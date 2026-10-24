@@ -51,7 +51,11 @@ public final class CreeperEffectChecks {
             for (long key : forced) { var c = ChunkPos.unpack(key); level.setChunkForced(c.x(),c.z(),false); } forced.clear();
         };
         h.runAtTickTime(399,cleanup);
-        h.startSequence().thenIdle(20).thenExecute(() -> service.requestStart(player,UUID.randomUUID())).thenWaitUntil(() -> {
+        h.startSequence().thenIdle(20).thenExecute(() -> {
+            // The field admits a mob with an actual directed lock; a passive creeper no longer joins.
+            creeper.setTarget(player);
+            service.requestStart(player,UUID.randomUUID());
+        }).thenWaitUntil(() -> {
             var id = service.encounterOf(creeper.getUUID()); h.assertTrue(id != null,"Creeper membership missing");
             var state = service.state(id);
             if (player.getUUID().equals(state.current())) service.endTurn(id,player,UUID.randomUUID(),state.version());

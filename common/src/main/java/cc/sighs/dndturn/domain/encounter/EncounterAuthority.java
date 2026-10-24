@@ -701,6 +701,34 @@ public final class EncounterAuthority {
         return new ResultPage(fromIndex, nextIndex, history.size(), history.subList(fromIndex, nextIndex));
     }
 
+    /**
+     * Drop closed-encounter archives older than the retention horizon unless a caller-supplied
+     * reference still needs them. The clock is injected so aging can be tested without waiting;
+     * aliases and merge receipts for removed encounters are dropped with them.
+     */
+    public Set<UUID> expireClosedHistory(long now, long retentionTicks, Set<UUID> referenced) {
+        Objects.requireNonNull(referenced);
+        if (now < 0 || retentionTicks < 1) throw new IllegalArgumentException("history retention");
+        Set<UUID> removed = new HashSet<>();
+        for (var entry : List.copyOf(closedEncounters.entrySet())) {
+            UUID id = entry.getKey();
+            if (referenced.contains(id)) continue;
+            long newest = 0;
+            for (OperationRecord.Result result : entry.getValue().results())
+                newest = Math.max(newest, result.snapshot().serverTick());
+            // No timestamp means the archive cannot be aged safely; keep it.
+            if (newest == 0 || now - newest < retentionTicks) continue;
+            closedEncounters.remove(id);
+            removed.add(id);
+        }
+        if (removed.isEmpty()) return Set.of();
+        mergedInto.entrySet().removeIf(entry -> removed.contains(entry.getKey())
+            || removed.contains(entry.getValue()));
+        committedMerges.values().removeIf(receipt -> removed.contains(receipt.primary())
+            || receipt.plan().encounters().stream().anyMatch(removed::contains));
+        return Set.copyOf(removed);
+    }
+
     public boolean containsPoint(UUID encounterId, double x, double y, double z) {
         EncounterRegion region = require(encounterId).region;
         if (region == null) throw new IllegalStateException("legacy encounter has no continuous region");
@@ -1478,6 +1506,9 @@ public final class EncounterAuthority {
 
     /** Number of committed environment steps, independent of wall time and completed-ID archives. */
     public long environmentTime(UUID encounterId) { return require(encounterId).environmentTime; }
+
+    /** The currently reserved environment step, if any; used by the execution-deadline backstop. */
+    public UUID authorizedEnvironmentStep(UUID encounterId) { return require(encounterId).authorizedEnvironmentStep; }
 
     /** Reserve one named simulation step; only one may execute at a time. */
     public boolean authorizeEnvironmentStep(UUID encounterId, UUID stepId) {

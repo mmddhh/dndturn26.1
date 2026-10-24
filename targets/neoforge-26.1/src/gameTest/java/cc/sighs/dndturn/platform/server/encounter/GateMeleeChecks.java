@@ -47,10 +47,23 @@ public final class GateMeleeChecks {
         h.runAtTickTime(99,cleanup);
         h.runAtTickTime(30, () -> {
             if (approach) {
+                mob.setTarget(player);
                 approach(h, service, player, mob, base, cleanup);
                 return;
             }
             try {
+                if (cow) {
+                    // A passive cow no longer joins the player-centered field by presence alone.
+                    mob.getRandom().setSeed(731);
+                    service.requestStart(player, UUID.randomUUID());
+                    UUID encounter = service.encounterOf(player.getUUID());
+                    h.assertTrue(encounter != null && !service.state(encounter).members().containsKey(mob.getUUID()),
+                        "passive cow must not join the player-centered field");
+                    h.succeed();
+                    return;
+                }
+                // The field only admits mobs with an actual hostile lock.
+                mob.setTarget(player);
                 mob.getRandom().setSeed(731);
                 for (Item item : List.of(Items.IRON_AXE, Items.IRON_SWORD, Items.STONE)) {
                     mob.setHealth(mob.getMaxHealth());

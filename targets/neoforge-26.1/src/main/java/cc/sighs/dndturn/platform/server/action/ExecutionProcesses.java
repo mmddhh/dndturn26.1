@@ -33,7 +33,8 @@ public final class ExecutionProcesses {
     private static ProcessState candidate(UUID id, ProcessDefinition definition, ProcessState.Owner owner,
             UUID cause, UUID root, UUID encounter, UUID instance, int roundTicks, String phase) {
         if (definition.clock() != ProcessDefinition.Clock.AUTHORIZED_EXECUTION_STEP
-                || definition.recovery() != ProcessDefinition.Recovery.FAIL_UNKNOWN)
+                || (definition.recovery() != ProcessDefinition.Recovery.FAIL_UNKNOWN
+                    && definition.recovery() != ProcessDefinition.Recovery.RECONCILE_NATIVE))
             throw new IllegalStateException("PROCESS_DRIVER_UNSUPPORTED: clock or recovery requires an installed staged driver");
         long seed = id.getMostSignificantBits() ^ Long.rotateLeft(id.getLeastSignificantBits(), 17);
         return new ProcessState(id, definition, owner, cause, root, encounter, instance, roundTicks,

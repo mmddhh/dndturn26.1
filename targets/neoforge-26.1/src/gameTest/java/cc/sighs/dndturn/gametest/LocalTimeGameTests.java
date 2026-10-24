@@ -1007,30 +1007,34 @@ public final class LocalTimeGameTests {
             int x = Math.floorMod(-base.getX(), 16);
             int z = Math.floorMod(-base.getZ(), 16);
             BlockPos origin = helper.absolutePos(new BlockPos(x, 301, z));
-            for (int floorX = x; floorX <= x + 36; floorX++)
-                for (int floorZ = z; floorZ <= z + 2; floorZ++)
+            // Two independent 35-radius fields must start more than ~70 apart; a third player then
+            // arrives between them so resampling expands and commits the closure.
+            int[] offsets = {0, 90, 40};
+            int span = 100;
+            for (int floorX = x - 8; floorX <= x + span; floorX++)
+                for (int floorZ = z - 8; floorZ <= z + 8; floorZ++)
                     helper.getLevel().setBlockAndUpdate(
                         helper.absolutePos(new BlockPos(floorX, 300, floorZ)),
                         Blocks.STONE.defaultBlockState());
-            int minChunkX = (origin.getX() - 24) >> 4;
-            int maxChunkX = (origin.getX() + 34 + 24) >> 4;
-            int minChunkZ = (origin.getZ() - 24) >> 4;
-            int maxChunkZ = (origin.getZ() + 24) >> 4;
+            int minChunkX = (origin.getX() - 48) >> 4;
+            int maxChunkX = (origin.getX() + span + 48) >> 4;
+            int minChunkZ = (origin.getZ() - 48) >> 4;
+            int maxChunkZ = (origin.getZ() + 48) >> 4;
             for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++)
                 for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++)
                     helper.getLevel().setChunkForced(chunkX, chunkZ, true);
-            for (int offset : new int[]{0, 15, 30, 34})
+            for (int offset : offsets)
                 helper.getLevel().waitForEntities(net.minecraft.world.level.ChunkPos.containing(origin.offset(offset, 0, 0)), 1);
             ServerPlayer[] players = new ServerPlayer[3];
             Zombie[] mobs = new Zombie[3];
-            int[] offsets = {0, 15, 34};
             for (int i = 0; i < players.length; i++) {
-                players[i] = helper.makeMockServerPlayerInLevel();
+                players[i] = TestPlayers.survival(helper);
                 players[i].connection.markClientLoaded();
                 players[i].setPos(origin.getX() + offsets[i] + 0.5,
                     origin.getY(), origin.getZ() + 0.5);
                 mobs[i] = helper.spawn(EntityType.ZOMBIE,
                     new BlockPos(x + offsets[i] + 1, 301, z + 1));
+                mobs[i].setTarget(players[i]);
             }
             helper.startSequence().thenWaitUntil(() -> {
                 for (int i = 0; i < mobs.length; i++) {
@@ -1038,32 +1042,33 @@ public final class LocalTimeGameTests {
                             && helper.getLevel().isPositionEntityTicking(mobs[i].blockPosition()),
                         "merge fixture entity section is not yet loaded and ticking");
                 }
-                helper.assertTrue(helper.getLevel().isPositionEntityTicking(origin.offset(30, 0, 1)),
+                helper.assertTrue(helper.getLevel().isPositionEntityTicking(origin.offset(offsets[2], 0, 1)),
                     "merge expansion anchor section is not yet ticking");
             }).thenExecute(() -> {
             EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
             UUID[] ids = new UUID[3];
             Vec3[] positions = java.util.Arrays.stream(players).map(ServerPlayer::position).toArray(Vec3[]::new);
-            for (ServerPlayer player : players) player.teleportTo(player.getX() + 128, player.getY(), player.getZ());
-            for (int i = 0; i < ids.length; i++) {
+            // Start the two outer sessions while the bridge player is parked far away.
+            for (ServerPlayer player : players) player.teleportTo(player.getX() + 256, player.getY(), player.getZ());
+            for (int i = 0; i < 2; i++) {
                 players[i].teleportTo(positions[i].x, positions[i].y, positions[i].z);
+                mobs[i].setTarget(players[i]);
                 ids[i] = startEncounter(helper, players[i]).id();
             }
-            helper.assertFalse(service.state(ids[0]).region().overlaps(service.state(ids[2]).region()),
-                "fixture started with the third session already overlapping the first");
-            helper.assertFalse(service.state(ids[1]).region().overlaps(service.state(ids[2]).region()),
-                "fixture started with the third session already overlapping the second");
-            ArmorStand newAnchor = helper.spawn(EntityType.ARMOR_STAND,
-                new BlockPos(x + 30, 301, z + 1));
-            newAnchor.setNoGravity(true);
+            helper.assertFalse(service.state(ids[0]).region().overlaps(service.state(ids[1]).region()),
+                "fixture started with the two outer sessions already overlapping");
+            // The third player arrives between them, so the resampled closure covers all three.
+            players[2].teleportTo(positions[2].x, positions[2].y, positions[2].z);
+            mobs[2].setTarget(players[2]);
+            ids[2] = startEncounter(helper, players[2]).id();
+            helper.assertFalse(ids[0].equals(ids[2]) || ids[1].equals(ids[2]),
+                "bridging session merged before it could overlap");
             for (UUID id : ids)
                 for (int turn = 0; turn < 6
                     && service.state(id).phase() != EncounterPhase.ENVIRONMENT; turn++) {
                     var state = service.state(id);
                     service.endCurrentTurn(id, UUID.randomUUID(), state.version());
                 }
-            // Expansion may select a primary whose first environment step already ran this tick.
-            // Drive its next legitimate entry; never require a merge through an expired entry window.
             helper.startSequence().thenExecuteFor(90, () -> {
                 UUID canonical = service.encounterOf(players[0].getUUID());
                 if (canonical != null && canonical.equals(service.encounterOf(players[1].getUUID()))
@@ -1084,10 +1089,15 @@ public final class LocalTimeGameTests {
                         && canonical.equals(service.encounterOf(mobs[0].getUUID()))
                         && canonical.equals(service.encounterOf(mobs[1].getUUID()))
                         && canonical.equals(service.encounterOf(mobs[2].getUUID())),
-                        "resampling did not expand and commit the three-session overlap");
+                        "resampling did not expand and commit the bridged overlap; canonical=" + canonical
+                            + " p1=" + service.encounterOf(players[1].getUUID())
+                            + " p2=" + service.encounterOf(players[2].getUUID())
+                            + " m0=" + service.encounterOf(mobs[0].getUUID())
+                            + " m1=" + service.encounterOf(mobs[1].getUUID())
+                            + " m2=" + service.encounterOf(mobs[2].getUUID()));
                     helper.assertTrue(service.state(canonical).region().anchors().stream()
-                        .anyMatch(anchor -> anchor.entityId().equals(newAnchor.getUUID())),
-                        "merged region did not capture the newly arrived anchor");
+                        .anyMatch(anchor -> anchor.entityId().equals(players[2].getUUID())),
+                        "merged region did not capture the newly arrived player anchor");
                     helper.succeed();
                 } finally {
                     Set<UUID> stopped = new java.util.HashSet<>();
@@ -1106,8 +1116,8 @@ public final class LocalTimeGameTests {
 
     private static void mergeWorldBoundary(GameTestHelper helper) {
         helper.runAtTickTime(5, () -> {
-            ServerPlayer firstPlayer = helper.makeMockServerPlayerInLevel();
-            ServerPlayer secondPlayer = helper.makeMockServerPlayerInLevel();
+            ServerPlayer firstPlayer = TestPlayers.survival(helper);
+            ServerPlayer secondPlayer = TestPlayers.survival(helper);
             firstPlayer.connection.markClientLoaded();
             secondPlayer.connection.markClientLoaded();
             BlockPos origin = helper.absolutePos(new BlockPos(1, 221, 1));
@@ -1132,6 +1142,9 @@ public final class LocalTimeGameTests {
             }).thenExecute(() -> {
             Zombie firstMob = helper.spawn(EntityType.ZOMBIE, new BlockPos(2, 221, 2));
             Zombie secondMob = helper.spawn(EntityType.ZOMBIE, new BlockPos(8, 221, 2));
+            // The field only admits mobs with an actual directed lock; presence alone is not enough.
+            firstMob.setTarget(firstPlayer);
+            secondMob.setTarget(secondPlayer);
             EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
             Vec3 secondPosition = secondPlayer.position();
             secondPlayer.teleportTo(secondPosition.x + 128, secondPosition.y, secondPosition.z);
@@ -1172,7 +1185,10 @@ public final class LocalTimeGameTests {
                 helper.assertTrue(canonical != null && canonical.equals(service.encounterOf(secondPlayer.getUUID()))
                     && canonical.equals(service.encounterOf(firstMob.getUUID()))
                     && canonical.equals(service.encounterOf(secondMob.getUUID())),
-                    "overlapping sessions did not merge at the real world tick boundary");
+                    "overlapping sessions did not merge at the real world tick boundary; first=" + canonical
+                        + " second=" + service.encounterOf(secondPlayer.getUUID())
+                        + " firstMob=" + service.encounterOf(firstMob.getUUID())
+                        + " secondMob=" + service.encounterOf(secondMob.getUUID()));
                 helper.assertTrue(service.sessionProjectionSequence(canonical) > secondProjection,
                     "merged primary reused a projection sequence older than a source tombstone");
                 helper.assertTrue(service.results(canonical, 0, 100).results().stream()

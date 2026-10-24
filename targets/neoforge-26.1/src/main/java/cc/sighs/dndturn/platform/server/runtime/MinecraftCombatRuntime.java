@@ -55,6 +55,7 @@ public final class MinecraftCombatRuntime {
             formal.confirmPendingDeaths();
             formal.finishMovementTicks();
             formal.reconcileMemberLocations();
+            formal.tickDeadlines();
             formal.drainIntrusionAttacks();
             formal.advanceMobTurns();
             formal.flushResultPages();

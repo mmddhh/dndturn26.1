@@ -15,14 +15,17 @@ import net.minecraft.world.level.storage.LevelResource;
 public record ServerCombatConfig(double discoveryHorizontal,
                                  double discoveryVertical, double regionRadius,
                                  int maxSampledChunks, int maxAnchors,
-                                 int roundTicks, boolean tacticalKnockbackEnabled) {
+                                 int roundTicks, boolean tacticalKnockbackEnabled,
+                                 long executionDeadlineTicks, long turnIdleSkipTicks,
+                                 long historyRetentionTicks) {
     public ServerCombatConfig {
         new RoundTime(roundTicks);
         if (!Double.isFinite(discoveryHorizontal) || discoveryHorizontal <= 0
             || !Double.isFinite(discoveryVertical) || discoveryVertical <= 0
             || !Double.isFinite(regionRadius) || regionRadius <= 0
             || maxSampledChunks < 1 || maxSampledChunks > 4096
-            || maxAnchors < 1 || maxAnchors > 4096) {
+            || maxAnchors < 1 || maxAnchors > 4096
+            || executionDeadlineTicks < 1 || turnIdleSkipTicks < 1 || historyRetentionTicks < 1) {
             throw new IllegalArgumentException("invalid combat server configuration");
         }
     }
@@ -36,10 +39,18 @@ public record ServerCombatConfig(double discoveryHorizontal,
         defaults.setProperty("discoveryHorizontal", "16");
         defaults.setProperty("discoveryVertical", "8");
         defaults.setProperty("regionRadius", "35");
-        defaults.setProperty("maxSampledChunks", "16");
+        // Two independent player-centered fields merge only when their combined discovery is
+        // sampled; 35-radius fields ~70+ apart exceed the old 16-chunk cap.
+        defaults.setProperty("maxSampledChunks", "64");
         defaults.setProperty("maxAnchors", "64");
         defaults.setProperty("roundTicks", Integer.toString(RoundTime.DEFAULT_TICKS));
         defaults.setProperty("tacticalKnockbackEnabled", "false");
+        // A hard liveness backstop, not a gameplay timer: no legitimate non-projectile operation
+        // stays pending this long. Idle turns are skipped with the same horizon.
+        defaults.setProperty("executionDeadlineTicks", "6000");
+        defaults.setProperty("turnIdleSkipTicks", "6000");
+        // Seven in-game days of actual server ticks; pause still counts and /time does not shorten.
+        defaults.setProperty("historyRetentionTicks", "168000");
         Properties values = new Properties();
         try {
             if (Files.exists(path)) {
@@ -57,7 +68,10 @@ public record ServerCombatConfig(double discoveryHorizontal,
             Integer.parseInt(values.getProperty("maxSampledChunks")),
             Integer.parseInt(values.getProperty("maxAnchors")),
             Integer.parseInt(values.getProperty("roundTicks")),
-            parseBoolean(values.getProperty("tacticalKnockbackEnabled"), "tacticalKnockbackEnabled"));
+            parseBoolean(values.getProperty("tacticalKnockbackEnabled"), "tacticalKnockbackEnabled"),
+            Long.parseLong(values.getProperty("executionDeadlineTicks")),
+            Long.parseLong(values.getProperty("turnIdleSkipTicks")),
+            Long.parseLong(values.getProperty("historyRetentionTicks")));
         // Validate before replacing the file; retain deprecated and unknown values verbatim as properties.
         if (write) {
             try {

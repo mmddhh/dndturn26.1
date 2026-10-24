@@ -20,9 +20,12 @@ class ActorHistoryTest {
         return owner;
     }
     private ActorStates.ReactionDelivery delivery(long sequence, ActorStates.DeliveryStatus status) {
+        return delivery(sequence, status, 0);
+    }
+    private ActorStates.ReactionDelivery delivery(long sequence, ActorStates.DeliveryStatus status, long recordedTick) {
         UUID id = UUID.nameUUIDFromBytes((actor + ":SIMULATION_STEP:" + sequence).getBytes(StandardCharsets.UTF_8));
         return new ActorStates.ReactionDelivery(id, actor, List.of(new ActorActivations.Event(id, null, actor, null,
-                null, EffectDefinition.Clock.SIMULATION_STEP, sequence)), status);
+                null, EffectDefinition.Clock.SIMULATION_STEP, sequence)), status, recordedTick);
     }
     private ActorStates restore(ActorStates source) {
         var restored = new ActorStates(); restored.restore(source.snapshot(), source.receipts());
@@ -114,5 +117,23 @@ class ActorHistoryTest {
         assertFalse(owner.reconcileCapacityFault(actor));
         assertEquals(1.0, owner.state(actor).persistent().resources().get("test:resource"));
         assertNotNull(owner.faultReason(actor));
+    }
+    @Test void expireHistoryDropsOnlyOldTerminalUnreferencedRecords() {
+        var owner = owner(10);
+        owner.setRecordedTick(1000);
+        var oldTerminal = delivery(1, ActorStates.DeliveryStatus.COMPLETED, 1000);
+        var oldPending = delivery(2, ActorStates.DeliveryStatus.PENDING, 1000);
+        var youngTerminal = delivery(3, ActorStates.DeliveryStatus.COMPLETED, 1000 + 168_000);
+        owner.restoreDeliveries(List.of(oldTerminal, oldPending, youngTerminal));
+        // A live receipt references oldTerminal's root, so the first sweep only ages the receipt.
+        owner.apply(new ActorStates.Command(UUID.randomUUID(), actor, 1, List.of(), oldTerminal.root()));
+        assertEquals(1, owner.expireHistory(1000 + 168_000, 168_000));
+        assertTrue(owner.deliveries().stream().anyMatch(d -> d.root().equals(oldTerminal.root())));
+        // Once the receipt is gone the terminal record is unreferenced and expires.
+        assertEquals(1, owner.expireHistory(1000 + 168_000, 168_000));
+        assertFalse(owner.deliveries().stream().anyMatch(d -> d.root().equals(oldTerminal.root())));
+        // Pending work and records younger than the horizon are retained.
+        assertTrue(owner.deliveries().stream().anyMatch(d -> d.root().equals(oldPending.root())));
+        assertTrue(owner.deliveries().stream().anyMatch(d -> d.root().equals(youngTerminal.root())));
     }
 }

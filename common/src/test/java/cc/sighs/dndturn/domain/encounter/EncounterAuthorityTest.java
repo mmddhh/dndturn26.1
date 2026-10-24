@@ -319,4 +319,26 @@ class EncounterAuthorityTest {
         assertEquals(OperationRecord.Outcome.UNKNOWN,
             rules.closedView(id).results().get(0).outcome());
     }
+
+    @Test
+    void closedHistoryExpiresOnlyAfterRetentionUnlessReferenced() {
+        EncounterAuthority rules = new EncounterAuthority(new Random(1), 28, 20);
+        UUID member = UUID.randomUUID(), encounter = UUID.randomUUID(), op = UUID.randomUUID();
+        rules.beginCandidate(encounter, bounds(0), Set.of(member));
+        var snapshot = new OperationRecord.Snapshot(op, null, encounter, member, member, null,
+            1000, rules.view(encounter).version(), null, null, OperationRecord.Kind.MOVE);
+        assertTrue(rules.beginOperation(snapshot));
+        rules.publish(encounter, op, 0, OperationRecord.Outcome.COMPLETED, "moved", 0, 0, true);
+        rules.end(encounter);
+        assertNotNull(rules.closedView(encounter));
+        // Younger than the horizon: kept.
+        assertTrue(rules.expireClosedHistory(1000 + 167_999, 168_000, Set.of()).isEmpty());
+        assertNotNull(rules.closedView(encounter));
+        // Old but referenced: kept.
+        assertTrue(rules.expireClosedHistory(1000 + 168_000, 168_000, Set.of(encounter)).isEmpty());
+        assertNotNull(rules.closedView(encounter));
+        // Old and unreferenced: archived away.
+        assertEquals(Set.of(encounter), rules.expireClosedHistory(1000 + 168_000, 168_000, Set.of()));
+        assertNull(rules.closedView(encounter));
+    }
 }

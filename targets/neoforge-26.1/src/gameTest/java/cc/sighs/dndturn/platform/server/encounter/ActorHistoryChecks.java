@@ -59,6 +59,8 @@ public final class ActorHistoryChecks {
                     h.assertTrue(saved.deliveries().size() < 100, "empty simulation history still full");
                 }
                 player.getInventory().setItem(3, new ItemStack(Items.IRON_SWORD));
+                // The field only admits mobs with an actual directed lock; presence alone is not enough.
+                mob.setTarget(player);
                 service.requestStart(player, UUID.randomUUID());
                 UUID encounter = service.encounterOf(player.getUUID());
                 h.assertTrue(encounter != null && service.state(encounter).members().containsKey(mob.getUUID()), "target not discovered");

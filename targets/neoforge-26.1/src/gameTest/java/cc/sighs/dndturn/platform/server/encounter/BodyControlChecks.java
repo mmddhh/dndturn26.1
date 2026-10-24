@@ -72,7 +72,6 @@ public final class BodyControlChecks {
             snow.setNoAi(false);wither.setNoAi(false);wither.setAlternativeTarget(0,player.getId());
             for(var p:BlockPos.betweenClosed(snow.blockPosition().offset(-1,0,-1),snow.blockPosition().offset(1,0,1)))
                 level.setBlockAndUpdate(p,Blocks.AIR.defaultBlockState());
-            Vec3 witherBefore=wither.position();
             mob.setNoAi(false);creeper.setNoAi(false);creeper.ignite();mob.setTarget(player);
             mob.getNavigation().moveTo(player,1); // Pre-existing autonomous path must not obtain a lease.
             var facts = AuthorityProjection.actor(mob);
@@ -92,22 +91,31 @@ public final class BodyControlChecks {
                 == AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS, "default neutral AI changed into indiscriminate player targeting");
             var view=AiTestAccess.capture(new LiveActorContext(mob),service.state(id),null,ActionTestAccess.authority(service.tacticalActions()));
             var seen=view.perception().actors().stream().filter(t->t.id().equals(player.getUUID())).findFirst().orElseThrow();
-            helper.assertTrue(seen.visible()&&seen.currentTarget()&&!view.hostile().contains(seen.id()),"perception conflated vanilla commitment and directed hostility: "
-                + seen + " difficulty=" + level.getDifficulty() + " player=" + player.position());
+            // A real target lock is the hostility entry point: it joins the mob and records the
+            // directed relation in both directions, so perception must expose it as hostile.
+            helper.assertTrue(seen.visible()&&seen.currentTarget()&&view.hostile().contains(seen.id()),
+                "target lock did not record directed hostility: " + seen + " difficulty=" + level.getDifficulty()
+                    + " player=" + player.position());
             int ticks=mob.tickCount;Vec3 before=mob.position();float health=player.getHealth();
             helper.runAfterDelay(12,()-> {
                 helper.assertTrue(mob.tickCount>ticks&&!service.isEntitySimulationPaused(mob),"body lifecycle remained frozen");
                 helper.assertTrue(mob.position().distanceToSqr(before)<.01&&!service.hasMobMoveLease(mob.getUUID())
                     && player.getHealth()==health,"unlicensed AI or navigation leaked");
-                helper.assertTrue(wither.position().subtract(witherBefore).horizontalDistanceSqr()<.01,"outer Wither pursuit leaked");
-                helper.assertTrue(level.getBlockState(snow.blockPosition()).isAir(),"outer snow trail leaked");
+                // Membership, not mere presence, decides autonomy: a non-member inside the field
+                // keeps its AI so it can lock a target and be pulled in.
+                for (LivingEntity outer : List.of(wither, snow, creeper)) {
+                    boolean member = service.isMember(outer.getUUID());
+                    boolean autonomous = ActorControlPolicy.autonomousDecision(
+                        AuthorityProjection.actor(outer)).allowed();
+                    helper.assertTrue(member != autonomous,
+                        "membership did not decide autonomy for " + outer.getType());
+                }
                 mob.setDeltaMovement(new Vec3(.22,.15,0));Vec3 impulseStart=mob.position();
                 int movement=service.state(id).members().get(mob.getUUID()).movementTicks();
                 helper.runAfterDelay(4,()-> {
                     helper.assertTrue(mob.position().distanceToSqr(impulseStart)>.01,"ordinary body suppressed external impulse");
                     helper.assertTrue(service.state(id).members().get(mob.getUUID()).movementTicks()==movement,
                         "passive force spent active movement");
-                    helper.assertTrue(creeper.isAlive()&&creeper.getSwelling(1)==0,"outer Creeper skill advanced without ability permission");
                     verifyImpulse(helper, player, mob);
                     cleanup.run();helper.succeed();
                 });

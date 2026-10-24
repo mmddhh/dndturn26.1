@@ -356,6 +356,9 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
     private static final int MAX_PENDING_INTRUSIONS = 64;
     private record PendingIntrusion(UUID attackerId, UUID targetId, long tick) {}
     private final ArrayDeque<PendingIntrusion> pendingIntrusions = new ArrayDeque<>();
+    /** Actual server ticks when the current member turn / authorized environment step began. */
+    private final Map<UUID, Long> turnStartedAt = new HashMap<>();
+    private final Map<UUID, Long> environmentStepStartedAt = new HashMap<>();
 
     private static final class PlayerMoveLease {
         final UUID encounterId;
@@ -459,6 +462,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         this.environment = new EnvironmentScheduler(engine);
         this.engine.bindAbilityDefinitions(AbilityAdapterRegistry.definitions());
         this.engine.bindActorTurnObserver(boundary -> {
+            turnStartedAt.put(boundary.encounter(), cumulativeServerTicks);
             actorStates.turnStarted(boundary.encounter(), boundary.round(), boundary.actor());
             // Re-anchor at turn start to catch displacement not caused by movement.
             reanchor(boundary.encounter());
@@ -558,6 +562,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
                 finally {
                     this.playerMoves.clear();
                     this.pendingIntrusions.clear();
+                    this.turnStartedAt.clear();
+                    this.environmentStepStartedAt.clear();
                     this.regions.clear();
                     this.regionChunks.clear();
                     this.projections.close();
@@ -620,8 +626,62 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
     public void advancePersistenceClock() {
         requireThread();
         cumulativeServerTicks = Math.addExact(cumulativeServerTicks, 1);
-        actorStates.endServerTick();
+        actorStates.endServerTick(cumulativeServerTicks);
         simulationDecisions.clear();
+        if (cumulativeServerTicks % 20 == 0) expireHistory();
+    }
+
+    /**
+     * Reference-aware seven-day archive. The clock counts actual server ticks across restarts
+     * (pause still counts; /time does not shorten it). Active work, receipts, exit grants,
+     * transient projectiles and merge aliases keep their closed archives until released.
+     */
+    private void expireHistory() {
+        requireThread();
+        long retention = config.historyRetentionTicks();
+        Set<UUID> referenced = new HashSet<>();
+        for (StartRequestReceipt receipt : startReceipts.values()) referenced.add(receipt.encounterId());
+        for (ExitRequestReceipt receipt : exitReceipts.values()) referenced.add(receipt.encounterId());
+        for (MoveEndReceipt receipt : moveEndReceipts.values()) referenced.add(receipt.encounterId());
+        for (ExitAuthorizations.Grant grant : exitAuthorizations.snapshot()) referenced.add(grant.encounter());
+        for (ProjectileOrigin origin : projectileOrigins.values())
+            if (origin.sourceEncounterId() != null) referenced.add(origin.sourceEncounterId());
+        for (PendingProjectileAttack pending : pendingProjectileAttacks.values())
+            if (pending.sourceEncounterId() != null) referenced.add(pending.sourceEncounterId());
+        for (var quarantined : quarantinedProjectiles.values()) referenced.add(quarantined.encounterId());
+        for (UUID id : engine.encounterIds()) referenced.add(id);
+        Set<UUID> removed = engine.expireClosedHistory(cumulativeServerTicks, retention, referenced);
+        if (!removed.isEmpty()) {
+            startReceipts.values().removeIf(receipt -> removed.contains(receipt.encounterId()));
+            exitReceipts.values().removeIf(receipt -> removed.contains(receipt.encounterId()));
+            moveEndReceipts.values().removeIf(receipt -> removed.contains(receipt.encounterId()));
+            DebugDiagnostics.log("HISTORY_EXPIRED", () -> "encounters=" + removed.size());
+            persistence.changed();
+        }
+        int actorRemoved = actorStates.expireHistory(cumulativeServerTicks, retention);
+        if (actorRemoved > 0)
+            DebugDiagnostics.log("ACTOR_HISTORY_EXPIRED", () -> "records=" + actorRemoved);
+        expireProjectileOrigins(retention);
+    }
+
+    private void expireProjectileOrigins(long retention) {
+        int before = projectileOrigins.size();
+        for (UUID projectileId : List.copyOf(projectileOrigins.keySet())) {
+            ProjectileOrigin origin = projectileOrigins.get(projectileId);
+            if (origin == null || cumulativeServerTicks - origin.launchedServerTick() < retention) continue;
+            // A live or still-relevant projectile keeps its launch evidence.
+            if (resolve(projectileId) != null
+                || pendingProjectileAttacks.containsKey(projectileId)
+                || projectileAbilities.containsKey(projectileId)
+                || quarantinedProjectiles.containsKey(projectileId)) continue;
+            projectileOrigins.remove(projectileId);
+            projectileSimulationDomains.remove(projectileId);
+            retainedProjectileHistory.remove(projectileId);
+        }
+        if (projectileOrigins.size() != before) {
+            DebugDiagnostics.log("PROJECTILE_HISTORY_EXPIRED", () -> "removed=" + (before - projectileOrigins.size()));
+            persistence.changed();
+        }
     }
 
     private CombatPersistenceEnvelope.CapturedSettings settingsFor(UUID encounterId) {
@@ -751,6 +811,8 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             boolean loadedMember = state.members().keySet().stream().anyMatch(id -> level.getEntity(id) != null);
             return loadedMember && regionChunksLoaded(level, regionChunks.getOrDefault(encounterId, Set.of()));
         });
+        UUID activeStep = environment.domain(level);
+        if (activeStep != null) environmentStepStartedAt.put(activeStep, cumulativeServerTicks);
     }
 
     /** Appends evidence without rewriting old results, acquiring leases or invoking behavior hooks. */
@@ -781,6 +843,19 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             } catch (RuntimeException unavailable) {
                 code = ActionFailure.Code.ABILITY_UNAVAILABLE; reason = "ability version or source adapter unavailable; action not replayed";
             }
+            // RECONCILE_NATIVE: compare the recorded pre-state with the live world. This only
+            // narrows the evidence; it never replays the callback or grants a new effect.
+            if (code == ActionFailure.Code.UNKNOWN_EFFECT && evidence.before() != null) {
+                int changed = 0;
+                for (var block : evidence.before().blocks()) {
+                    BlockPos pos = new BlockPos(block.cell().x(), block.cell().y(), block.cell().z());
+                    if (!level.hasChunkAt(pos)) continue;
+                    if (!level.getBlockState(pos).toString().equals(block.state())) changed++;
+                }
+                reason = changed == 0
+                    ? "native reconciliation: recorded pre-state unchanged; no effect confirmed; not replayed"
+                    : "native reconciliation: world differs from pre-state; effect unverified; not replayed";
+            }
             persistence.appendAudit(new CombatPersistenceEnvelope.RecoveryAudit(evidence.operation(), generation,
                 cumulativeServerTicks, code, reason));
         }
@@ -795,6 +870,63 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             }
         }
         persistence.changed();
+    }
+
+    /**
+     * Restart terminalization. Movement/approach is interrupted. An action whose recorded
+     * observation already shows its effect is completed from that evidence; nothing is applied
+     * again when the effect is not provable, so it falls through to the UNKNOWN reconciliation.
+     */
+    private void resolveRestoredWork(UUID encounterId) {
+        for (var evidence : List.copyOf(persistence.checkpoints().values())) {
+            if (!engine.canonicalEncounterId(evidence.encounter()).equals(encounterId)
+                || evidence.phase() == AbilityCheckpoint.Phase.TERMINAL) continue;
+            if (engine.pendingOperation(encounterId, evidence.operation()) == null) continue;
+            if (evidence.phase() == AbilityCheckpoint.Phase.APPROACH
+                || evidence.phase() == AbilityCheckpoint.Phase.PREPARE) {
+                terminalizeRestored(encounterId, evidence, OperationRecord.Outcome.INTERRUPTED,
+                    "movement/approach terminated by restart; not replayed");
+            } else if (observablyApplied(evidence)) {
+                terminalizeRestored(encounterId, evidence, OperationRecord.Outcome.COMPLETED,
+                    "restart completed from recorded observation; effect not re-applied");
+            }
+        }
+    }
+
+    private void terminalizeRestored(UUID encounterId, AbilityCheckpoint evidence,
+                                     OperationRecord.Outcome outcome, String reason) {
+        List<UUID> operations = new ArrayList<>();
+        if (evidence.action() != null) operations.add(evidence.action());
+        if (evidence.movement() != null) operations.add(evidence.movement());
+        operations.add(evidence.operation());
+        for (UUID operation : operations) {
+            if (engine.pendingOperation(encounterId, operation) == null) continue;
+            try { engine.publish(encounterId, operation, 0, outcome, reason, 0, 0, true); }
+            catch (RuntimeException failure) {
+                DebugDiagnostics.log("RESTORED_TERMINAL_FAILED", () -> "op=" + operation
+                    + " outcome=" + outcome + " reason=" + failure.getMessage());
+            }
+        }
+    }
+
+    private static boolean observablyApplied(AbilityCheckpoint evidence) {
+        var before = evidence.before();
+        var observed = evidence.observed();
+        if (before == null || observed == null) return false;
+        for (var previous : before.blocks())
+            for (var current : observed.blocks())
+                if (current.cell().equals(previous.cell()) && !current.state().equals(previous.state())) return true;
+        for (var previous : before.items())
+            for (var current : observed.items())
+                if (current.slot() == previous.slot()
+                    && (current.count() != previous.count() || current.damage() != previous.damage()
+                        || !current.revision().equals(previous.revision()))) return true;
+        for (var previous : before.bodies())
+            for (var current : observed.bodies())
+                if (current.entity().equals(previous.entity())
+                    && (current.health() != previous.health()
+                        || current.absorption() != previous.absorption())) return true;
+        return before.spawned().isEmpty() && !observed.spawned().isEmpty();
     }
 
     private void auditRestoredEncounters(ServerLevel level) {
@@ -816,6 +948,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
                 .flatMap(e -> e.pending().values().stream()).filter(e -> e.intent() != null)
                 .map(e -> AbilityAdapterRegistry.recoveryReason(e.intent())).distinct().collect(java.util.stream.Collectors.joining("; "));
             auditAbilityRecovery(level, encounterId);
+            resolveRestoredWork(encounterId);
             int unknown = engine.failRestoredWork(encounterId, cumulativeServerTicks,
                 behaviorRecovery.isEmpty() ? "restart evidence could not prove previous world effect" : behaviorRecovery);
             for(UUID owner:state.members().keySet()) if(level.getEntity(owner) instanceof LivingEntity living
@@ -1051,6 +1184,7 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         requireThread();
         UUID encounterId = environment.complete(level);
         if (encounterId != null) {
+            environmentStepStartedAt.remove(encounterId);
             sync(engine.stateView(encounterId));
             syncBodyStateTransitions();
         }
@@ -1060,7 +1194,10 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
     public void abortLevelTick(ServerLevel level, Throwable failure) {
         requireThread();
         UUID encounterId = environment.abort(level, cumulativeServerTicks, failure);
-        if (encounterId != null) stop(encounterId);
+        if (encounterId != null) {
+            environmentStepStartedAt.remove(encounterId);
+            stop(encounterId);
+        }
     }
 
     public void beforeChunkUnload(ServerLevel level, net.minecraft.world.level.ChunkPos chunk) {
@@ -2237,6 +2374,81 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         return previous;
     }
 
+    /** Actual server ticks, shared by the idle-turn and execution-deadline backstops. */
+    public long deadlineClock() { return cumulativeServerTicks; }
+    public long executionDeadlineTicks() { return config.executionDeadlineTicks(); }
+
+    /**
+     * Bounded liveness backstop: an idle player must not block the encounter forever, and a
+     * pending non-projectile execution that has no terminal state must release its control.
+     * Projectiles keep their own quarantine/domain lifecycle and are excluded.
+     */
+    public void tickDeadlines() {
+        requireThread();
+        if (closing) return;
+        long now = cumulativeServerTicks;
+        for (UUID encounterId : List.copyOf(engine.encounterIds())) {
+            EncounterAuthority.StateView state = engine.stateView(encounterId);
+            if (state.phase() != EncounterPhase.ACTIVE && state.phase() != EncounterPhase.CANDIDATE) continue;
+            UUID current = state.current();
+            if (current == null) continue;
+            if (!(resolve(current) instanceof ServerPlayer player) || player.isDeadOrDying()) continue;
+            long started = turnStartedAt.getOrDefault(encounterId, now);
+            if (now - started < config.turnIdleSkipTicks()) continue;
+            skipIdleTurn(encounterId, player);
+        }
+        for (UUID encounterId : List.copyOf(engine.encounterIds())) {
+            EncounterAuthority.StateView state = engine.stateView(encounterId);
+            UUID step = engine.authorizedEnvironmentStep(encounterId);
+            if (step == null) { environmentStepStartedAt.remove(encounterId); continue; }
+            long started = environmentStepStartedAt.getOrDefault(encounterId, now);
+            if (now - started < config.executionDeadlineTicks()) continue;
+            ServerLevel level = levelFor(state.region().dimension());
+            if (level == null) continue;
+            DebugDiagnostics.log("EXECUTION_DEADLINE_ENVIRONMENT", () -> "encounter=" + encounterId + " step=" + step);
+            environmentStepStartedAt.remove(encounterId);
+            if (environment.abort(level, now, new IllegalStateException("EXECUTION_DEADLINE")) != null)
+                stop(encounterId);
+        }
+        for (var evidence : List.copyOf(persistence.checkpoints().values())) {
+            if (now - evidence.tick() < config.executionDeadlineTicks()) continue;
+            // Only movement/approach may be force-terminated; actions complete normally.
+            if (evidence.phase() != AbilityCheckpoint.Phase.APPROACH
+                && evidence.phase() != AbilityCheckpoint.Phase.PREPARE) continue;
+            UUID encounterId = engine.encounterOf(evidence.owner());
+            if (encounterId == null || !engine.encounterIds().contains(encounterId)) continue;
+            if (engine.pendingOperation(encounterId, evidence.operation()) == null) continue;
+            if (tacticalActions != null && tacticalActions.running(evidence.owner())) continue;
+            DebugDiagnostics.log("EXECUTION_DEADLINE_STOP", () -> "encounter=" + encounterId
+                + " op=" + evidence.operation() + " owner=" + evidence.owner());
+            stop(encounterId);
+            break;
+        }
+    }
+
+    private void skipIdleTurn(UUID encounterId, ServerPlayer player) {
+        try {
+            if (tacticalActions != null && (tacticalActions.running(player.getUUID())
+                || tacticalActions.controlFault(player.getUUID())))
+                tacticalActions.cancel(player.getUUID(), "IDLE_TURN_SKIP");
+            EncounterAuthority.StateView state = engine.stateView(encounterId);
+            if (!player.getUUID().equals(state.current()) || engine.hasPendingOperations(encounterId)) return;
+            UUID operation = UUID.nameUUIDFromBytes(("dndturn:idle-skip:" + encounterId + ":" + state.round()
+                + ":" + player.getUUID()).getBytes(StandardCharsets.UTF_8));
+            endTurnAs(encounterId, player.getUUID(), player, operation, state.version());
+            DebugDiagnostics.log("IDLE_TURN_SKIPPED", () -> "encounter=" + encounterId + " actor=" + player.getUUID());
+        } catch (RuntimeException failure) {
+            DebugDiagnostics.log("IDLE_TURN_SKIP_FAILED", () -> "encounter=" + encounterId
+                + " actor=" + player.getUUID() + " error=" + failure.getMessage());
+        }
+    }
+
+    private ServerLevel levelFor(String dimension) {
+        for (ServerLevel level : server.getAllLevels())
+            if (level.dimension().identifier().toString().equals(dimension)) return level;
+        return null;
+    }
+
     public OperationRecord.Result attack(LivingEntity actor, UUID targetId,
                                                                   UUID operationId, long expectedVersion) {
         return attack(actor, targetId, operationId, expectedVersion, null, false);
@@ -2583,7 +2795,9 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         regions.remove(encounterId);
         capturedSettings.remove(encounterId);
         regionChunks.remove(encounterId);
-        
+        turnStartedAt.remove(encounterId);
+        environmentStepStartedAt.remove(encounterId);
+
         discardMergesContaining(encounterId);
         mergeFailures.remove(encounterId);
         gameTestAttackRandom.remove(encounterId);
@@ -2620,7 +2834,9 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
             regions.remove(encounterId);
             capturedSettings.remove(encounterId);
             regionChunks.remove(encounterId);
-            
+            turnStartedAt.remove(encounterId);
+            environmentStepStartedAt.remove(encounterId);
+
                     discardMergesContaining(encounterId);
             mergeFailures.remove(encounterId);
             gameTestAttackRandom.remove(encounterId);

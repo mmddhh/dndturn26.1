@@ -97,6 +97,8 @@ public final class CombatStructureChecks {
         h.runAtTickTime(99, cleanup);
         h.runAtTickTime(20, () -> {
             try {
+                // The field admits mobs with an actual directed lock; presence alone is not enough.
+                cow.setTarget(player);
                 runtime.requestStart(player, UUID.randomUUID());
                 var encounter = runtime.encounterOf(player.getUUID());
                 h.assertTrue(encounter != null && runtime.state(encounter).members().containsKey(cow.getUUID()), "fixture membership missing");
