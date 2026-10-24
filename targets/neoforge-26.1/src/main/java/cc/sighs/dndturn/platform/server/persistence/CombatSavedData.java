@@ -49,6 +49,13 @@ public final class CombatSavedData extends SavedData {
         requireFields(root, CombatPersistenceEnvelope.class);
         if (!root.get("rules").isJsonObject()) throw new IllegalArgumentException("invalid rules object");
         requireFields(root.getAsJsonObject("rules"), EncounterStateSnapshot.class);
+        if (!root.get("capturedSettings").isJsonObject())
+            throw new IllegalArgumentException("invalid capturedSettings object");
+        for (var entry : root.getAsJsonObject("capturedSettings").entrySet()) {
+            if (!entry.getValue().isJsonObject())
+                throw new IllegalArgumentException("invalid capturedSettings entry: " + entry.getKey());
+            requireFields(entry.getValue().getAsJsonObject(), CombatPersistenceEnvelope.CapturedSettings.class);
+        }
         return GSON.fromJson(root, CombatPersistenceEnvelope.class);
     }
 

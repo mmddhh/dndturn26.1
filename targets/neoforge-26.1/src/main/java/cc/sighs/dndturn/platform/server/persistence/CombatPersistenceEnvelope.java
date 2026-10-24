@@ -102,10 +102,9 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
                                    double regionRadius, int maxSampledChunks,
                                    int maxAnchors, boolean tacticalKnockbackEnabled, double escapeDistance) {
         public CapturedSettings {
-            // Tolerant defaults keep older saves (which lacked the discovery fields) loadable.
-            if (!Double.isFinite(discoveryHorizontal) || discoveryHorizontal <= 0) discoveryHorizontal = 16;
-            if (!Double.isFinite(discoveryVertical) || discoveryVertical <= 0) discoveryVertical = 8;
-            if (!Double.isFinite(regionRadius) || regionRadius <= 0
+            if (!Double.isFinite(discoveryHorizontal) || discoveryHorizontal <= 0
+                || !Double.isFinite(discoveryVertical) || discoveryVertical <= 0
+                || !Double.isFinite(regionRadius) || regionRadius <= 0
                 || !Double.isFinite(escapeDistance) || escapeDistance <= 0
                 || maxSampledChunks < 1 || maxSampledChunks > 4096
                 || maxAnchors < 1 || maxAnchors > 4096)
