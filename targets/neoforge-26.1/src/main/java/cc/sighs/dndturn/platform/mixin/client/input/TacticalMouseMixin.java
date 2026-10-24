@@ -39,9 +39,9 @@ public abstract class TacticalMouseMixin implements MouseInputReset {
         finally { consumed = ClientControl.endMouse(info.button(), action, consumed); }
         return consumed;
     }
-    @Redirect(method = "onScroll", at = @At(value = "INVOKE", target = "Lnet/neoforged/neoforge/client/ClientHooks;onMouseScroll(Lnet/minecraft/client/MouseHandler;DD)Z"))
-    private boolean dndturn$scroll(MouseHandler mouse, double x, double y) {
-        return ClientControl.scroll(y, ClientHooks.onMouseScroll(mouse, x, y));
+    @Redirect(method = "onScroll", at = @At(value = "INVOKE", target = "Lnet/neoforged/neoforge/client/ClientHooks;onMouseScroll(Lnet/minecraft/client/MouseHandler;DDLorg/joml/Vector2ic;)Z"))
+    private boolean dndturn$scroll(MouseHandler mouse, double x, double y, org.joml.Vector2ic wheel) {
+        return ClientControl.scroll(y, ClientHooks.onMouseScroll(mouse, x, y, wheel));
     }
     @Inject(method = "onMove", at = @At("HEAD"))
     private void dndturn$move(long window, double x, double y, CallbackInfo ci) {

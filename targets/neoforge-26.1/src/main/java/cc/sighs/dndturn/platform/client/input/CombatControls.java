@@ -20,25 +20,25 @@ import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
-import net.neoforged.neoforge.client.settings.KeyModifier;
 import org.lwjgl.glfw.GLFW;
 
 /** Rebindable tactical controls. Packets carry intent, never authoritative costs or damage. */
 public final class CombatControls {
     private static final KeyMapping.Category CATEGORY = new KeyMapping.Category(
         Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "tactical"));
-    private static final KeyMapping START = new KeyMapping("key.dndturn.start", KeyConflictContext.IN_GAME,
-        KeyModifier.SHIFT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_SPACE, CATEGORY);
+    private static final KeyMapping START = key("start", GLFW.GLFW_KEY_F8);
     private static final KeyMapping EXIT = key("exit", GLFW.GLFW_KEY_UNKNOWN);
     private static final KeyMapping MOVE = key("move", GLFW.GLFW_KEY_UNKNOWN);
     private static final KeyMapping ATTACK = key("attack", GLFW.GLFW_KEY_LEFT_CONTROL);
     private static final KeyMapping DASH = key("dash", GLFW.GLFW_KEY_UNKNOWN);
     private static final KeyMapping DODGE = key("dodge", GLFW.GLFW_KEY_UNKNOWN);
     private static final KeyMapping DISENGAGE = key("disengage", GLFW.GLFW_KEY_UNKNOWN);
-    private static final KeyMapping END_TURN = key("end_turn", GLFW.GLFW_KEY_SPACE);
+    private static final KeyMapping END_TURN = key("end_turn", GLFW.GLFW_KEY_ENTER);
     private static final KeyMapping INVENTORY = key("inventory", GLFW.GLFW_KEY_I);
     private static final KeyMapping ROTATE_LEFT = key("rotate_left", GLFW.GLFW_KEY_Q);
     private static final KeyMapping ROTATE_RIGHT = key("rotate_right", GLFW.GLFW_KEY_E);
+    private static final KeyMapping CAMERA_UP = key("camera_up", GLFW.GLFW_KEY_SPACE);
+    private static final KeyMapping CAMERA_DOWN = key("camera_down", GLFW.GLFW_KEY_LEFT_SHIFT);
     private static final KeyMapping HOME = key("camera_home", GLFW.GLFW_KEY_HOME);
     private static final KeyMapping PRESET = key("camera_preset", GLFW.GLFW_KEY_O);
     private static boolean exitRetryPending;
@@ -68,6 +68,8 @@ public final class CombatControls {
         event.register(HOME); event.register(PRESET);
         event.register(ROTATE_LEFT);
         event.register(ROTATE_RIGHT);
+        event.register(CAMERA_UP);
+        event.register(CAMERA_DOWN);
     }
 
     public static void registerHud(RegisterGuiLayersEvent event) {
@@ -79,7 +81,7 @@ public final class CombatControls {
         Minecraft game = Minecraft.getInstance();
         if (game.player == null || game.screen != null || !game.isWindowActive() || game.getConnection() == null || ConsentOverlay.isOpen()) {
             for (KeyMapping mapping : new KeyMapping[]{START, EXIT, MOVE, ATTACK, DASH, DODGE,
-                    DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT}) clear(mapping);
+                    DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT, CAMERA_UP, CAMERA_DOWN}) clear(mapping);
             return;
         }
         while (START.consumeClick()) {
@@ -101,6 +103,8 @@ public final class CombatControls {
         while (PRESET.consumeClick()) ClientControl.preset();
         while (ROTATE_LEFT.consumeClick()) { }
         while (ROTATE_RIGHT.consumeClick()) { }
+        while (CAMERA_UP.consumeClick()) { }
+        while (CAMERA_DOWN.consumeClick()) { }
     }
 
     /** Called after vanilla KeyMapping.set/click, before the next client input tick. */
@@ -121,13 +125,13 @@ public final class CombatControls {
         if (!tactical && !toggle) return;
         boolean handled = toggle;
         if (tactical) for (KeyMapping mapping : new KeyMapping[]{EXIT, MOVE, ATTACK, DASH, DODGE,
-                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT}) {
+                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT, CAMERA_UP, CAMERA_DOWN}) {
             if (mapping.matches(event.getKeyEvent())) handled = true;
         }
         if (!handled) return;
         KeyMapping winner = null;
         for (KeyMapping mapping : new KeyMapping[]{START, EXIT, MOVE, ATTACK, DASH, DODGE,
-                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT}) {
+                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT, CAMERA_UP, CAMERA_DOWN}) {
             if (!mapping.matches(event.getKeyEvent()) || !mapping.isActiveAndMatches(InputConstants.getKey(event.getKeyEvent()))) continue;
             if (winner == null) winner = mapping;
             else clear(mapping);
@@ -148,15 +152,18 @@ public final class CombatControls {
 
     static boolean matchesAction(net.minecraft.client.input.KeyEvent event) {
         for (KeyMapping key : new KeyMapping[]{START, EXIT, MOVE, ATTACK, DASH, DODGE,
-                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT})
+                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT, CAMERA_UP, CAMERA_DOWN})
             if (key.matches(event) && key.isActiveAndMatches(InputConstants.getKey(event))) return true;
         return false;
     }
     private static boolean isAction(KeyMapping candidate) {
         for (KeyMapping key : new KeyMapping[]{START, EXIT, MOVE, ATTACK, DASH, DODGE,
-                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT}) if (key == candidate) return true;
+                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT, CAMERA_UP, CAMERA_DOWN}) if (key == candidate) return true;
         return false;
     }
+
+    static KeyMapping cameraUpKey() { return CAMERA_UP; }
+    static KeyMapping cameraDownKey() { return CAMERA_DOWN; }
 
     static KeyMapping rotateLeftKey() { return ROTATE_LEFT; }
     static KeyMapping rotateRightKey() { return ROTATE_RIGHT; }
@@ -193,7 +200,7 @@ public final class CombatControls {
         if (action == GLFW.GLFW_PRESS) KeyMapping.click(code);
         boolean winner = false;
         for (KeyMapping mapping : new KeyMapping[]{START, EXIT, MOVE, ATTACK, DASH, DODGE,
-                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT}) if (mapping.isActiveAndMatches(code)) {
+                DISENGAGE, END_TURN, INVENTORY, HOME, PRESET, ROTATE_LEFT, ROTATE_RIGHT, CAMERA_UP, CAMERA_DOWN}) if (mapping.isActiveAndMatches(code)) {
             if (!winner) winner = true;
             else clear(mapping);
         }

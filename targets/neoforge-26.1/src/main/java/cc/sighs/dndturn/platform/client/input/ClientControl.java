@@ -1,6 +1,7 @@
 package cc.sighs.dndturn.platform.client.input;
 
 import cc.sighs.dndturn.platform.client.action.ClientTacticalPlan;
+import cc.sighs.dndturn.platform.client.camera.TerrainCutaway;
 import cc.sighs.dndturn.platform.client.state.ClientCombatState;
 import cc.sighs.dndturn.platform.client.ui.ConsentOverlay;
 import cc.sighs.dndturn.platform.client.ui.OverlayUi;
@@ -69,7 +70,7 @@ public final class ClientControl {
             transition();
         } else if (!valid && session) {
             ClientTacticalPlan.reset();
-            session = false; rig.reset(); cameraOwner = null; transition();
+            session = false; rig.reset(); TerrainCutaway.clear(); cameraOwner = null; transition();
         }
         Recipient next = !mc.isWindowActive() ? Recipient.UNFOCUSED : mc.screen != null ? Recipient.SCREEN
             : modal() ? Recipient.CONSENT : session ? Recipient.CAMERA
@@ -107,7 +108,7 @@ public final class ClientControl {
 
     public static void reset() {
         boolean controlled = session || consent != null || rig.position() != null;
-        session = false; consent = null; rig.reset(); cameraOwner = null;
+        session = false; consent = null; rig.reset(); TerrainCutaway.clear(); cameraOwner = null;
         ClientTacticalPlan.reset();
         recipient = Recipient.GAME; level = null; player = null;
         restoreGrab = false;
@@ -138,7 +139,8 @@ public final class ClientControl {
             if (action == GLFW.GLFW_PRESS && recipient == Recipient.CAMERA
                 && mapping.isActiveAndMatches(InputConstants.getKey(event))
                 && (mapping == CombatControls.rotateLeftKey()
-                    || mapping == CombatControls.rotateRightKey() || !CombatControls.matchesAction(event)))
+                    || mapping == CombatControls.rotateRightKey() || mapping == CombatControls.cameraUpKey()
+                    || mapping == CombatControls.cameraDownKey() || !CombatControls.matchesAction(event)))
                 cameraKeys.add(mapping);
         }
         return true;
@@ -146,7 +148,8 @@ public final class ClientControl {
     private static KeyMapping[] movementKeys() {
         var o = Minecraft.getInstance().options;
         return new KeyMapping[]{o.keyUp, o.keyDown, o.keyLeft, o.keyRight,
-            CombatControls.rotateLeftKey(), CombatControls.rotateRightKey(), o.keySprint};
+            CombatControls.rotateLeftKey(), CombatControls.rotateRightKey(),
+            CombatControls.cameraUpKey(), CombatControls.cameraDownKey(), o.keySprint};
     }
     static void clear(KeyMapping key) { key.setDown(false); while (key.consumeClick()) {} }
     private static void clearKeys() {
@@ -263,18 +266,24 @@ public final class ClientControl {
     public static boolean camera(Camera camera) {
         reconcile();
         var mc = Minecraft.getInstance();
-        return session && rig.position() != null && camera == mc.gameRenderer.getMainCamera()
+        boolean owned = session && rig.position() != null && camera == mc.gameRenderer.getMainCamera()
             && mc.getCameraEntity() == cameraOwner && cameraOwner == mc.player;
+        if (!owned && camera == mc.gameRenderer.getMainCamera()) TerrainCutaway.clear();
+        return owned;
     }
     public static void frame() {
         long now = System.nanoTime();
         double seconds = frameTime == 0 ? 0 : Math.min(.05, (now - frameTime) / 1e9);
         frameTime = now;
-        if (recipient != Recipient.CAMERA) return;
+        if (recipient != Recipient.CAMERA) {
+            TerrainCutaway.update(rig.position(), rig.focus());
+            return;
+        }
         var o = Minecraft.getInstance().options;
         double f = axis(o.keyUp, o.keyDown), l = axis(o.keyLeft, o.keyRight);
-        rig.pan(f, l, seconds, cameraKeys.contains(o.keySprint),
+        rig.pan(f, l, axis(CombatControls.cameraUpKey(), CombatControls.cameraDownKey()), seconds, cameraKeys.contains(o.keySprint),
             axis(CombatControls.rotateRightKey(), CombatControls.rotateLeftKey()));
+        TerrainCutaway.update(rig.position(), rig.focus());
     }
     private static int axis(KeyMapping positive, KeyMapping negative) {
         return (cameraKeys.contains(positive) ? 1 : 0) - (cameraKeys.contains(negative) ? 1 : 0);
@@ -369,7 +378,7 @@ public final class ClientControl {
         double range = 0;
         while (range < 64 && mc.level.hasChunkAt(BlockPos.containing(rig.position().add(direction.scale(range + 1))))) range++;
         Vec3 end = rig.position().add(direction.scale(range));
-        var block = mc.level.clip(new ClipContext(rig.position(), end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+        var block = TerrainCutaway.clip(mc.level, new ClipContext(rig.position(), end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
         double nearest = block.getType() == HitResult.Type.MISS ? range * range : block.getLocation().distanceToSqr(rig.position());
         java.util.UUID selected = null;
         Vec3 contact = block.getType() == HitResult.Type.MISS ? null : block.getLocation();

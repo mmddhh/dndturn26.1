@@ -27,5 +27,7 @@
   "key.dndturn.rotate_left": "镜头向左旋转",
   "key.dndturn.rotate_right": "镜头向右旋转",
   "key.dndturn.camera_home": "镜头回到受控角色",
-  "key.dndturn.camera_preset": "切换俯视预设"
+  "key.dndturn.camera_preset": "切换俯视预设",
+  "key.dndturn.camera_up": "镜头上升",
+  "key.dndturn.camera_down": "镜头下降"
 }

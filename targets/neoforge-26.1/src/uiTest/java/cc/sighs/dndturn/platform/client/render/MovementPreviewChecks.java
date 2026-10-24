@@ -41,6 +41,28 @@ public final class MovementPreviewChecks {
         require(MovementPreviewBudget.limit(Vec3.ZERO,List.of(step(10,0,0,"SWIM")),30,.1).distance()<limited.distance(),"swim cost ignored");
         require(MovementPreviewBudget.limit(Vec3.ZERO,List.of(step(1,1,0,"JUMP")),2,.1).route().isEmpty(),"stop inside jump");
         require(MovementPreviewBudget.limit(Vec3.ZERO,route,30,Double.NaN).route().isEmpty(),"invalid speed offered movement");
+        // Render masks must remain bounded, hysteretic, immutable and world-instance scoped.
+        // Existing path checks cannot detect stale terrain uploads or boundary-face invalidation.
+        Object world = new Object();
+        var empty = new cc.sighs.dndturn.platform.client.camera.CutawayMask(world, java.util.Map.of());
+        Vec3 eye = new Vec3(.5, 8.5, .5), focus = new Vec3(.5, .5, .5);
+        var mask = empty.move(eye, focus, p -> true);
+        var edge = new net.minecraft.core.BlockPos(2, 4, 0);
+        require(mask.hides(edge), "cutaway omitted cell center at entry radius");
+        var shiftedEye = eye.add(-.1, 0, 0);
+        var shiftedFocus = focus.add(-.1, 0, 0);
+        require(mask.move(shiftedEye, shiftedFocus, p -> true).hides(edge), "cutaway flickered within hysteresis band");
+        require(!empty.move(shiftedEye, shiftedFocus, p -> true).hides(edge), "new cell entered through exit threshold");
+        require(!mask.move(eye.add(-1, 0, 0), focus.add(-1, 0, 0), p -> true).hides(edge), "cutaway did not restore outside exit radius");
+        require(!mask.hides(new net.minecraft.core.BlockPos(0, -1, 0)), "cutaway removed floor behind focus");
+        require(mask.move(eye, focus, p -> false).sections().isEmpty(), "cutaway retained unloaded cells");
+        require(empty.sections().isEmpty() && mask.hides(edge), "published cutaway snapshot was mutated");
+        require(!mask.matches(new cc.sighs.dndturn.platform.client.camera.CutawayMask(new Object(), mask.sections()), 0), "old-world mesh accepted");
+        long cell = new net.minecraft.core.BlockPos(15, 15, 15).asLong();
+        var boundary = new cc.sighs.dndturn.platform.client.camera.CutawayMask(world, java.util.Map.of(0L, java.util.Set.of(cell)));
+        require(empty.changedSections(boundary).contains(net.minecraft.core.SectionPos.asLong(1, 1, 1)), "cutaway failed to invalidate diagonal AO neighbor");
+        require(!empty.matches(boundary, net.minecraft.core.SectionPos.asLong(1, 0, 0)), "stale neighboring mesh accepted");
+        require(empty.matches(boundary, net.minecraft.core.SectionPos.asLong(4, 0, 0)), "unrelated mask update invalidated remote mesh");
         System.out.println("Movement preview geometry and budget checks passed");
     }
     private static boolean close(double a,double b) { return Math.abs(a-b)<1e-8; }

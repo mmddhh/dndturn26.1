@@ -104,6 +104,7 @@ class PackageArchitectureTest {
     // This list admits hook contracts, policies, projections and fixed-version access interfaces, never owners.
     private static final Set<String> MIXIN_SEAMS = Set.of(
         "diagnostics.DebugDiagnostics", "server.runtime.MinecraftCombatRuntime",
+        "client.camera.TerrainCutaway", "client.camera.CutawayStampAccess",
         "client.action.ClientTacticalPlan", "client.input.ClientControl", "client.input.PlanSteering", "client.input.MouseInputReset",
         "client.presentation.ClientPresentation", "client.presentation.PresentationUse", "client.simulation.ClientEntitySimulation",
         "client.state.ClientCombatState", "client.ui.OverlayUi", "client.ui.ParticipantPortraits", "client.ui.TacticalOverlay",

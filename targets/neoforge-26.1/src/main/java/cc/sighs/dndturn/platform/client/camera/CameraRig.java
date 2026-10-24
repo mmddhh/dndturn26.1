@@ -2,15 +2,14 @@ package cc.sighs.dndturn.platform.client.camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-/** Visual pose and bounded collision math. Never moves an entity or loads a chunk. */
+/** Visual pose and loaded-world bounds. Never moves an entity or loads a chunk. */
 public final class CameraRig {
     private Vec3 position, focus;
     private double distance = 12;
     private float yaw, pitch;
     public Vec3 position() { return position; }
+    public Vec3 focus() { return focus; }
     public float yaw() { return yaw; }
     public float pitch() { return pitch; }
     public void reset() { position = null; focus = null; }
@@ -21,11 +20,11 @@ public final class CameraRig {
     public void rotate(float horizontal, float vertical) {
         yaw = Mth.wrapDegrees(yaw + horizontal); pitch = Mth.clamp(pitch + vertical, 25, 80); updateRig();
     }
-    public void pan(double forwardAxis, double leftAxis, double seconds, boolean sprint, double rotation) {
+    public void pan(double forwardAxis, double leftAxis, double verticalAxis, double seconds, boolean sprint, double rotation) {
         yaw = Mth.wrapDegrees(yaw + (float)(rotation * seconds * 90));
         Vec3 forward = Vec3.directionFromRotation(0, yaw);
         Vec3 left = new Vec3(forward.z, 0, -forward.x).normalize();
-        Vec3 delta = forward.scale(forwardAxis).add(left.scale(leftAxis));
+        Vec3 delta = forward.scale(forwardAxis).add(left.scale(leftAxis)).add(0, verticalAxis, 0);
         if (delta.lengthSqr() > 0) move(delta.normalize().scale(seconds * (sprint ? 12 : 6)));
         updateRig();
     }
@@ -44,7 +43,7 @@ public final class CameraRig {
         if (focus == null) return;
         var mc = Minecraft.getInstance();
         Vec3 desired = focus.subtract(forward().scale(distance));
-        // Clip the visual boom without loading terrain or moving the camera entity.
+        // Terrain is cut away by the renderer. Only the loaded-world boundary limits the boom.
         if (mc.level != null && mc.player != null) {
             Vec3 boom = desired.subtract(focus);
             for (int i = 1, count = Math.max(1, (int)Math.ceil(distance * 2)); i <= count; i++) {
@@ -53,12 +52,6 @@ public final class CameraRig {
                     desired = focus.add(boom.scale((double)(i - 1) / count));
                     break;
                 }
-            }
-            var hit = mc.level.clip(new ClipContext(focus, desired, ClipContext.Block.VISUAL,
-                ClipContext.Fluid.NONE, mc.player));
-            if (hit.getType() != HitResult.Type.MISS) {
-                Vec3 offset = hit.getLocation().subtract(focus);
-                desired = focus.add(offset.normalize().scale(Math.max(0, offset.length() - .2)));
             }
         }
         position = desired;
