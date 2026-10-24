@@ -41,7 +41,14 @@ public final class RuleResolver {
                 if (!facts.read(reads, RuleFacts.TARGET_LIVING)
                         || !context.encounter().members().containsKey(intent.target().entity()))
                     return new Resolution(Status.REJECTED, definition.cost(), "target not a living encounter member");
+                if (context.invocation().actor().equals(intent.target().entity()))
+                    return new Resolution(Status.REJECTED, definition.cost(), "self attack forbidden");
                 boolean targetPlayer = facts.read(reads, RuleFacts.TARGET_PLAYER);
+                boolean actorPlayer = facts.read(reads, RuleFacts.ACTOR_PLAYER);
+                if (definition.targetPolicy() == AbilityDefinition.TargetPolicy.PVE_LIVING_MEMBER
+                        && (actorPlayer && targetPlayer || !actorPlayer && !targetPlayer
+                            && !facts.read(reads, RuleFacts.TARGET_HOSTILE)))
+                    return new Resolution(Status.REJECTED, definition.cost(), "attack relationship unsupported");
                 if (definition.targetPolicy() == AbilityDefinition.TargetPolicy.NON_PLAYER_LIVING_MEMBER && targetPlayer
                         || definition.targetPolicy() == AbilityDefinition.TargetPolicy.OPPOSITE_PLAYER_LIVING_MEMBER
                         && targetPlayer == facts.read(reads, RuleFacts.ACTOR_PLAYER))

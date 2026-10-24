@@ -26,7 +26,6 @@ public final class DNDTurnNeoForge {
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onStartTracking);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onStopTracking);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onDeath);
-        NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onChangeTarget);
         NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.platform.server.runtime.DamageHooks::onIncoming);
         NeoForge.EVENT_BUS.addListener(EnvironmentExplosion::onDetonate);
         NeoForge.EVENT_BUS.addListener(CreeperExplosion::onDetonate);

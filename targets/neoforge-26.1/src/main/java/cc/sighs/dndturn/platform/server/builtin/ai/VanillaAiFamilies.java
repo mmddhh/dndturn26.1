@@ -15,9 +15,9 @@ public final class VanillaAiFamilies {
     private VanillaAiFamilies() {}
     public static void register() {
         register("dndturn:zombie_combat", mob -> ground(mob) && mob instanceof Zombie,
-                AiDefinition.TargetPreference.VISIBLE_PLAYERS);
+                AiDefinition.TargetPreference.VISIBLE_PLAYERS_OR_HOSTILE_ACTORS);
         register("dndturn:enderman_combat", mob -> ground(mob) && mob instanceof EnderMan,
-                AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS);
+                AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_ACTORS);
     }
     private static boolean ground(Mob mob) { return mob instanceof PathfinderMob && mob.getNavigation() instanceof GroundPathNavigation; }
     private static void register(String id, java.util.function.Predicate<Mob> matches, AiDefinition.TargetPreference preference) {

@@ -40,7 +40,7 @@ public final class SkeletonFamily {
                 actor -> actor.body() instanceof AbstractSkeleton,
                 (actor, target) -> ((AbstractSkeleton)actor.body()).performRangedAttack(target, 1.0F)));
         AiDefinitions.register(GROUP, 1, new AiDefinition(GROUP, 1, "dndturn:shared_ground", Set.of("BOUNDED_PROPOSALS"),
-                AiDefinition.TargetPreference.VISIBLE_PLAYERS, AiDefinition.Positioning.GROUND_OPPORTUNITY,
+                AiDefinition.TargetPreference.VISIBLE_PLAYERS_OR_HOSTILE_ACTORS, AiDefinition.Positioning.GROUND_OPPORTUNITY,
                 AiDefinition.ResourcePreference.CONSERVATIVE, AiDefinition.RiskPreference.AUDITED_OPPORTUNITIES_ONLY,
                 ActorFacts.DECISION, new AiDefinition.Provenance(AiDefinition.Source.EXPLICIT_PROVIDER,
                 GROUP, 1, "Minecraft 26.1 / NeoForge 26.1.2.84 skeleton family native bow")));

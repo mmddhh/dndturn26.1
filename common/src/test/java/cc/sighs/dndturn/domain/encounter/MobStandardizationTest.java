@@ -1,6 +1,17 @@
 package cc.sighs.dndturn.domain.encounter;
 
 import cc.sighs.dndturn.domain.ability.AbilityDefinition;
+import cc.sighs.dndturn.domain.ability.AbilityBinding;
+import cc.sighs.dndturn.domain.ability.AbilityGrant;
+import cc.sighs.dndturn.domain.ability.AbilityInvocation;
+import cc.sighs.dndturn.domain.ability.BuiltinAbilities;
+import cc.sighs.dndturn.domain.actor.ActorSnapshot;
+import cc.sighs.dndturn.domain.actor.ActorDefinition;
+import cc.sighs.dndturn.domain.fact.FactSlice;
+import cc.sighs.dndturn.domain.resolution.CombatantSnapshot;
+import cc.sighs.dndturn.domain.resolution.EncounterInput;
+import cc.sighs.dndturn.domain.resolution.ResolutionContext;
+import cc.sighs.dndturn.domain.resolution.RuleResolver;
 import cc.sighs.dndturn.domain.ability.AbilityRegistry;
 import cc.sighs.dndturn.domain.ability.ActionCost;
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
@@ -17,6 +28,30 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MobStandardizationTest {
+    @Test void sharedMeleeRequiresHostilityForMobsAndNeverPermitsPvp() {
+        UUID actor = UUID.randomUUID(), target = UUID.randomUUID(), instance = UUID.randomUUID();
+        var binding = new AbilityBinding(BuiltinAbilities.require("dndturn:intrinsic_melee"),
+            AbilityGrant.nativeGrant(actor, GrantEvidence.intrinsic("test:melee", 1, actor, instance)));
+        var empty = new FactSlice(Map.of(), Map.of());
+        var snapshot = new ActorSnapshot(actor, instance, new ActorDefinition("test:actor", 1, Set.of(), empty),
+            new ActorSnapshot.Revision(UUID.randomUUID(), 0, CombatRules.RULES_REVISION), empty, List.of(binding));
+        var member = new MemberView(actor, 10, 0, 30, true, true, false, false, 0);
+        var other = new MemberView(target, 9, 0, 30, true, true, false, false, 0);
+        var encounter = new EncounterInput(UUID.randomUUID(), 0, EncounterPhase.ACTIVE, 1, actor, Map.of(actor, member, target, other));
+        for (boolean player : List.of(false, true)) for (boolean targetPlayer : List.of(false, true))
+            for (boolean hostile : List.of(false, true)) {
+                var aim = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY, "minecraft:overworld", target, null, -1, 0, 0, 0);
+                var intent = binding.invocation(aim);
+                var world = new FactSlice(Map.of(RuleFacts.SOURCE_VALID, true, RuleFacts.NATIVE_REJECTION, "",
+                    RuleFacts.IN_REACH, true, RuleFacts.ACTOR_PLAYER, player, RuleFacts.TARGET_PLAYER, targetPlayer,
+                    RuleFacts.TARGET_LIVING, true, RuleFacts.DIMENSION_MATCH, true, RuleFacts.TARGET_LOADED, true,
+                    RuleFacts.TARGET_DOMAIN, true, RuleFacts.TARGET_HOSTILE, hostile), Map.of());
+                var context = new ResolutionContext(new CombatantSnapshot(snapshot, member), encounter,
+                    new AbilityInvocation(actor, binding, intent, snapshot.revision()), world, empty, ResolutionContext.Stage.PROPOSAL);
+                assertEquals(player != targetPlayer || !player && hostile, RuleResolver.resolve(context).accepted());
+            }
+    }
+
     private static EffectDefinition effect(String id) {
         return new EffectDefinition(id, 1, EffectDefinition.Clock.EXPLICIT, EffectDefinition.Stacking.REJECT,
                 1, false, true, List.of(), List.of());

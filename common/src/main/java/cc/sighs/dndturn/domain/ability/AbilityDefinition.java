@@ -30,7 +30,7 @@ public record AbilityDefinition(String id, int version, String label, ActionInte
         };
     }
     public enum Activation { MANUAL, TRIGGERED, CONTINUOUS, PERIODIC }
-    public enum TargetPolicy { NATIVE_INTERACTION, NON_PLAYER_LIVING_MEMBER, OPPOSITE_PLAYER_LIVING_MEMBER }
+    public enum TargetPolicy { NATIVE_INTERACTION, NON_PLAYER_LIVING_MEMBER, OPPOSITE_PLAYER_LIVING_MEMBER, PVE_LIVING_MEMBER }
     public AbilityDefinition {
         FactKey.requireId(id); FactKey.requireId(executor);
         Objects.requireNonNull(label); Objects.requireNonNull(kind); Objects.requireNonNull(activation);

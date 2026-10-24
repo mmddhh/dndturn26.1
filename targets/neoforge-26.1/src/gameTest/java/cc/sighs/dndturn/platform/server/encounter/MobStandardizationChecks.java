@@ -48,9 +48,20 @@ public final class MobStandardizationChecks {
         if(held) mob.setItemSlot(EquipmentSlot.OFFHAND,new ItemStack(Items.ARROW,7));
         level.addFreshEntity(mob);
         var service=ServerRuntime.encounters(level.getServer());
+        boolean mobTarget = !held && !external && !miss && !automatic;
+        Mob opponent = mobTarget ? EntityType.HUSK.create(level, EntitySpawnReason.COMMAND) : null;
+        if (opponent != null) {
+            opponent.setPos(base.getX() + .5, base.getY(), base.getZ() + 2.5);
+            opponent.setNoAi(true); opponent.setPersistenceRequired(); level.addFreshEntity(opponent);
+            mob.setTarget(opponent);
+            h.assertTrue(service.encounterOf(mob.getUUID()) == null && service.encounterOf(opponent.getUUID()) == null,
+                "ordinary world Mob aggression created an encounter");
+            mob.setTarget(null);
+        }
+        LivingEntity selectedTarget = opponent == null ? player : opponent;
         Runnable cleanup=()->{
             UUID id=service.encounterOf(player.getUUID()); if(id!=null) service.lifecycle().stop(id);
-            mob.discard(); player.discard();
+            mob.discard(); player.discard(); if (opponent != null) opponent.discard();
             for(long key:forced){var c=ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);} forced.clear();
         };
         h.runAtTickTime(299,cleanup);
@@ -66,9 +77,26 @@ public final class MobStandardizationChecks {
             state=service.state(id);
             h.assertTrue(mob.getUUID().equals(state.current()) && state.members().get(mob.getUUID()).action(),"waiting for Skeleton turn");
         }).thenExecute(()->{
-            var actor=new LiveActorContext(mob);var id=service.encounterOf(actor.id()); encounter[0]=id;
+            var actor=service.actorStates().context(mob);var id=service.encounterOf(actor.id()); encounter[0]=id;
+            if (opponent != null) {
+                java.util.function.Consumer<net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent> cancel = event -> {
+                    if (event.getEntity() == mob && event.getNewAboutToBeSetTarget() == opponent) event.setCanceled(true);
+                };
+                net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(cancel);
+                try {
+                    mob.setTarget(opponent);
+                    h.assertTrue(mob.getTarget() == player && service.encounterOf(opponent.getUUID()) == null,
+                        "canceled native target admitted a neutral mob");
+                } finally { net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(cancel); }
+                mob.setTarget(opponent);
+                h.assertTrue(id.equals(service.encounterOf(opponent.getUUID())), "committed Mob target did not join");
+                long relationVersion = service.state(id).version();
+                mob.setTarget(opponent);
+                h.assertTrue(service.state(id).version() == relationVersion, "same native target changed rule revision");
+                service.useAttackRandomForGameTest(id, new Random(1) { @Override public int nextInt(int bound) { return 14; } });
+            }
             var state=service.state(id);var target=new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,
-                    level.dimension().identifier().toString(),player.getUUID(),null,-1,0,0,0);
+                    level.dimension().identifier().toString(),selectedTarget.getUUID(),null,-1,0,0,0);
             var before=service.actorStates().state(actor.id());
             h.assertTrue(before.runtime().effects().values().stream().anyMatch(e->e.definition().equals(external
                     ? ArcheryExtension.EFFECT : AbilityAdapterRegistry.effects().require("dndturn:native_archery", 1))),"group effect not installed");
@@ -85,7 +113,8 @@ public final class MobStandardizationChecks {
             h.assertTrue(intent.source().kind()==GrantEvidence.Kind.EQUIPMENT && intent.source().grant()!=null,"bow lost equipment/effect evidence");
             h.assertTrue(intent.source().dependencies().get("ammunition").startsWith(held?"OFF_HAND:":"native:"),"incorrect ammunition source");
             var ai=AiTestAccess.capture(actor,state,null,ActionTestAccess.authority(service.actions()), service.mobDecisionFacts());
-            h.assertTrue(AiPlanner.decide(ai) instanceof AiPlanner.Propose p && p.intent().behaviorId().equals(EquippedRanged.ID),"shared planner did not choose ranged binding");
+            h.assertTrue(AiPlanner.decide(ai) instanceof AiPlanner.Propose p && p.intent().behaviorId().equals(EquippedRanged.ID)
+                    && p.intent().target().entity().equals(selectedTarget.getUUID()),"shared planner did not choose the committed ranged target: " + AiPlanner.decide(ai) + " preference=" + ai.definition().targetPreference());
             // Source replacement is rejected before any action or native side effect.
             mob.setItemSlot(EquipmentSlot.MAINHAND,new ItemStack(Items.STICK));
             try {ActionTestAccess.validate(service.actions(), mob,intent,state);throw new AssertionError("stale bow accepted");}
@@ -134,8 +163,38 @@ public final class MobStandardizationChecks {
                     && (!automatic || player.getUUID().equals(state.current())))
                 service.combat().endCurrentTurn(id,UUID.randomUUID(),state.version());
             h.assertTrue(projectile.isPresent(),"waiting for native arrow contact and tactical result");
+            h.assertTrue(projectile.get().snapshot().target().equals(selectedTarget.getUUID()), "projectile retargeted");
+            if (opponent != null) h.assertTrue(projectile.get().actualDamage() > 0 && opponent.getHealth() < opponent.getMaxHealth(),
+                "Mob arrow did not cause observed damage");
             if(miss) h.assertTrue(!projectile.get().damageTrace().hit() && projectile.get().actualDamage()==0,"natural one did not preserve miss");
             System.out.println("MOB_STANDARDIZATION held="+held+" outcome="+projectile.get().outcome()+" trace="+projectile.get().damageTrace());
+        }).thenWaitUntil(() -> {
+            if (opponent == null) return;
+            var id = encounter[0]; var state = service.state(id);
+            if (!opponent.getUUID().equals(state.current()) && state.phase() != EncounterPhase.ENVIRONMENT)
+                service.combat().endCurrentTurn(id, UUID.randomUUID(), state.version());
+            h.assertTrue(opponent.getUUID().equals(service.state(id).current()), "waiting for Mob retaliation turn");
+        }).thenExecute(() -> {
+            if (opponent == null) return;
+            var id = encounter[0];
+            opponent.setPos(mob.getX() - 1, mob.getY(), mob.getZ());
+            opponent.setTarget(mob);
+            var actor = service.actorStates().context(opponent);
+            var target = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY, level.dimension().identifier().toString(),
+                mob.getUUID(), null, -1, 0, 0, 0);
+            var state = service.state(id);
+            var option = cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor, state, target).stream()
+                .filter(o -> o.binding().id().equals("dndturn:intrinsic_melee")).findFirst().orElseThrow();
+            h.assertTrue(option.availability() == cc.sighs.dndturn.platform.server.ability.AbilityQueries.Availability.EXECUTABLE,
+                "Mob melee retaliation unavailable: " + option);
+            var intent = option.binding().invocation(target); UUID operationId = UUID.randomUUID();
+            float health = mob.getHealth();
+            service.actions().submit(actor, service.generation(), id, operationId, state.version(), intent, false);
+            h.assertTrue(mob.getHealth() < health && !service.state(id).members().get(opponent.getUUID()).action(),
+                "Mob melee failed to apply damage and consume one action");
+            float after = mob.getHealth();
+            service.actions().submit(actor, service.generation(), id, operationId, state.version(), intent, false);
+            h.assertTrue(mob.getHealth() == after, "duplicate Mob melee applied damage twice");
         }).thenExecute(()->{
             service.lifecycle().stop(encounter[0]);
             h.assertTrue(service.actorStates().state(mob.getUUID()).runtime().effects().values().stream()

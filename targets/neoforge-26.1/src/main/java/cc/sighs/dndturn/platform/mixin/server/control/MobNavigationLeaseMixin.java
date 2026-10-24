@@ -27,6 +27,11 @@ public abstract class MobNavigationLeaseMixin {
         return ActorControlPolicy.autonomousDecision(AuthorityProjection.actor((Mob)(Object)this)).allowed();
     }
 
+    @Inject(method = "setTarget", at = @At("RETURN"))
+    private void dndturn$committedTarget(net.minecraft.world.entity.LivingEntity requested, CallbackInfo ci) {
+        cc.sighs.dndturn.platform.server.runtime.MinecraftCombatRuntime.onTargetCommitted((Mob)(Object)this);
+    }
+
     @Inject(method = "serverAiStep", at = @At("HEAD"))
     private void dndturn$clearUnlicensedInput(CallbackInfo ci) {
         if (!dndturn$driveAllowed()) {

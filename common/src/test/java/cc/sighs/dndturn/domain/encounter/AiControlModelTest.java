@@ -41,6 +41,22 @@ class AiControlModelTest {
             new AiRuntimeState(actor, instance, 1, 0, null));
     }
     private static final Set<AiAffordance> MELEE = Set.of(AiAffordance.DAMAGE, AiAffordance.MELEE);
+    @Test void mobTargetsNeedACommitmentOrHostilityAndRespectExplicitPlayerOnlyPolicies() {
+        for (var preference : List.of(AiDefinition.TargetPreference.VISIBLE_PLAYERS_OR_HOSTILE_ACTORS,
+                AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_ACTORS,
+                AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS)) {
+            var original = context(definition(preference, AiDefinition.Source.GENERIC_FALLBACK), true, false, false, true, MELEE);
+            for (boolean committed : List.of(false, true)) for (boolean hostile : List.of(false, true)) {
+                var c = new AiDecisionContext(original.actor(), original.definition(), EncounterPhase.CANDIDATE, true,
+                    original.dimension(), new PerceptionSnapshot(List.of(new PerceptionSnapshot.ObservedActor(
+                        target, true, committed, false, true, 4))), hostile ? Set.of(target) : Set.of(),
+                    original.options(), null, original.runtime());
+                assertEquals(preference != AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS && (committed || hostile),
+                    AiPlanner.decide(c) instanceof AiPlanner.Propose);
+            }
+        }
+    }
+
     @Test void rangedAffordanceUsesTheSameBindingAndLegality() {
         var d = definition(AiDefinition.TargetPreference.VISIBLE_PLAYERS, AiDefinition.Source.AUDITED_NATIVE_FAMILY);
         var ranged = Set.of(AiAffordance.DAMAGE, AiAffordance.RANGED);

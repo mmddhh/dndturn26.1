@@ -26,7 +26,7 @@ public final class EquippedRanged extends AbilityAdapter {
     public EquippedRanged() {
         super(new AbilityDefinition(ID, 1, "Bow", ActionIntent.Capability.ATTACK,
                 Set.of(ActionIntent.TargetKind.ENTITY), AbilityDefinition.Activation.MANUAL,
-                ActionCost.ATTACK, RuleFacts.AVAILABILITY, ID, AbilityDefinition.TargetPolicy.OPPOSITE_PLAYER_LIVING_MEMBER));
+                ActionCost.ATTACK, RuleFacts.AVAILABILITY, ID, AbilityDefinition.TargetPolicy.PVE_LIVING_MEMBER));
     }
     static EquipmentEffects.Contribution contribution(LiveActorContext actor) {
         return AbilityAdapterRegistry.equipmentEffects().resolve(actor.state().runtime().effects().values()).orElse(null);

@@ -15,7 +15,6 @@ import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
-import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -89,13 +88,11 @@ public final class MinecraftCombatRuntime {
         }
     }
 
-    /** A mob that acquires a participating player as its target is pulled into that encounter. */
-    public static void onChangeTarget(LivingChangeTargetEvent event) {
-        if (!(event.getEntity() instanceof Mob mob)) return;
-        if (!(event.getNewAboutToBeSetTarget() instanceof ServerPlayer player)) return;
-        if (mob.level().getServer() == null) return;
-        EncounterRuntime formal = ServerRuntime.existingEncounter(mob.level().getServer());
-        if (formal != null) formal.lifecycle().pullHostile(mob, player.getUUID());
+    /** Called after native target assignment, including cancellation/retargeting by other mods. */
+    public static void onTargetCommitted(Mob mob) {
+        if (!(mob.level() instanceof ServerLevel level)) return;
+        EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
+        if (formal != null) formal.lifecycle().pullHostile(mob);
     }
 
     public static void onDeath(LivingDeathEvent event) {

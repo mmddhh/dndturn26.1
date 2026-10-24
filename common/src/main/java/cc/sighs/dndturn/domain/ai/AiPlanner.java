@@ -28,12 +28,17 @@ public final class AiPlanner {
         if (!d.supported() || !d.planner().equals("dndturn:shared_ground")) return new EndTurn("AI_UNSUPPORTED");
         boolean combat = d.targetPreference() != AiDefinition.TargetPreference.NONE
             && (c.phase() == EncounterPhase.ACTIVE || c.phase() == EncounterPhase.CANDIDATE
-                && d.targetPreference() == AiDefinition.TargetPreference.VISIBLE_PLAYERS);
+                && ((d.targetPreference() == AiDefinition.TargetPreference.VISIBLE_PLAYERS
+                        || d.targetPreference() == AiDefinition.TargetPreference.VISIBLE_PLAYERS_OR_HOSTILE_ACTORS)
+                    || c.perception().actors().stream().anyMatch(t -> t.currentTarget() || c.hostile().contains(t.id()))));
         if (combat) {
             var target = c.perception().actors().stream()
-                .filter(t -> (t.player() || d.targetPreference() == AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_ACTORS)
+                .filter(t -> (t.player() || d.targetPreference() == AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_ACTORS
+                        || d.targetPreference() == AiDefinition.TargetPreference.VISIBLE_PLAYERS_OR_HOSTILE_ACTORS)
                         && t.nativeAttackable() && (t.visible() || t.currentTarget()))
-                .filter(t -> d.targetPreference() == AiDefinition.TargetPreference.VISIBLE_PLAYERS || t.currentTarget() || c.hostile().contains(t.id()))
+                .filter(t -> t.player() && (d.targetPreference() == AiDefinition.TargetPreference.VISIBLE_PLAYERS
+                        || d.targetPreference() == AiDefinition.TargetPreference.VISIBLE_PLAYERS_OR_HOSTILE_ACTORS)
+                        || t.currentTarget() || c.hostile().contains(t.id()))
                 .filter(t -> c.options().stream().anyMatch(o -> o.target().equals(t.id()) && usable(o)))
                 .min(Comparator.<PerceptionSnapshot.ObservedActor>comparingInt(t -> t.currentTarget() ? 0 : 1)
                     .thenComparingDouble(PerceptionSnapshot.ObservedActor::distanceSquared).thenComparing(PerceptionSnapshot.ObservedActor::id)).orElse(null);

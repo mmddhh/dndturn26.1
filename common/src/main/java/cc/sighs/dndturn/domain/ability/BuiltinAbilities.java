@@ -41,7 +41,7 @@ public final class BuiltinAbilities {
         String id = "dndturn:" + path;
         var policy = switch (path) {
             case "melee", "bow", "crossbow", "snowball" -> AbilityDefinition.TargetPolicy.NON_PLAYER_LIVING_MEMBER;
-            case "intrinsic_melee" -> AbilityDefinition.TargetPolicy.OPPOSITE_PLAYER_LIVING_MEMBER;
+            case "intrinsic_melee" -> AbilityDefinition.TargetPolicy.PVE_LIVING_MEMBER;
             default -> AbilityDefinition.TargetPolicy.NATIVE_INTERACTION;
         };
         r.register(new AbilityDefinition(id, 1, label, kind, Set.of(targets),

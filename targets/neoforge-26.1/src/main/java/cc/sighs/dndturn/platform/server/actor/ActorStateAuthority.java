@@ -37,6 +37,7 @@ public final class ActorStateAuthority {
     private java.util.function.Function<UUID, UUID> membership = id -> null;
     private final cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget queryBudget = new cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget();
     private final MinecraftSnapshotCapture snapshots = new MinecraftSnapshotCapture(new LiveActorContext.Facts() {
+        public boolean hostile(UUID encounter, UUID actor, UUID target) { return false; }
         public ActorStates.State state(UUID actor) { return ActorStateAuthority.this.state(actor); }
         public String fault(UUID actor) { return ActorStateAuthority.this.fault(actor); }
         public void requireAbilityWork(UUID actor, UUID encounter, cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget.Work work) {

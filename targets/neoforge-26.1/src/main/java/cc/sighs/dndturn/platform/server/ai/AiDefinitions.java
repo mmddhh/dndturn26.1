@@ -85,7 +85,7 @@ public final class AiDefinitions {
         boolean movement = MovementPorts.find(mob) != null;
         var source = AiDefinition.Source.GENERIC_FALLBACK;
         var preference = mob instanceof net.minecraft.world.entity.monster.Enemy
-                ? AiDefinition.TargetPreference.VISIBLE_PLAYERS : AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS;
+                ? AiDefinition.TargetPreference.VISIBLE_PLAYERS_OR_HOSTILE_ACTORS : AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_ACTORS;
         String id = "dndturn:generic_combat";
         var definition = new AiDefinition(id, 1, "dndturn:shared_ground", Set.of("BOUNDED_PROPOSALS"), preference,
             movement ? AiDefinition.Positioning.MOVEMENT_OPPORTUNITY : AiDefinition.Positioning.STATIONARY,

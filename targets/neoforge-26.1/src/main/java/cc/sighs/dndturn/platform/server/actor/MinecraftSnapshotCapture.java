@@ -232,6 +232,7 @@ public final class MinecraftSnapshotCapture {
                 RuleFacts.IN_REACH, reach,
                 RuleFacts.ACTOR_PLAYER, actor.body() instanceof net.minecraft.world.entity.player.Player,
                 RuleFacts.TARGET_PLAYER, target instanceof net.minecraft.world.entity.player.Player,
+                RuleFacts.TARGET_HOSTILE, target != null && facts.hostile(state.id(), actor.id(), target.getUUID()),
                 RuleFacts.TARGET_LIVING, target instanceof LivingEntity living && living.isAlive(),
                 RuleFacts.DIMENSION_MATCH, dimension, RuleFacts.TARGET_LOADED, loaded, RuleFacts.TARGET_DOMAIN, domain), Map.of());
         var extraKeys = new HashSet<>(definition.reads().keys());

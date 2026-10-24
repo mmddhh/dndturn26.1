@@ -370,8 +370,11 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             throw new IllegalStateException("attacker melee adapter unavailable");
         var receiver = DamageReceivers.server().find(target);
         if (receiver == null) throw new IllegalStateException("target combat adapter unavailable");
-        // Keep the approved player-versus-Mob relation scope separate from type support.
-        if ((actor instanceof ServerPlayer) == (target instanceof ServerPlayer))
+        // Mob-to-Mob requires Encounter hostility; player attacks still cannot become PvP.
+        if (actor == target || actor instanceof ServerPlayer && target instanceof ServerPlayer
+            || !(actor instanceof ServerPlayer) && !(target instanceof ServerPlayer)
+                && !engine.isHostile(encounterId, actor.getUUID(), targetId)
+                && !engine.isHostile(encounterId, targetId, actor.getUUID()))
             throw new IllegalStateException("melee relationship unsupported");
         Vec3 actorCenter = actor.getBoundingBox().getCenter();
         Vec3 targetCenter = target.getBoundingBox().getCenter();

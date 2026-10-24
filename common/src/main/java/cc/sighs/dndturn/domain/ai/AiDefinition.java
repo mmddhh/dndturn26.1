@@ -7,7 +7,7 @@ import java.util.*;
 public record AiDefinition(String id, int version, String planner, Set<String> traits,
         TargetPreference targetPreference, Positioning positioning, ResourcePreference resources, RiskPreference risk,
         ReadContract requiredFacts, Provenance provenance) {
-    public enum TargetPreference { NONE, VISIBLE_PLAYERS, COMMITTED_OR_HOSTILE_PLAYERS, COMMITTED_OR_HOSTILE_ACTORS }
+    public enum TargetPreference { NONE, VISIBLE_PLAYERS, COMMITTED_OR_HOSTILE_PLAYERS, COMMITTED_OR_HOSTILE_ACTORS, VISIBLE_PLAYERS_OR_HOSTILE_ACTORS }
     public enum Positioning { GROUND_OPPORTUNITY, STATIONARY, MOVEMENT_OPPORTUNITY }
     public enum ResourcePreference { CONSERVATIVE }
     public enum RiskPreference { AUDITED_OPPORTUNITIES_ONLY }

@@ -473,6 +473,7 @@ public final class EncounterLifecycleCoordinator {
                     if (member != null) break;
                 }
                 if (member == null) continue;
+                if (member instanceof Mob mob) pullHostile(mob);
                 if (!state.region().dimension().equals(member.level().dimension().identifier().toString())) {
                     leave(memberId);
                     continue;
@@ -834,33 +835,45 @@ public final class EncounterLifecycleCoordinator {
         }
         if (encounterId != null) sync(engine.stateView(encounterId));
     }
-    public void pullHostile(Mob mob, UUID playerId) {
+    /** Translate only committed native targets; this never creates an Encounter in the ordinary world. */
+    public void pullHostile(Mob mob) {
         requireThread();
         if (mob == null || mob.isRemoved() || !mob.isAlive()) return;
-        UUID playerEncounter = engine.encounterOf(playerId);
-        if (playerEncounter == null) return;
-        UUID mobEncounter = engine.encounterOf(mob.getUUID());
-        if (mobEncounter != null) {
-            if (engine.canonicalEncounterId(mobEncounter).equals(engine.canonicalEncounterId(playerEncounter))) {
-                // Same field: update the real directed hostility pair instead of early-returning.
-                engine.setHostile(playerEncounter, mob.getUUID(), playerId, true);
-                engine.setHostile(playerEncounter, playerId, mob.getUUID(), true);
-                persistence.changed();
-                sync(engine.stateView(playerEncounter));
-                host.syncBodyStateTransitions();
-            } else {
-                // Different field: route through the existing causal merge boundary.
-                queueMerge(engine.requestCausalMerge(mobEncounter, playerEncounter));
+        LivingEntity target = mob.getTarget();
+        if (target == null || target == mob || !target.isAlive() || target.isRemoved()
+            || target.level() != mob.level() || resolve(target.getUUID()) != target
+            || resolve(mob.getUUID()) != mob) return;
+        UUID sourceDomain = engine.encounterOf(mob.getUUID());
+        UUID targetDomain = engine.encounterOf(target.getUUID());
+        if (sourceDomain == null && targetDomain == null) return;
+        if (sourceDomain != null && targetDomain != null && !sourceDomain.equals(targetDomain)) {
+            if (pendingMerges.values().stream().noneMatch(plan -> plan.encounters().contains(sourceDomain)
+                    && plan.encounters().contains(targetDomain))) {
+                queueMerge(engine.requestCausalMerge(sourceDomain, targetDomain));
                 persistence.changed();
             }
             return;
         }
-        if (engine.join(playerEncounter, mob.getUUID())) {
-            vanillaEffects.capture(mob);
-            engine.setHostile(playerEncounter, mob.getUUID(), playerId, true);
-            engine.setHostile(playerEncounter, playerId, mob.getUUID(), true);
+        UUID domain = sourceDomain == null ? targetDomain : sourceDomain;
+        if (!engine.stateView(domain).region().dimension().equals(mob.level().dimension().identifier().toString())) return;
+        // A player's participation still requires the consent / attack-intrusion paths.
+        if (targetDomain == null && target instanceof ServerPlayer) return;
+        boolean changed = false;
+        if (sourceDomain == null && engine.join(domain, mob.getUUID())) {
+            vanillaEffects.capture(mob); changed = true;
+        }
+        if (targetDomain == null && engine.join(domain, target.getUUID())) {
+            vanillaEffects.capture(target); changed = true;
+        }
+        if (!engine.isHostile(domain, mob.getUUID(), target.getUUID())
+            || !engine.isHostile(domain, target.getUUID(), mob.getUUID())) {
+            engine.setHostile(domain, mob.getUUID(), target.getUUID(), true);
+            engine.setHostile(domain, target.getUUID(), mob.getUUID(), true);
+            changed = true;
+        }
+        if (changed) {
             persistence.changed();
-            sync(engine.stateView(playerEncounter));
+            sync(engine.stateView(domain));
             host.syncBodyStateTransitions();
         }
     }

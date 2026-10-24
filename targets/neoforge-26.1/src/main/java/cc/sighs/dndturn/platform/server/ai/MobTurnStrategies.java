@@ -115,13 +115,13 @@ public final class MobTurnStrategies {
                 .sorted(Comparator.comparingInt(o -> o.semantics().contains(AiAffordance.RANGED) ? 0 : 1)).toList();
             var relations = new HashSet<PerceptionSnapshot.Relation>();
             if (mob.isAlliedTo(living)) relations.add(PerceptionSnapshot.Relation.ALLY);
-            if (engine.isHostile(state.id(), actor.id(), id)) relations.add(PerceptionSnapshot.Relation.HOSTILE);
+            if ((engine.isHostile(state.id(), actor.id(), id) || engine.isHostile(state.id(), id, actor.id()))) relations.add(PerceptionSnapshot.Relation.HOSTILE);
             var position = living.position();
             return new TargetSample(new PerceptionSnapshot.ObservedActor(id, visible, current,
                 living instanceof ServerPlayer, mob.canAttack(living), mob.distanceToSqr(living),
                 new PerceptionSnapshot.Evidence(new ActionIntent.Point(position.x, position.y, position.z), 0,
                         "dndturn:line_of_sight", 1, relations)),
-                engine.isHostile(state.id(), actor.id(), id), options);
+                (engine.isHostile(state.id(), actor.id(), id) || engine.isHostile(state.id(), id, actor.id())), options);
         });
         if (!complete) throw new ActionFailure(ActionFailure.Code.EVALUATION_DEFERRED,
             ActionFailure.Retry.REFRESH_AND_REPROPOSE, "AI discovery retained its cursor for the next server tick");

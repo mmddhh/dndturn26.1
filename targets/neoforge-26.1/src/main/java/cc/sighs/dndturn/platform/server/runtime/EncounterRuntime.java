@@ -300,6 +300,9 @@ public final class EncounterRuntime {
             public Entity resolve(UUID id) { return EncounterRuntime.this.resolve(id); }
         });
         actorStates.snapshots().bindFacts(new LiveActorContext.Facts() {
+            public boolean hostile(UUID encounter, UUID actor, UUID target) {
+                return engine.isHostile(encounter, actor, target) || engine.isHostile(encounter, target, actor);
+            }
             public cc.sighs.dndturn.domain.actor.ActorStates.State state(UUID actor) { return actorStates.state(actor); }
             public UUID encounterAtBlock(ServerLevel level, BlockPos pos) { return world.encounterAtBlock(level, pos); }
             public boolean ownsProjectile(ServerPlayer owner, net.minecraft.world.entity.projectile.Projectile projectile) { return projectiles.ownsItemProjectile(owner, projectile); }
