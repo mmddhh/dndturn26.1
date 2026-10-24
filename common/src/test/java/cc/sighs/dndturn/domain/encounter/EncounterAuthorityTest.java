@@ -12,6 +12,37 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EncounterAuthorityTest {
+    @Test
+    void exitUsesOnlyLivingHostileMembersAndRequiresAnIdleOwnTurn() {
+        var rules = new EncounterAuthority(new Random(5), 28, 20);
+        UUID id = UUID.randomUUID(), a = UUID.randomUUID(), b = UUID.randomUUID();
+        rules.beginCandidate(id, bounds(0), Set.of(a, b));
+        UUID actor = rules.view(id).current(), enemy = actor.equals(a) ? b : a;
+        var positions = new java.util.HashMap<UUID, EncounterAuthority.ExitPosition>();
+        positions.put(actor, new EncounterAuthority.ExitPosition(true, 0, 0));
+        positions.put(enemy, new EncounterAuthority.ExitPosition(true, 15.99, 0));
+        positions.put(UUID.randomUUID(), new EncounterAuthority.ExitPosition(true, 0, 0));
+        assertTrue(rules.assessExit(id, actor, 16, positions).allowed());
+        rules.setHostile(id, enemy, actor, true);
+        assertEquals(cc.sighs.dndturn.domain.encounter.operation.ActionFailure.Code.EXIT_TOO_CLOSE,
+            rules.assessExit(id, actor, 16, positions).code());
+        positions.put(enemy, new EncounterAuthority.ExitPosition(true, 16, 0));
+        assertTrue(rules.assessExit(id, actor, 16, positions).allowed());
+        assertFalse(rules.assessExit(id, actor, 17, positions).allowed());
+        assertEquals(cc.sighs.dndturn.domain.encounter.operation.ActionFailure.Code.EXIT_NOT_TURN,
+            rules.assessExit(id, enemy, 16, positions).code());
+        positions.remove(enemy);
+        assertEquals(cc.sighs.dndturn.domain.encounter.operation.ActionFailure.Code.EXIT_POSITION_UNKNOWN,
+            rules.assessExit(id, actor, 16, positions).code());
+        positions.put(enemy, new EncounterAuthority.ExitPosition(false, 0, 0));
+        assertTrue(rules.assessExit(id, actor, 16, positions).allowed());
+        UUID operation = UUID.randomUUID();
+        rules.beginOperation(new OperationRecord.Snapshot(operation, null, id, actor, actor, actor,
+            0, rules.view(id).version(), null, null, OperationRecord.Kind.MOVE));
+        assertEquals(cc.sighs.dndturn.domain.encounter.operation.ActionFailure.Code.EXIT_BUSY,
+            rules.assessExit(id, actor, 16, positions).code());
+    }
+
     private static EncounterRegion bounds(int x) {
         return EncounterRegion.generate("overworld", new EncounterRegion.Discovery(x, 0, 0, x + 10, 10, 10),
             java.util.List.of(new EncounterRegion.Anchor(new UUID(0, 99), new EncounterRegion.Point(x + 5, 5, 5))), 5, 1);

@@ -634,19 +634,23 @@ public final class EncounterLifecycleCoordinator {
             throw new IllegalStateException("combat session is no longer active");
         if (engine.stateView(encounterId).version() != expectedVersion)
             throw ActionFailure.staleEncounter();
-        EncounterRegion region = engine.stateView(encounterId).region();
-        Vec3 center = player.getBoundingBox().getCenter();
-        if (region.dimension().equals(player.level().dimension().identifier().toString())
-            && region.containsPoint(center.x, center.y, center.z) && isTargetedByMob(player))
-            throw new IllegalStateException("a Mob is targeting you; leave the encounter region before exiting");
+        var assessment = assessExit(player, encounterId);
+        if (!assessment.allowed()) {
+            String reason = switch (assessment.code()) {
+                case EXIT_NOT_TURN -> "只能在自己的回合逃跑";
+                case EXIT_BUSY -> "行动或反应仍在执行，请结束后重试";
+                case EXIT_TOO_CLOSE -> String.format(java.util.Locale.ROOT,
+                    "最近敌人距离 %.2f 格，逃跑需要至少 %.2f 格", assessment.nearestEnemyDistance(), assessment.requiredDistance());
+                default -> "无法确认敌人当前位置，请稍后重试";
+            };
+            throw new ActionFailure(assessment.code(), ActionFailure.Retry.REFRESH_AND_REPROPOSE, reason);
+        }
         if (startReceipts.containsKey(operationId)
             || engine.resultFor(encounterId, operationId) != null
             || engine.pendingOperation(encounterId, operationId) != null)
             throw new IllegalStateException("operation ID payload conflict");
         boolean otherPlayer = engine.stateView(encounterId).members().keySet().stream()
             .anyMatch(id -> !id.equals(player.getUUID()) && server.getPlayerList().getPlayer(id) != null);
-        if (!otherPlayer && hasPlayerInCombat(encounterId))
-            throw new IllegalStateException("cannot end turn-based mode while a player is targeted by a Mob");
         if (otherPlayer) leave(player.getUUID());
         else stop(encounterId);
         exitReceipts.put(operationId,
@@ -656,18 +660,24 @@ public final class EncounterLifecycleCoordinator {
         host.syncBodyStateTransitions();
     }
 
-    /** Current vanilla target semantics, including loaded non-member mobs; never loads chunks. */
-    public boolean isTargetedByMob(ServerPlayer player) {
-        for (Entity entity : player.level().getAllEntities()) {
-            if (entity instanceof Mob mob && mob.isAlive() && mob.getTarget() == player) return true;
+    /** Only bounded member facts; entity lookup never loads a chunk or scans unrelated mobs. */
+    public EncounterAuthority.ExitAssessment assessExit(ServerPlayer player, UUID encounterId) {
+        requireThread();
+        var state = engine.stateView(encounterId);
+        Map<UUID, EncounterAuthority.ExitPosition> positions = new HashMap<>();
+        for (UUID member : state.members().keySet()) {
+            if (!member.equals(player.getUUID()) && !engine.isHostile(encounterId, member, player.getUUID())
+                && !engine.isHostile(encounterId, player.getUUID(), member)) continue;
+            Entity entity = resolve(member);
+            if (entity != null && !entity.isRemoved() && entity.level() == player.level()
+                && state.region().dimension().equals(entity.level().dimension().identifier().toString()))
+                positions.put(member, new EncounterAuthority.ExitPosition(entity.isAlive(), entity.getX(), entity.getZ()));
         }
-        return false;
-    }
-
-    public boolean hasPlayerInCombat(UUID encounterId) {
-        return engine.stateView(encounterId).members().keySet().stream().map(this::resolve)
-            .filter(ServerPlayer.class::isInstance).map(ServerPlayer.class::cast)
-            .anyMatch(this::isTargetedByMob);
+        var result = engine.assessExit(encounterId, player.getUUID(), settingsFor(encounterId).escapeDistance(), positions);
+        if (result.allowed() && host.actionRunning(player.getUUID()))
+            return new EncounterAuthority.ExitAssessment(ActionFailure.Code.EXIT_BUSY,
+                result.nearestEnemyDistance(), result.requiredDistance());
+        return result;
     }
 
     public boolean exitedRegion(Entity entity, UUID encounterId) {
@@ -788,7 +798,7 @@ public final class EncounterLifecycleCoordinator {
         for (ServerLevel level : server.getAllLevels()) { Entity entity = level.getEntity(id); if (entity != null) return entity; }
         return null;
     }
-    private void sync(StateView state) { projections.publish(state, movement::playerOperation, !recovering(state.id())); }
+    private void sync(StateView state) { projections.publish(state, movement::playerOperation, !recovering(state.id()), player -> assessExit(player, state.id())); }
     private void clear(UUID member, UUID encounter, long version) { var player = server.getPlayerList().getPlayer(member); if (player != null) projections.clear(player, encounter, version); }
     private static EncounterRegion.Point pointOf(Entity entity) { Vec3 center = entity.getBoundingBox().getCenter(); return new EncounterRegion.Point(center.x, center.y, center.z); }
 

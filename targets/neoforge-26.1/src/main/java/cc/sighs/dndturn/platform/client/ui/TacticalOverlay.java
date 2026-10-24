@@ -168,7 +168,17 @@ public final class TacticalOverlay {
                 "use-block", ActionIntent.Capability.USE_BLOCK).entrySet())
             enabled(entry.getKey(), myTurn && !ClientTacticalPlan.running());
         enabled("end", myTurn);
-        enabled("exit", state.interactive());
+        enabled("exit", myTurn && !ClientTacticalPlan.running());
+        var exit = state.exit();
+        if (exit != null) values.put("exit:description", switch (exit.code()) {
+            case EXIT_NOT_TURN -> "只能在自己的回合逃跑";
+            case EXIT_BUSY -> "行动或反应执行中，结束后可重试";
+            case EXIT_POSITION_UNKNOWN -> "敌人位置未知，可稍后重试";
+            default -> exit.nearestDistance() < 0 ? "本场无存活敌人，可免费退出"
+                : String.format(java.util.Locale.ROOT, "最近敌人 %.2f 格 / 逃跑所需 %.2f 格；提交时复验",
+                    exit.nearestDistance(), exit.requiredDistance());
+        });
+        else values.remove("exit:description");
         for (var button : behaviorButtons) {
             TacticalButton.enabled(button, myTurn && !ClientTacticalPlan.running());
         }
@@ -195,7 +205,7 @@ public final class TacticalOverlay {
         action("dodge", EncounterProtocol.IntentKind.DODGE, "消耗动作，直到下次自身回合开始前，对你的命中检定有劣势。");
         action("disengage", EncounterProtocol.IntentKind.DISENGAGE, "消耗动作，设置本回合撤离状态。借机攻击流程尚未开放。");
         action("end", EncounterProtocol.IntentKind.END_TURN, "先结束并结算正在进行的移动，然后请求结束回合。");
-        action("exit", EncounterProtocol.IntentKind.EXIT, "没有 Mob 以你为目标时可直接退出；否则须先中心越界。其他玩家继续回合制；仍有玩家被 Mob 锁定时不能结束整个会话。");
+        action("exit", EncounterProtocol.IntentKind.EXIT, "自己回合且无执行中行动或反应时可免费逃跑；距本场所有存活敌人的水平距离须达到建场配置（默认16格）。无敌人可直接退出，最后玩家退出后结束场次。");
         ability("use-block", ActionIntent.Capability.USE_BLOCK, "使用方块自身，不消耗动作；接近仍消耗移动。");
         ability("break-block", ActionIntent.Capability.BREAK, "选择要破坏的方块。");
         document.getElementById("items-tab").addEventListener("click", event -> { abilitiesTab = false; updateLayout(); });
@@ -319,7 +329,7 @@ public final class TacticalOverlay {
     private static void ability(String id, ActionIntent.Capability capability, String description) {
         var element = document.getElementById(id);
         element.addEventListener("click", event -> { if (!"false".equals(values.get(id + ":enabled"))) ClientTacticalPlan.select(capability); });
-        element.addEventListener("mouseenter", event -> text("description", element.getAttribute("aria-label") + " · " + description));
+        element.addEventListener("mouseenter", event -> text("description", element.getAttribute("aria-label") + " · " + values.getOrDefault(id + ":description", description)));
     }
 
     private static void action(String id, EncounterProtocol.IntentKind kind, String description) {
@@ -328,7 +338,7 @@ public final class TacticalOverlay {
             if (!"true".equals(values.get(id + ":enabled"))) return;
             CombatControls.requestFromUi(kind, kind == EncounterProtocol.IntentKind.ATTACK ? selectedTarget() : null);
         });
-        element.addEventListener("mouseenter", event -> text("description", element.getAttribute("aria-label") + " · " + CombatControls.keyLabel(id) + " · " + description));
+        element.addEventListener("mouseenter", event -> text("description", element.getAttribute("aria-label") + " · " + CombatControls.keyLabel(id) + " · " + values.getOrDefault(id + ":description", description)));
     }
 
     private static void updateMembers(EncounterProtocol.EncounterState state) {

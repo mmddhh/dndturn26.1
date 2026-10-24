@@ -228,14 +228,34 @@ public final class EncounterProtocol {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
+    /** Advisory only. -1 means no measured distance (no enemies or unknown facts, distinguished by code). */
+    public record ExitNotice(ActionFailure.Code code, double nearestDistance, double requiredDistance) {
+        public ExitNotice {
+            java.util.Objects.requireNonNull(code);
+            if (!Double.isFinite(nearestDistance) || nearestDistance < -1
+                || !Double.isFinite(requiredDistance) || requiredDistance <= 0)
+                throw new IllegalArgumentException("invalid exit projection");
+        }
+    }
+
     /** Current participant state only; result history is never broadcast every tick. */
     public record EncounterState(UUID generation, UUID encounterId, long sessionSequence,
                                  boolean active, long version,
                                  EncounterPhase phase, long round, UUID current, long regionVersion,
                                  int movementTicks, boolean action, boolean reaction,
                                  int environmentRemaining, boolean moving, UUID movementOperationId, List<MemberNotice> members, int resultCount, boolean interactive,
-                                 long projectionRevision, int movementTicksPerTurn)
+                                 long projectionRevision, int movementTicksPerTurn, ExitNotice exit)
         implements CustomPacketPayload {
+        public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
+                              boolean active, long version, EncounterPhase phase, long round, UUID current,
+                              long regionVersion, int movementTicks, boolean action, boolean reaction,
+                              int environmentRemaining, boolean moving, UUID movementOperationId,
+                              List<MemberNotice> members, int resultCount, boolean interactive, long projectionRevision,
+                              int movementTicksPerTurn) {
+            this(generation, encounterId, sessionSequence, active, version, phase, round, current,
+                regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
+                movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn, null);
+        }
         public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
                               boolean active, long version, EncounterPhase phase, long round, UUID current,
                               long regionVersion, int movementTicks, boolean action, boolean reaction,
@@ -309,6 +329,12 @@ public final class EncounterProtocol {
                 buffer.writeBoolean(state.movementOperationId() != null);
                 if (state.movementOperationId() != null) writeUuid(buffer, state.movementOperationId());
                 buffer.writeBoolean(state.interactive());
+                buffer.writeBoolean(state.exit() != null);
+                if (state.exit() != null) {
+                    ByteBufCodecs.STRING_UTF8.encode(buffer, state.exit().code().name());
+                    buffer.writeDouble(state.exit().nearestDistance());
+                    buffer.writeDouble(state.exit().requiredDistance());
+                }
                 buffer.writeInt(state.resultCount());
                 buffer.writeInt(state.members().size());
                 for (MemberNotice member : state.members()) {
@@ -342,6 +368,9 @@ public final class EncounterProtocol {
                 boolean moving = buffer.readBoolean();
                 UUID movementOperationId = buffer.readBoolean() ? readUuid(buffer) : null;
                 boolean interactive = buffer.readBoolean();
+                ExitNotice exit = buffer.readBoolean() ? new ExitNotice(
+                    ActionFailure.Code.valueOf(ByteBufCodecs.stringUtf8(64).decode(buffer)),
+                    buffer.readDouble(), buffer.readDouble()) : null;
                 int resultCount = buffer.readInt();
                 int size = buffer.readInt();
                 if (size < 0 || size > 4096) throw new IllegalArgumentException("invalid roster size");
@@ -352,7 +381,7 @@ public final class EncounterProtocol {
                     buffer.readBoolean(), buffer.readBoolean()));
                 return new EncounterState(generation, encounterId, sessionSequence, active, version,
                     phase, round, current, regionVersion, movementTicks, action, reaction,
-                    environmentRemaining, moving, movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn);
+                    environmentRemaining, moving, movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn, exit);
             });
 
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }

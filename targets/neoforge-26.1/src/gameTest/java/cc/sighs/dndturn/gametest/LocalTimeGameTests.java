@@ -295,46 +295,29 @@ public final class LocalTimeGameTests {
             } catch (IllegalStateException expected) { conflict = true; }
             helper.assertTrue(conflict && service.state(encounter).version() == version,
                 "conflicting reply rewrote a committed request");
-            UUID exit = UUID.randomUUID();
-            long beforeExit = service.state(encounter).version();
+            // Each neutral player exits on their own turn; replay never releases another member.
             Vec3 exitStart = first.position();
-            first.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
-            second.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
-            third.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
             Difficulty exitDifficulty = helper.getLevel().getDifficulty();
             helper.getLevel().getServer().setDifficulty(Difficulty.NORMAL, true);
-            target.setTarget(first);
-            helper.assertTrue(target.getTarget() == first, "exit fixture requires a live target");
-            boolean insideRejected = false;
-            try { service.lifecycle().exitEncounter(first, encounter, exit, beforeExit); }
-            catch (IllegalStateException expected) { insideRejected = true; }
-            helper.assertTrue(insideRejected && encounter.equals(service.encounterOf(first.getUUID()))
-                && service.state(encounter).version() == beforeExit, "inside EXIT changed membership or resources");
-            // Another player remains in combat; the neutral requester exits in place.
-            target.setTarget(second);
-            service.lifecycle().exitEncounter(first, encounter, exit, beforeExit);
-            helper.assertTrue(first.position().equals(exitStart) && !MinecraftCombatRuntime.isBodyPaused(first),
-                "neutral inside exit teleported or retained body control");
-            helper.assertTrue(service.encounterOf(first.getUUID()) == null
-                    && encounter.equals(service.encounterOf(second.getUUID()))
-                    && encounter.equals(service.encounterOf(third.getUUID())),
-                "one participant's exit ended another participant's session");
-            long afterExit = service.state(encounter).version();
-            service.lifecycle().exitEncounter(first, encounter, exit, beforeExit);
-            helper.assertTrue(service.state(encounter).version() == afterExit, "exit retry changed remaining members");
-            service.lifecycle().exitEncounter(third, encounter, UUID.randomUUID(), afterExit);
-            long lastVersion = service.state(encounter).version();
-            second.setPos(exitStart.x + 128, exitStart.y, exitStart.z);
-            boolean combatStopRejected = false;
-            try { service.lifecycle().exitEncounter(second, encounter, UUID.randomUUID(), lastVersion); }
-            catch (IllegalStateException expected) { combatStopRejected = true; }
-            helper.assertTrue(combatStopRejected && service.state(encounter).version() == lastVersion,
-                "last targeted player ended turn-based mode after crossing the boundary");
+            for (ServerPlayer participant : List.of(first, second, third))
+                participant.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            for (int remaining = 3; remaining > 0; remaining--) {
+                UUID current = service.state(encounter).current();
+                ServerPlayer exiting = List.of(first, second, third).stream()
+                    .filter(value -> value.getUUID().equals(current)).findFirst().orElseThrow();
+                long beforeExit = service.state(encounter).version();
+                UUID exit = UUID.randomUUID();
+                service.lifecycle().exitEncounter(exiting, encounter, exit, beforeExit);
+                helper.assertTrue(exiting.position().equals(exitStart) && !MinecraftCombatRuntime.isBodyPaused(exiting),
+                    "EXIT moved the body or retained control");
+                helper.assertTrue(service.encounterOf(exiting.getUUID()) == null,
+                    "EXIT retained membership");
+                service.lifecycle().exitEncounter(exiting, encounter, exit, beforeExit);
+                if (remaining > 1) helper.assertTrue(service.state(encounter).members().size() == remaining - 1,
+                    "EXIT replay changed remaining membership");
+            }
             target.setTarget(null);
-            second.setPos(exitStart);
-            service.lifecycle().exitEncounter(second, encounter, UUID.randomUUID(), lastVersion);
             helper.getLevel().getServer().setDifficulty(exitDifficulty, true);
-            first.setPos(exitStart);
             UUID disconnect = UUID.randomUUID();
             service.lifecycle().requestStart(first, disconnect);
             service.lifecycle().consentDisconnected(second.getUUID());
@@ -494,7 +477,7 @@ public final class LocalTimeGameTests {
         engine.leave(emptyOrder, departing);
         CombatSavedData saved = PersistenceTestAccess.saved();
         saved.update(new CombatPersistenceEnvelope(engine.exportSnapshot(), 24100, 1, java.util.Map.of(encounter, 1L),
-            java.util.Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 8, 16, 64, false)),
+            java.util.Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 8, 16, 64, false, 16)),
             java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.List.of(),
             java.util.Map.of(member, new CombatPersistenceEnvelope.StartReceipt(member, encounter)),
             java.util.Map.of(departing, new CombatPersistenceEnvelope.ExitReceipt(departing, emptyOrder, 2)),
@@ -1372,20 +1355,27 @@ public final class LocalTimeGameTests {
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         var started = startEncounter(helper, player);
         UUID exitId = UUID.randomUUID();
-        long version = started.version();
+        if (!player.getUUID().equals(service.state(started.id()).current()))
+            service.combat().endCurrentTurn(started.id(), UUID.randomUUID(), service.state(started.id()).version());
+        long version = service.state(started.id()).version();
         boolean insideRejected = false;
         try { service.lifecycle().exitEncounter(player, started.id(), exitId, version); }
         catch (IllegalStateException expected) { insideRejected = true; }
         helper.assertTrue(insideRejected && started.id().equals(service.encounterOf(player.getUUID()))
             && service.state(started.id()).version() == version, "inside EXIT mutated the encounter");
-        exitEnemy.setTarget(null);
-        helper.getLevel().getServer().setDifficulty(exitDifficulty, true);
+        // Height does not help escape; exactly sixteen horizontal blocks does, even for the last player.
+        exitEnemy.setPos(player.getX(), player.getY() + 40, player.getZ());
+        helper.assertFalse(service.lifecycle().assessExit(player, started.id()).allowed(), "height allowed escape");
+        exitEnemy.setPos(player.getX() + 16, player.getY() + 40, player.getZ());
+        helper.assertTrue(service.lifecycle().assessExit(player, started.id()).allowed(), "sixteen-block boundary rejected");
         service.lifecycle().exitEncounter(player, started.id(), exitId, version);
         helper.assertFalse(MinecraftCombatRuntime.isBodyPaused(player), "no-enemy inside EXIT retained body control");
         helper.assertTrue(service.encounterOf(player.getUUID()) == null
             && service.lifecycle().completedExitRetry(player, started.id(), exitId, version),
             "successful EXIT did not retain its same-generation receipt");
         service.lifecycle().exitEncounter(player, started.id(), exitId, version);
+        helper.assertTrue(exitEnemy.getTarget() == player, "escape cleared native aggression");
+        helper.getLevel().getServer().setDifficulty(exitDifficulty, true);
         boolean conflict = false;
         try {
             service.lifecycle().completedExitRetry(player, started.id(), exitId, version + 1);

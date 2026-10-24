@@ -100,12 +100,13 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
     /** Values that a live encounter will still consult after the server restarts. */
     public record CapturedSettings(double discoveryHorizontal, double discoveryVertical,
                                    double regionRadius, int maxSampledChunks,
-                                   int maxAnchors, boolean tacticalKnockbackEnabled) {
+                                   int maxAnchors, boolean tacticalKnockbackEnabled, double escapeDistance) {
         public CapturedSettings {
             // Tolerant defaults keep older saves (which lacked the discovery fields) loadable.
             if (!Double.isFinite(discoveryHorizontal) || discoveryHorizontal <= 0) discoveryHorizontal = 16;
             if (!Double.isFinite(discoveryVertical) || discoveryVertical <= 0) discoveryVertical = 8;
             if (!Double.isFinite(regionRadius) || regionRadius <= 0
+                || !Double.isFinite(escapeDistance) || escapeDistance <= 0
                 || maxSampledChunks < 1 || maxSampledChunks > 4096
                 || maxAnchors < 1 || maxAnchors > 4096)
                 throw new IllegalArgumentException("invalid captured combat settings");
@@ -114,7 +115,7 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
         public static CapturedSettings from(ServerCombatConfig config) {
             return new CapturedSettings(config.discoveryHorizontal(), config.discoveryVertical(),
                 config.regionRadius(), config.maxSampledChunks(),
-                config.maxAnchors(), config.tacticalKnockbackEnabled());
+                config.maxAnchors(), config.tacticalKnockbackEnabled(), config.escapeDistance());
         }
     }
 

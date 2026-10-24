@@ -17,12 +17,13 @@ public record ServerCombatConfig(double discoveryHorizontal,
                                  int maxSampledChunks, int maxAnchors,
                                  int roundTicks, boolean tacticalKnockbackEnabled,
                                  long executionDeadlineTicks, long turnIdleSkipTicks,
-                                 long historyRetentionTicks) {
+                                 long historyRetentionTicks, double escapeDistance) {
     public ServerCombatConfig {
         new RoundTime(roundTicks);
         if (!Double.isFinite(discoveryHorizontal) || discoveryHorizontal <= 0
             || !Double.isFinite(discoveryVertical) || discoveryVertical <= 0
             || !Double.isFinite(regionRadius) || regionRadius <= 0
+            || !Double.isFinite(escapeDistance) || escapeDistance <= 0
             || maxSampledChunks < 1 || maxSampledChunks > 4096
             || maxAnchors < 1 || maxAnchors > 4096
             || executionDeadlineTicks < 1 || turnIdleSkipTicks < 1 || historyRetentionTicks < 1) {
@@ -39,6 +40,7 @@ public record ServerCombatConfig(double discoveryHorizontal,
         defaults.setProperty("discoveryHorizontal", "16");
         defaults.setProperty("discoveryVertical", "8");
         defaults.setProperty("regionRadius", "35");
+        defaults.setProperty("escapeDistance", "16");
         // Two independent player-centered fields merge only when their combined discovery is
         // sampled; 35-radius fields ~70+ apart exceed the old 16-chunk cap.
         defaults.setProperty("maxSampledChunks", "64");
@@ -59,7 +61,7 @@ public record ServerCombatConfig(double discoveryHorizontal,
         } catch (IOException error) {
             throw new IllegalStateException("cannot load DNDTurn server configuration: " + path, error);
         }
-        boolean write = !values.containsKey("roundTicks");
+        boolean write = defaults.keySet().stream().anyMatch(key -> !values.containsKey(key));
         defaults.forEach(values::putIfAbsent);
         ServerCombatConfig config = new ServerCombatConfig(
             Double.parseDouble(values.getProperty("discoveryHorizontal")),
@@ -71,7 +73,8 @@ public record ServerCombatConfig(double discoveryHorizontal,
             parseBoolean(values.getProperty("tacticalKnockbackEnabled"), "tacticalKnockbackEnabled"),
             Long.parseLong(values.getProperty("executionDeadlineTicks")),
             Long.parseLong(values.getProperty("turnIdleSkipTicks")),
-            Long.parseLong(values.getProperty("historyRetentionTicks")));
+            Long.parseLong(values.getProperty("historyRetentionTicks")),
+            Double.parseDouble(values.getProperty("escapeDistance")));
         // Validate before replacing the file; retain deprecated and unknown values verbatim as properties.
         if (write) {
             try {

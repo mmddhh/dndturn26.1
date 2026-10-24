@@ -50,7 +50,8 @@ public final class ProjectionPublisher {
     public void retainOnline(Set<UUID> actors) { subscriptions.retainOnline(actors); }
     public void body(ServerPlayer player, boolean paused, boolean movement) { subscriptions.body(player, paused, movement); }
     public void close() { subscriptions.clear(); sessionSequences.clear(); projectionRevisions.clear(); }
-    public void publish(StateView state, java.util.function.Function<UUID, UUID> movementOperation, boolean ready) {
+    public void publish(StateView state, java.util.function.Function<UUID, UUID> movementOperation, boolean ready,
+                        java.util.function.Function<ServerPlayer, EncounterAuthority.ExitAssessment> exitQuery) {
         long projectionRevision = Math.addExact(projectionRevisions.getOrDefault(state.id(), 0L), 1);
         List<EncounterProtocol.MemberNotice> roster = new ArrayList<>(state.members().values().stream()
             .sorted(java.util.Comparator.comparingInt(MemberView::initiative).reversed()
@@ -70,6 +71,7 @@ public final class ProjectionPublisher {
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
             if (player == null) continue;
             MemberView member = entry.getValue();
+            var exit = exitQuery.apply(player);
             subscriptions.publish(player, new EncounterProtocol.EncounterState(generation,
                 state.id(), sessionSequences.getOrDefault(state.id(), 0L), true,
                 state.version(), state.phase(), state.round(),
@@ -79,7 +81,8 @@ public final class ProjectionPublisher {
                 movementOperation.apply(player.getUUID()) != null
                     ? movementOperation.apply(player.getUUID()) : null, roster,
                 engine.resultPage(state.id(), 0, 1).total(), ready, projectionRevision,
-                engine.movementTicksPerTurn(state.id())));
+                engine.movementTicksPerTurn(state.id()), new EncounterProtocol.ExitNotice(exit.code(),
+                    Double.isFinite(exit.nearestEnemyDistance()) ? exit.nearestEnemyDistance() : -1, exit.requiredDistance())));
         }
     }
 

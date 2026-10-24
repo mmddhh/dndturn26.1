@@ -2,7 +2,7 @@ package cc.sighs.dndturn.domain.encounter.operation;
 
 /** Machine-readable rejection; display wording is never a control protocol. */
 public final class ActionFailure extends IllegalStateException {
-    public enum Code { NONE, REJECTED, STALE_ENCOUNTER, SOURCE_INVALID, ABILITY_UNAVAILABLE, PAYLOAD_CONFLICT, EXPIRED_SESSION, UNKNOWN_EFFECT, CONTROL_FAULT, EVALUATION_DEFERRED }
+    public enum Code { NONE, REJECTED, STALE_ENCOUNTER, SOURCE_INVALID, ABILITY_UNAVAILABLE, PAYLOAD_CONFLICT, EXPIRED_SESSION, UNKNOWN_EFFECT, CONTROL_FAULT, EVALUATION_DEFERRED, EXIT_NOT_TURN, EXIT_BUSY, EXIT_TOO_CLOSE, EXIT_POSITION_UNKNOWN }
     public enum Retry { NONE, REFRESH_AND_REPROPOSE, QUERY_OPERATION, RECOVERY_REVIEW }
     private final Code code;
     private final Retry retry;

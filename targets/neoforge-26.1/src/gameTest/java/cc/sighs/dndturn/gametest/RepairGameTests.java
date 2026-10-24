@@ -148,7 +148,7 @@ public final class RepairGameTests {
             "quarantine evidence did not survive serialization");
         helper.assertTrue(ServerRuntime.existingEncounter(server) == live && live.encounterOf(member) == null,
             "isolated recovery replaced or changed live service");
-        var settings = Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 2, 16, 64, false));
+        var settings = Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 2, 16, 64, false, 16));
         saved.update(new CombatPersistenceEnvelope(snapshot,
             40, 1, Map.of(encounter, 1L), settings, Map.of(), Map.of(), Map.of(), List.of(),
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of()));
@@ -228,14 +228,14 @@ public final class RepairGameTests {
         // A non-default server budget must survive the wire; clients cannot assume 28 or a local peak.
         var projection = new EncounterProtocol.EncounterState(UUID.randomUUID(), encounter, 3, true, 7,
             EncounterPhase.ACTIVE, 2, member, 1, 18, true, true, 20, false, null,
-            List.of(), 0, true, 9, 36);
+            List.of(), 0, true, 9, 36, new EncounterProtocol.ExitNotice(ActionFailure.Code.EXIT_TOO_CLOSE, 12.5, 20));
         var projectionBuffer = io.netty.buffer.Unpooled.buffer();
         try {
             EncounterProtocol.EncounterState.STREAM_CODEC.encode(projectionBuffer, projection);
             var decodedProjection = EncounterProtocol.EncounterState.STREAM_CODEC.decode(projectionBuffer);
             helper.assertTrue(decodedProjection.equals(projection) && !projectionBuffer.isReadable()
                 && decodedProjection.movementTicksPerTurn() == 36 && decodedProjection.movementTicks() == 18,
-                "movement ring lost the server-captured budget or remaining resource");
+                "projection lost captured movement budget, remaining resource or escape assessment");
         } finally { projectionBuffer.release(); }
         helper.succeed();
     }

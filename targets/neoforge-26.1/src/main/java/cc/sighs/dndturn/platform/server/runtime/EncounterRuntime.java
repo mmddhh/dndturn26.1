@@ -554,7 +554,7 @@ public final class EncounterRuntime {
     }
 
     private void sync(StateView state) {
-        projections.publish(state, movement::playerOperation, !lifecycle.recovering(state.id()));
+        projections.publish(state, movement::playerOperation, !lifecycle.recovering(state.id()), player -> lifecycle.assessExit(player, state.id()));
     }
 
     private void clear(UUID member, UUID encounterId, long version) {

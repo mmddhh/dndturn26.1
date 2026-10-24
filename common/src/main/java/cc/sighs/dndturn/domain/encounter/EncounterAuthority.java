@@ -483,6 +483,41 @@ public final class EncounterAuthority {
         return require(encounterId).hostile.contains(new Relation(source, target));
     }
 
+    /** Captured, current-instance platform facts. Missing entries mean unknown, never dead. */
+    public record ExitPosition(boolean alive, double x, double z) {
+        public ExitPosition {
+            if (!Double.isFinite(x) || !Double.isFinite(z)) throw new IllegalArgumentException("exit position");
+        }
+    }
+    public record ExitAssessment(ActionFailure.Code code, double nearestEnemyDistance, double requiredDistance) {
+        public boolean allowed() { return code == ActionFailure.Code.NONE; }
+    }
+
+    /** Read-only rule decision; the caller must capture fresh facts again at submission. */
+    public ExitAssessment assessExit(UUID encounterId, UUID actor, double distance,
+                                     Map<UUID, ExitPosition> positions) {
+        if (!Double.isFinite(distance) || distance <= 0) throw new IllegalArgumentException("exit distance");
+        Encounter encounter = require(encounterId);
+        if (!encounter.members.containsKey(actor) || !actor.equals(currentId(encounter))
+            || encounter.phase != EncounterPhase.CANDIDATE && encounter.phase != EncounterPhase.ACTIVE)
+            return new ExitAssessment(ActionFailure.Code.EXIT_NOT_TURN, Double.NaN, distance);
+        if (!encounter.operations.pending.isEmpty())
+            return new ExitAssessment(ActionFailure.Code.EXIT_BUSY, Double.NaN, distance);
+        ExitPosition origin = positions.get(actor);
+        if (origin == null || !origin.alive())
+            return new ExitAssessment(ActionFailure.Code.EXIT_POSITION_UNKNOWN, Double.NaN, distance);
+        double nearest = Double.POSITIVE_INFINITY;
+        for (UUID member : encounter.members.keySet()) {
+            if (member.equals(actor) || !isHostile(encounterId, actor, member) && !isHostile(encounterId, member, actor)) continue;
+            ExitPosition position = positions.get(member);
+            if (position == null)
+                return new ExitAssessment(ActionFailure.Code.EXIT_POSITION_UNKNOWN, Double.NaN, distance);
+            if (position.alive()) nearest = Math.min(nearest, Math.hypot(position.x() - origin.x(), position.z() - origin.z()));
+        }
+        return new ExitAssessment(nearest < distance ? ActionFailure.Code.EXIT_TOO_CLOSE : ActionFailure.Code.NONE,
+            nearest, distance);
+    }
+
     public boolean hasAttemptedAttack(UUID encounterId, UUID attacker) {
         Encounter encounter = require(encounterId);
         if (!encounter.members.containsKey(attacker)) throw new IllegalArgumentException("attacker is not a member");
