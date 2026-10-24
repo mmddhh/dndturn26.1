@@ -12,6 +12,7 @@ import net.minecraft.world.level.Level;
 
 /** Owns the active world-step bindings and fair scheduling cursor. Rule budgets remain in EncounterAuthority. */
 public final class EnvironmentScheduler {
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private record Step(UUID encounter, UUID operation) {}
     private final EncounterAuthority authority;
     private final Map<ServerLevel, Step> active = new IdentityHashMap<>();
@@ -39,18 +40,34 @@ public final class EnvironmentScheduler {
     public UUID complete(ServerLevel level) {
         var value = active.get(level);
         if (value == null) return null;
-        if (!authority.encounterIds().contains(value.encounter())) { active.remove(level); return null; }
+        if (!authority.encounterIds().contains(value.encounter())) {
+            active.remove(level);
+            LOGGER.error("Environment step {} lost its encounter domain before commit", value.operation());
+            return null;
+        }
         authority.commitEnvironmentStep(value.encounter(), value.operation());
         active.remove(level);
         return value.encounter();
     }
     public UUID abort(ServerLevel level, long clock, Throwable failure) {
         var value = active.remove(level);
-        if (value == null || !authority.encounterIds().contains(value.encounter())) return null;
-        com.mojang.logging.LogUtils.getLogger().error("Environment step {} in encounter {} has an unknown partial world outcome; releasing its control instead of retrying",
+        if (value == null) return null;
+        if (!authority.encounterIds().contains(value.encounter())) {
+            LOGGER.error("Environment step {} lost its encounter domain before abort", value.operation());
+            return null;
+        }
+        LOGGER.error("Environment step {} in encounter {} has an unknown partial world outcome; releasing its control instead of retrying",
                 value.operation(), value.encounter(), failure);
-        authority.failEnvironmentStep(value.encounter(), value.operation(), clock,
-                "world tick aborted after partial execution: " + failure.getClass().getSimpleName());
+        try {
+            authority.failEnvironmentStep(value.encounter(), value.operation(), clock,
+                    "world tick aborted after partial execution: " + failure.getClass().getSimpleName());
+        } catch (RuntimeException alreadyCommitted) {
+            // The step may already be committed when the failure happens after accounting
+            // (e.g. the next-member turn boundary). Still stop the encounter so it cannot
+            // continue from a partial turn.
+            LOGGER.error("Environment step {} was already committed before abort; stopping encounter {}",
+                    value.operation(), value.encounter(), alreadyCommitted);
+        }
         return value.encounter();
     }
     public void close() { active.clear(); last.clear(); }

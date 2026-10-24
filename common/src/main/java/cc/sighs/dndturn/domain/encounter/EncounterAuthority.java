@@ -1564,9 +1564,13 @@ public final class EncounterAuthority {
             if (nextOrder.isEmpty()) throw new IllegalStateException("no eligible member for next round");
             nextOrder.add(encounter.environment.id());
         }
+        // The world step already executed. Commit the accounting and the version before the turn
+        // transition, so a failing boundary observer cannot leave mutated budgets under the old
+        // version (which a later abort would try to record as still-reserved and fail).
         encounter.completedEnvironmentSteps.add(stepId);
         encounter.authorizedEnvironmentStep = null;
         encounter.environmentTime = nextEnvironmentTime;
+        encounter.version = nextVersion;
         if (--encounter.environmentRemaining == 0) {
             encounter.phase = encounter.hostile.isEmpty() ? EncounterPhase.CANDIDATE : EncounterPhase.ACTIVE;
             encounter.round = nextRound;
@@ -1575,7 +1579,6 @@ public final class EncounterAuthority {
             encounter.cursor = 0;
             beginMemberTurn(encounter, encounter.members.get(encounter.order.get(encounter.cursor)));
         }
-        encounter.version = nextVersion;
         return true;
     }
 

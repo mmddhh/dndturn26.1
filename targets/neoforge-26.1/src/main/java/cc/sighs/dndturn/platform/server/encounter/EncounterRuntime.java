@@ -1924,13 +1924,15 @@ public final class EncounterRuntime implements RegionalScheduledTicks.RegionAcce
         long nextSequence = projections.nextSequence();
         var captured = CombatPersistenceEnvelope.CapturedSettings.from(config);
         Set<Long> chunks = exactRegionChunks(region);
+        // Session settings must exist before beginCandidate fires the turn-start observer, because
+        // that observer re-anchors the field through settingsFor.
+        capturedSettings.put(encounterId, captured);
         engine.beginCandidate(encounterId, region, members,
             config.time());
         for (Map.Entry<UUID, UUID> relation : initialHostility.entrySet()) {
             engine.setHostile(encounterId, relation.getKey(), relation.getValue(), true);
             engine.setHostile(encounterId, relation.getValue(), relation.getKey(), true);
         }
-        capturedSettings.put(encounterId, captured);
         projections.bind(encounterId, nextSequence);
         regions.put(encounterId, region);
         regionChunks.put(encounterId, chunks);

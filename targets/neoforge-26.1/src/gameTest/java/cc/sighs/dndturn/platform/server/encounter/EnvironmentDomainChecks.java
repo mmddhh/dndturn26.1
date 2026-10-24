@@ -13,16 +13,19 @@ import net.minecraft.world.level.block.Blocks;
 public final class EnvironmentDomainChecks {
     public static void run(GameTestHelper helper) {
         var level=helper.getLevel();var base=new BlockPos(87001,151,1);Set<Long> forced=new HashSet<>();
-        for(int x=(base.getX()-24)>>4;x<=(base.getX()+44)>>4;x++)
+        // Two player-centered fields only stay independent when their 35-radius hulls do not overlap;
+        // the anchors are therefore kept well beyond the ~70-block overlap range.
+        int secondOffset = 120;
+        for(int x=(base.getX()-24)>>4;x<=(base.getX()+secondOffset+40)>>4;x++)
             for(int z=(base.getZ()-24)>>4;z<=(base.getZ()+24)>>4;z++){
                 level.getChunk(x,z);if(level.setChunkForced(x,z,true))forced.add(ChunkPos.pack(x,z));
             }
         level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base), 1);
-        level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base.east(20)), 1);
-        for(var pos:BlockPos.betweenClosed(base.offset(-7,-1,-4),base.offset(27,3,4)))
+        level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base.east(secondOffset)), 1);
+        for(var pos:BlockPos.betweenClosed(base.offset(-7,-1,-4),base.offset(secondOffset+7,3,4)))
             level.setBlockAndUpdate(pos,pos.getY()<base.getY()?Blocks.OBSIDIAN.defaultBlockState():Blocks.AIR.defaultBlockState());
         var first=helper.makeMockServerPlayerInLevel();first.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
-        var second=helper.makeMockServerPlayerInLevel();second.setPos(base.getX()+20.5,base.getY(),base.getZ()+.5);
+        var second=helper.makeMockServerPlayerInLevel();second.setPos(base.getX()+secondOffset+.5,base.getY(),base.getZ()+.5);
         var service=ServerRuntime.encounters(level.getServer());List<Entity> entities=new ArrayList<>();
         Runnable cleanup=()->{
             for(var player:List.of(first,second)){UUID id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);}
@@ -36,7 +39,8 @@ public final class EnvironmentDomainChecks {
             var exposed=EntityType.COW.create(level,EntitySpawnReason.COMMAND);
             var protectedCow=EntityType.COW.create(level,EntitySpawnReason.COMMAND);
             exposed.setPos(base.getX()+2.5,base.getY(),base.getZ()+.5);
-            protectedCow.setPos(base.getX()+12.6,base.getY(),base.getZ()+.5);
+            // B's member must stay inside B's own field, which is now anchored far from A.
+            protectedCow.setPos(base.getX()+secondOffset-2.5,base.getY(),base.getZ()+.5);
             for(var cow:List.of(exposed,protectedCow)){cow.setNoAi(true);level.addFreshEntity(cow);entities.add(cow);}
             float health=protectedCow.getHealth();var position=protectedCow.position();
             var tnt=new PrimedTnt(level,base.getX()+7.5,base.getY(),base.getZ()+.5,null);
@@ -51,6 +55,6 @@ public final class EnvironmentDomainChecks {
                 cleanup.run();helper.succeed();
             });
         });
-        helper.runAtTickTime(99,cleanup);
+        helper.runAtTickTime(199,cleanup);
     }
 }

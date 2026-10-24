@@ -48,10 +48,14 @@ public final class RegionalScheduledTicks {
         final Map<TickKey, Held<T>> byKey = new HashMap<>();
         final Map<Long, LinkedHashMap<TickKey, Held<T>>> byChunk = new HashMap<>();
         QueueState(ServerLevel level, LevelTicks<T> queue) { this.level = level; this.queue = queue; }
+        /**
+         * Replace-or-insert by (pos, type). {@code capture} removes a tick from the vanilla container
+         * before recording it here, so a silent {@code putIfAbsent} drop would lose that tick.
+         */
         void add(Held<T> entry) {
             TickKey key = new TickKey(entry.original.pos(), entry.original.type());
-            if (byKey.putIfAbsent(key, entry) == null)
-                byChunk.computeIfAbsent(ChunkPos.pack(key.pos()), ignored -> new LinkedHashMap<>()).put(key, entry);
+            byKey.put(key, entry);
+            byChunk.computeIfAbsent(ChunkPos.pack(key.pos()), ignored -> new LinkedHashMap<>()).put(key, entry);
         }
         void remove(Held<T> entry) {
             TickKey key = new TickKey(entry.original.pos(), entry.original.type());

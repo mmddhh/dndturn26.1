@@ -22,7 +22,8 @@ public final class EnvironmentBoundaryTimeChecks {
         var level = h.getLevel();
         var base = h.absolutePos(new BlockPos(97001, 210, 1));
         var forced = new HashSet<Long>();
-        for (int x = (base.getX()-24)>>4; x <= (base.getX()+24)>>4; x++)
+        // The field radius is now 35, so the exact boundary lies well beyond the old 16-block probe.
+        for (int x = (base.getX()-24)>>4; x <= (base.getX()+48)>>4; x++)
             for (int z = (base.getZ()-24)>>4; z <= (base.getZ()+24)>>4; z++) {
                 level.getChunk(x,z); if (level.setChunkForced(x,z,true)) forced.add(ChunkPos.pack(x,z));
             }
@@ -61,7 +62,7 @@ public final class EnvironmentBoundaryTimeChecks {
             h.assertTrue(service.state(id).members().size() == 1 && player.getUUID().equals(service.state(id).current()),
                 "isolated boundary fixture has unexpected members/current: " + service.state(id));
             BlockPos inside = null, outside = null;
-            for (int offset = 1; offset <= 16; offset++) {
+            for (int offset = 1; offset <= 45; offset++) {
                 var candidate = base.east(offset);
                 if (service.isBlockSimulationPaused(level, candidate.west()) && !service.isBlockSimulationPaused(level, candidate)) {
                     inside = candidate.west(); outside = candidate; break;

@@ -1,6 +1,7 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
 import cc.sighs.dndturn.domain.encounter.EncounterPhase;
+import cc.sighs.dndturn.gametest.TestPlayers;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.BlockPos;
@@ -22,19 +23,28 @@ public final class EnvironmentTntChecks {
         level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base), 1);
         for (var pos:BlockPos.betweenClosed(base.offset(-7,-1,-7),base.offset(7,4,7)))
             level.setBlockAndUpdate(pos,pos.getY()<base.getY()?Blocks.OBSIDIAN.defaultBlockState():Blocks.AIR.defaultBlockState());
-        var player=helper.makeMockServerPlayerInLevel(); player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
-        var cow=EntityType.COW.create(level,EntitySpawnReason.COMMAND);
-        cow.setPos(base.getX()+3.5,base.getY(),base.getZ()+.5);cow.setNoAi(true);cow.setHealth(1);level.addFreshEntity(cow);
+        var player=TestPlayers.survival(helper); player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+        // The player-centered field only admits entities with an actual hostile lock; a passive cow
+        // no longer joins. A husk that targets the player gives the TNT a real member victim, and
+        // unlike a zombie it does not burn down to its 1 HP before the fixture starts.
+        var victim=EntityType.HUSK.create(level,EntitySpawnReason.COMMAND);
+        victim.setPos(base.getX()+3.5,base.getY(),base.getZ()+.5);victim.setHealth(1);
+        level.addFreshEntity(victim);victim.setNoAi(true);victim.setNoGravity(true);
         var service=ServerRuntime.encounters(level.getServer());
         List<PrimedTnt> tnts=new ArrayList<>();
         Runnable cleanup=()-> {
             UUID id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);
-            cow.discard();tnts.forEach(Entity::discard);
+            victim.discard();tnts.forEach(Entity::discard);
             for(long key:forced){var chunk=ChunkPos.unpack(key);level.setChunkForced(chunk.x(),chunk.z(),false);}forced.clear();
         };
         helper.runAtTickTime(30,()-> {
+            // Re-establish the hostile lock in the same tick as the start, so the field admission
+            // sees an actual target rather than a tick-old AI decision.
+            victim.setTarget(player);
             service.requestStart(player,UUID.randomUUID()); UUID id=service.encounterOf(player.getUUID());
-            helper.assertTrue(id!=null && service.isMember(cow.getUUID()),"TNT victim must be a real member");
+            helper.assertTrue(id!=null && service.isMember(victim.getUUID()),
+                "TNT victim must be a real member; target=" + victim.getTarget()
+                    + " members=" + (id == null ? null : service.state(id).members().keySet()));
             var pos=base.east(2);
             level.setBlockAndUpdate(pos,Blocks.TNT.defaultBlockState());
             level.setBlockAndUpdate(pos.east(),Blocks.REDSTONE_BLOCK.defaultBlockState());
@@ -57,9 +67,9 @@ public final class EnvironmentTntChecks {
                                     "environment window did not consume exactly its TNT steps: "+tnt.getFuse());
                                 waitThenAdvance();
                             } else {
-                                helper.assertTrue(tnt.isRemoved() && !cow.isAlive(),"vanilla explosion did not damage member");
+                                helper.assertTrue(tnt.isRemoved() && !victim.isAlive(),"vanilla explosion did not damage member");
                                 helper.runAfterDelay(22,()-> {
-                                    helper.assertTrue(cow.isRemoved(),"dead member lifecycle stopped outside its turn");
+                                    helper.assertTrue(victim.isRemoved(),"dead member lifecycle stopped outside its turn");
                                     cleanup.run();helper.succeed();
                                 });
                             }
