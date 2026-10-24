@@ -11,7 +11,7 @@ on:
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
-      - 'targets/**/ci.properties'
+      - 'targets/**'
   pull_request:
     paths:
       - 'common/**'
@@ -22,7 +22,7 @@ on:
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
-      - 'targets/**/ci.properties'
+      - 'targets/**'
   workflow_dispatch:
 
 permissions:

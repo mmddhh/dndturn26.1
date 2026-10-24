@@ -83,6 +83,18 @@ repositories {
         url = 'https://maven.latvian.dev/releases'
         content { includeGroup 'dev.latvian.mods' }
     }
+    maven {
+        url "https://maven.sighs.cc/repository/maven-public/"
+    }
+}
+
+// Local launch dependencies are deliberately absent from published runtime variants.
+configurations {
+    localRuntimeOnly {
+        canBeConsumed = false
+        canBeResolved = false
+    }
+    runtimeClasspath.extendsFrom(localRuntimeOnly)
 }
 
 dependencies {
@@ -92,6 +104,10 @@ dependencies {
     // Exact NeoForge 26.1 release, not the similarly named artifacts for other targets.
     implementation 'maven.modrinth:apricityui:wwrdhxiM' // 1.2.5
     //implementation 'dev.latvian.mods:rhino:2101.2.7-build.82'
+    // Development runs only; production compilation and published artifacts do not depend on AutoJS.
+    if (providers.gradleProperty('autojs').map { it.toBoolean() }.orElse(false).get()) {
+        localRuntimeOnly 'com.sighs.autojs:AutoJS-neoforge-26.1:1.0.0'
+    }
 }
 
 tasks.named('test', Test).configure { useJUnitPlatform() }
