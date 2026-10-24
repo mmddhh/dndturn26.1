@@ -1,8 +1,8 @@
 # 当前状态
 
-同步日期：**2026-10-24**。基线为本地 `dev_` / `195ece9d408107015f5c0d3034479fdd8cdfae42` **加现有未提交工作区**。本页按当前实现重写，保留先前记录的验证结论及限制，不再把逐轮审阅作为并列当前状态。
+同步日期：**2026-10-24**。基线为本地 `dev_` / `b2e939ba7353d1a47f1e4d8542a011dd5c2d32a4` **加现有未提交工作区**。本页按当前实现重写，保留先前记录的验证结论及限制，不再把逐轮审阅作为并列当前状态。
 
-本次工作为活动文档同步与 AutoJS 本地调试依赖调整；未改玩法代码。先前构建/GameTest 记录见“既有验证证据”，不冒充本次重新运行。剩余任务只在[路线](02_ROADMAP.md)维护；玩法以[合同](01_RULES_AND_CONTRACTS.md)为准。
+本次追加修复 26.1 旧战斗存档读取：用户明确放弃旧版，移除捕获设置的旧字段默认值兼容，读取时明确检查字段完整性。此前活动文档同步与 AutoJS 调整的证据仍保留。剩余任务只在[路线](02_ROADMAP.md)维护；玩法以[合同](01_RULES_AND_CONTRACTS.md)为准。
 
 ## 基线与阶段
 
@@ -10,7 +10,7 @@
 
 活动文档已安装，旧文档位于 `docs/legacy/` 及 `pre-refresh-20261008/`，旧根文件保存在 `_root/`。P1 文档整理已有落点；测试精简仍须按独有不变量逐项判断，不能仅凭归档存在就关闭整个 P1。
 
-主目标仍为 Minecraft 26.1 / NeoForge 26.1.2.84 / JDK25 / ApricityUI 1.2.5。common 使用 Java17；其他三个 target 只维护构建边界。
+主目标仍为 Minecraft 26.1 / NeoForge 26.1.2.84 / JDK25 / ApricityUI 1.2.8。common 使用 Java17；其他三个 target 只维护构建边界。
 
 ## 已接入的生产链
 
@@ -18,20 +18,22 @@
 | --- | --- | --- |
 | 规则权威 | Encounter 拥有成员、敌对、先攻、回合资源和规范结果；Actor 拥有长期/运行/效果状态 | 不把读取缓存或平台 coordinator 作为第二权威 |
 | 行动 | 选择、只读发现、规范计划、接近、复验、原生执行、观察、取消/释放和操作去重 | 特殊效果与全部输入/生命周期组合仍需核对 |
-| field 与介入 | 玩家锚点、35 半径、边界跟随；介入首击即时战术结算，下一次自身回合扣动作 | 首击真实联机时序、全部合并和 held 队列迁移组合 |
-| Mob 关系 | 读取 `setTarget` 提交后的实际目标；任一方已参战时可接纳另一 Mob，同场更新敌对、跨场请求安全合并 | 两者均未参战不建场；未参战玩家不能被索敌绕过同意；跨场 Mob 对 Mob 专门运行场景未完成 |
+| field 与介入 | 玩家锚点、35 半径、边界跟随；介入首击即时战术结算，下一次自身回合扣动作 | 已验证后台双客户端首击/续战；更广能力与负载组合属于后续阶段 |
+| Mob 关系 | 读取 `setTarget` 提交后的实际目标；任一方已参战时可接纳另一 Mob，同场更新敌对、跨场请求安全合并 | 两者均未参战不建场；未参战玩家不能被索敌绕过同意；已通过专门 Mob 对 Mob 非重叠场地因果合并场景；后台双客户端已验证同意建场与介入 |
 | Mob 行动 | `PVE_LIVING_MEMBER` 与敌对事实接通发现、通用/内置 AI、普通箭和天生近战；拒绝自攻/PvP及中立 Mob 对 Mob | 扩展声明的旧仅玩家策略保持原义；特色能力、友军/区域候选不自动兼容 |
-| EXIT | common 权威距离判定、捕获/保存 `escapeDistance`、稳定拒绝原因和重试、回执、客户端距离/阈值投影 | 真实键鼠、迟到投影及完整联机体验未验证 |
+| EXIT | common 权威距离判定、捕获/保存 `escapeDistance`、稳定拒绝原因和重试、回执、客户端距离/阈值投影 | 迟到 EXIT 回执按当前 operation 过滤；后台双客户端已验证回合/距离拒绝、合法退出和旧投影拒绝，前台连续键鼠体验未完成 |
 | 原版操作 | 通用物品/方块后备；放置、工具、食饮、装备、桶/瓶/刷子/钓鱼、交互和部分投掷路径 | 开菜单不授权配方/交易；通用 use/useOn 不证明任意间接效果均受控 |
 | 环境 | 环境参与者、有效步、scheduled block/fluid tick、block event、BE、TNT、漏斗等既有托管 | 所有时间输入、重锚/跨域/卸载/合并组合及真实负载未穷尽 |
 | 效果/生物 | 原版指定药效、回合结算、Creeper Charge/Fuse、Skeleton 普通单箭及装备消耗政策 | HELP、完整借机、Guardian/ElderGuardian、长期能力 writer 和更多生产效果仍开放 |
-| 客户端 | 战术镜头、行动/先攻/头像、调查、路径及部分轨迹、ClientSession 生命周期编排 | 地形遮挡、缩放/命中、失焦/迟到响应、真实双客户端 |
+| 客户端 | 战术镜头、行动/先攻/头像、调查、路径及部分轨迹、ClientSession 生命周期编排 | 地形遮挡、缩放/命中、完整前台键鼠体验；后台双客户端已运行 |
 
 ### field 仍需关注的源码事实
 
-`EncounterLifecycleCoordinator.reanchor` 已读取会话捕获设置，在更新权威前采样并计算 chunk 集；随后 `engine.updateRegion`、`world.bind`、标记存档、发布投影。采样异常处理不再包住整个提交过程，但异常分类和提交故障仍须审计，不能声称整体可回滚。
+`EncounterLifecycleCoordinator.reanchor` 使用会话捕获设置；只将加载/容量受限的 `SamplingDeferred` 作为可重试采样失败。区域内容比较忽略版本及锚点顺序，保留维度、发现范围、半径和锚点身份/位置；内容不变时不修改规则/结构/区域版本、不重复绑定或发布。实际变化先准备精确 chunk 索引、核验 held 容器，再提交权威与派生绑定，最后 dirty/通知。规则版本溢出校验在写入区域前完成。
 
-当前重锚仍构造递增 region version；无变化更新及自身移动造成计划失效的全部组合未证明。`world.bind` 更新 region/index，重锚未直接调用 `scheduledTicks.captureAll`；其他边界有接管入口，不据此推断一定漏队列或迁移已完整。生产源码未检出旧 `DNDTURN-TEMP-BOUNDARY-VIZ` 标记；不恢复临时协议。最后玩家离开时结束并释放剩余成员，不用 Mob fallback 长期维持场次。
+重锚将已离域的 held block/fluid tick 按剩余 delay 归还原生队列，落入其他现存 field 的任务转交其 owner；入域捕获继续在既有世界/队列边界完成，不强加载或新增半径规则。提交后迁移失败明确进入停场释放，独立收集 owner/held 释放故障，未完成停场保持阻断并重试，不宣称世界副作用回滚。停场期间不再递归重锚，旧场释放重试不取消成员在新场的行动。多人建场使用首次回合通知之后的最终权威 field 绑定世界，避免初始单玩家采样覆盖索引。
+
+已通过不变重锚、未加载采样保留旧状态、竖向离域释放延迟与资源守恒、原生容器卸载/注册、多人首次绑定及移动接近后执行场景。已补观察者提交故障、原生容器缺失后的独立释放/重试与完整存档第二进程队列恢复；任意故障和负载组合未穷尽。生产链不恢复临时 field 协议；最后玩家离开结束场次并释放其余成员。
 
 ### 所有权与查询
 
@@ -78,6 +80,50 @@
 
 ## 本次同步与检查
 
+26.1 `run/logs/latest.log` 的 `invalid captured combat settings` 来自 `New World` 旧战斗存档缺少 discoveryHorizontal/discoveryVertical/escapeDistance，Gson 将缺失数值读为零。用户授权放弃旧版后，独占打开世界 session.lock 确认未占用，将 `run/saves/New World/data/dndturn/combat_state.dat` 移为同目录 `combat_state.dat.incompatible-backup`，前后 SHA256 一致；地图及玩家数据未改。代码不迁移旧战斗，改为反序列化前检查捕获设置完整性，并取消 discovery 参数容错默认值。复用 PersistencePolicyChecks 扩充缺失字段拒绝且原文不变的不变量；既有检查仅覆盖顶层字段，无法防止嵌套 primitive 缺失被 Gson 静默默认。未新增测试文件。
+
+本次执行 JDK25 + JDK17 toolchain 的 `build runGameTestServer -PgameTestSelection=dndturn:combat_save_values --offline` 通过（含 common 测试及既有构建检查，所选 GameTest 实际执行并通过）。首次 wrapper 下载受沙箱网络权限阻止，授权后使用工作区指定的 Gradle 9.8 完成；已有 build.gradle 与期间出现的 wrapper 修改未覆盖。`git diff --check` 通过。未重新进入原世界、未做双客户端或第二进程续战验证；本次重置不声称旧战斗恢复。
+
 本次核对 Git 基线/共同祖先、实际规则/平台调用点、Gradle/CI 配置并重写活动文档；归档正文保持原字节。AutoJS 从错误 group `com.sighs` 修正为仓库实际 POM 的 `com.sighs.autojs`，保留 `-Pautojs=true`，配置为显式 `localRuntimeOnly`，只接本地运行类路径。
 
 本次 JDK25 + 显式 JDK17 toolchain 执行26.1 `build --offline` 通过，包含 common 测试、生产/GameTest/UI编译及既有UI/控制/诊断检查。临时 Gradle init 检查分别验证 AutoJS 默认关闭、显式启用进入运行类路径且不进入 compileClasspath/apiElements/runtimeElements；启用时实际解析到 JAR。首轮直接使用配置因插件未预置而失败，显式声明配置后通过；旧 group 的离线/在线解析失败，查询 Maven POM 修正坐标后成功。没有新增长期测试或测试文件。活动文档本地链接检查、归档正文哈希保全与 `git diff --check` 通过；26.1产物核对未包含AutoJS及已枚举的GameTest/UI/common测试类。未运行范围：真实客户端/AutoJS 脚本、双客户端、GameTest、第二进程恢复、第三方兼容、性能与七日老化；不因本次文档同步关闭这些目标。
+
+## P2 本轮实施与验证
+
+本轮按 P2 全部范围推进，保留进入任务时的存档、构建和 wrapper 修改。指定 field 修复 `9c05747` 已包含；远端同名分支后续提交未整体合并。未自动提交、推送或发布。
+
+近战介入从 tick 末 UUID 队列改为伤害边界同步结算，先核验原生实体实例、阶段/运行操作、近战范围与适配来源，再复用战术后端。修复候选场接受介入后未转 ACTIVE、导致命中伤害许可失败的问题；保留新成员下一轮资格及下次自身回合动作欠账，未命中不返还、后续回合不重复扣。重复原生回调不重复首击。EXIT 客户端只接受当前退出 operation 的回执，reset 或新请求后的旧拒绝不能重新触发退出。
+
+测试沿现有文件扩展：区域值层保护内容比较，既有 Encounter 回归保护介入转正式/不插队/动作仅扣一次，原生近战夹具保护同步回调与实际伤害守恒，scheduled tick 夹具保护加载失败和离域移交，合并夹具保护非重叠场地的真实 Mob 索敌与队列/回执，已有无窗口 UI 检查保护 EXIT 迟到回复。原有断言没有覆盖这些接缝；未新增测试文件，未放宽费用、终态或守恒断言。几何重叠合并仍由三场扩展场景覆盖。
+
+本轮实际执行（日志在 26.1 `build/p2-*.log`）：
+
+- JDK25/JDK17 toolchain 的 26.1 `build --offline`，包含 common 测试、生产/GameTest/UI 编译和既有 check。最后执行 `build runGameTestServer -PgameTestSelection=dndturn:gate_melee_approach --offline` 通过，新增旧场释放重试不取消新场行动的接缝断言；结果见 `build/p2-final.log`。
+- JDK21/JDK17 toolchain 串行执行 Forge 1.20.1、Fabric 1.20.1、NeoForge 1.21.1 的 `build --offline` 全部通过。活动文档本地链接、`git diff --check` 和最终 26.1 jar 隔离检查通过，未发现 GameTest/UI 夹具、test_instance 或 AutoJS 条目。
+- 单项 `runGameTestServer -PgameTestSelection=dndturn:<名称> --offline`：`scheduled_tick_hold`、`consent_multiplayer`、`merge_world_boundary`、`merge_discovery_expansion`、`gate_melee`、`gate_melee_approach`、`prototype_exit_retry`、`arrow_first_ingress`、`arrow_cross_session`、`arrow_cross_session_reverse`、`arrow_cross_session_miss`、`arrow_cross_session_pvp`、`arrow_pending_removal`、`environment_domains`、`environment_boundary_time`、`environment_circuits`、`combat_save_values`，均有实际执行并通过的输出。
+- 两个独立 JVM 串行执行 `runRestartGameTestServer -PrestartTestDirectory=build/p2-restart-continuation --offline`，`DNDTURN_RESTART_TEST=dndturn:restart_history`；出现同一场次/operation 的 WRITE_READY → VERIFY_PASS。仅证明既有 chunk/SavedData、历史和接近中断恢复，不是普通专服完整 level.dat 续战。
+
+失败及纠正：首次构建/平台运行受 sandbox wrapper 网络权限阻止，获准后运行。逗号组合选择只实际执行一个场景，随后改为逐项执行。近战新增断言暴露候选未激活的生产问题并修复；纯规则用例曾误设新入场者可进入当前轮，现按既定下一轮资格明确断言不插队。箭夹具的旧 24 格场间距、场外箭位置及非可索敌 mock 已按当前 field/原生关系修正；EXIT 夹具曾假定结束一个 Mob 候选回合必定轮到玩家，修正为容纳候选激活重掷先攻，距离边界断言保持原值。
+
+上述是前一轮的构建/夹具证据；以下补齐 P2 收尾。按用户最新要求，客户端验收改为后台自动化，不再切换前台或移动系统指针。P2 已按当前支持范围完成闭环；不据此关闭 P3–P7。
+
+恢复现在先等待玩家与所需区块自然就绪，不设超时，不把缺席生成 UNKNOWN。等待期间门控行动、AI、关系合并、挂机/执行截止；临时登出/卸载不删除待恢复成员。已提交合并的运行绑定在就绪后、恢复开放之前修复。原许可撤销及未知效果不重放保持不变。新增管理员/控制台 `dndturn encounter stop <uuid>`；显式结束清除恢复等待，失败清理独立重试。停服现有“捕获保存→释放→移除 runtime”顺序经普通专服验证，关闭期间离场不再改写规则成员。
+
+回合通知改在操作登记和规则版本提交后触发；重锚修订不会被外层版本覆盖，通知失败不抹掉已接受操作。复用既有规则测试覆盖重锚和通知抛错；复用恢复夹具覆盖缺席等待不推进/不造 UNKNOWN 和显式结束；复用 scheduled tick 夹具移除一个容器注入失败，验证其他区块仍释放、恢复容器后重试保留唯一任务及剩余 delay。未新增测试文件。
+
+普通专服与两个真实客户端使用 `build/p2-live/{server,client-a,client-b}`，独立用户名 P2Alice/P2Bob，仅连接本机 25586 端口；没有使用原有世界。通过 `runServer` 正常入口、完整 `level.dat`/玩家/chunk/SavedData 保存退出，分别重启候选场和活动战斗。后台键盘从 GLFW 回调进入客户端，UI 点击从 AUI 坐标事件分发进入同意界面；没有直接调用开战/EXIT 网络处理器代替输入。场景布置使用管理员命令，近战介入通过原生伤害边界触发。后台临时改绑开战键为 F8，未验证默认 Shift+Space 的完整前台体验。
+
+已观察并记录：
+
+- 双客户端同意建场产生两玩家锚点，世界索引与权威 field 一致。候选场重启后无人/仅一人登录仍保留原版本、回合、先攻、资源和唯一环境参与者；等待时 END 输入不推进，两人就绪后可继续回合。
+- 原生 Mob 介入即时造成 3 点实际伤害，重复原生回调没有第二份伤害/结果。活动场再次重启保留该历史和欠账；新入场者不进入旧轮，首次自身回合动作被扣除。
+- 一个红石灯任务在普通存档重启及等待后仍为唯一 held tick，剩余 delay=5；真实环境回合推进后熄灭，held 队列清空。玩家恢复期间的自然回血不是伤害重放或退款。
+- 后台客户端 EXIT 验证非自身回合拒绝、1 格敌距拒绝、合法退出；退出后注入原活动投影返回 IGNORE，不能复活已结束场次。管理员重复 stop 正常幂等。
+
+日志为 `build/p2-live-*.log`，逐次脚本/观察为 `build/p2-live-evidence.jsonl`，隔离世界保留在 build 供复查。两客户端与普通专服已正常关闭。临时脚本、截图和世界不进入源码或发布 jar。
+
+本轮 26.1 `build`、`combat_save_values`、`scheduled_tick_hold` 已实际通过，包含 common、UI、控制/诊断检查。最终改动后另逐项运行 `gate_melee`、`merge_world_boundary`、`merge_discovery_expansion`、`environment_circuits`、`environment_boundary_time`、`prototype_exit_retry`、`arrow_cross_session`，均实际执行并通过，日志为 `build/p2-completion-*.log`。首次新增测试编译因误用观察者方法名失败，改用现有绑定接口后通过；首次 AutoJS 启动缺 Rhino，补为 `-Pautojs=true` 下的可选本地依赖后启动成功。脚本适配阶段的反射/鼠标回调尝试不计入通过证据，最终后台输入和 UI 事件链已得到服务端状态验证。
+
+本轮还以 JDK21/JDK17 串行重新构建 Forge 1.20.1、Fabric 1.20.1、NeoForge 1.21.1，全部通过。活动文档本地链接、`git diff --check` 与最终 jar 隔离检查通过；没有测试/AutoJS 条目，没有新增测试文件。
+
+范围限制：没有前台连续键鼠/镜头体验、真实第三方兼容、性能或长时间运行证据；后台旧投影验证是向客户端接收入口注入，不是网络代理乱序测试。未证明所有能力的活动过程和任意故障组合均可恢复，P4 的完整生命周期任务继续保留。
