@@ -5,7 +5,29 @@ import cc.sighs.dndturn.platform.network.ActionProtocol;
 
 public final class ActionPlanChecks {
     private ActionPlanChecks() {}
-    public static void run() throws Exception { checkSelectionLifecycle(); checkDiscoveryLifecycle(); }
+    public static void run() throws Exception { checkSelectionLifecycle(); checkDiscoveryLifecycle(); checkExitReplies(); }
+    private static void checkExitReplies() throws Exception {
+        var controls = cc.sighs.dndturn.platform.client.input.CombatControls.class;
+        var operation = controls.getDeclaredField("exitOperationId"); operation.setAccessible(true);
+        var retry = controls.getDeclaredField("exitRetryPending"); retry.setAccessible(true);
+        var id = java.util.UUID.randomUUID();
+        var stale = new cc.sighs.dndturn.platform.network.EncounterProtocol.IntentStatus(
+            java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), id,
+            cc.sighs.dndturn.platform.network.EncounterProtocol.IntentKind.EXIT, false, "stale", false,
+            -1, 0, 0, cc.sighs.dndturn.domain.encounter.StartDisposition.NONE,
+            cc.sighs.dndturn.domain.encounter.operation.ActionFailure.Code.STALE_ENCOUNTER,
+            cc.sighs.dndturn.domain.encounter.operation.ActionFailure.Retry.REFRESH_AND_REPROPOSE);
+        cc.sighs.dndturn.platform.client.input.CombatControls.reset();
+        cc.sighs.dndturn.platform.client.input.CombatControls.onIntentStatus(stale);
+        require(!retry.getBoolean(null), "late EXIT reply revived a reset request");
+        var replacement = java.util.UUID.randomUUID(); operation.set(null, replacement);
+        cc.sighs.dndturn.platform.client.input.CombatControls.onIntentStatus(stale);
+        require(replacement.equals(operation.get(null)) && !retry.getBoolean(null), "old EXIT reply overwrote a newer request");
+        operation.set(null, id);
+        cc.sighs.dndturn.platform.client.input.CombatControls.onIntentStatus(stale);
+        require(retry.getBoolean(null) && operation.get(null) == null, "current stale EXIT did not retain refresh retry");
+        cc.sighs.dndturn.platform.client.input.CombatControls.reset();
+    }
     private static void require(boolean value, String message) {
         if (!value) throw new AssertionError(message);
     }

@@ -45,6 +45,7 @@ public final class CombatControls {
     private static boolean exitAfterStart;
     private static long lastExitVersion;
     private static UUID startOperationId;
+    private static UUID exitOperationId;
 
     private CombatControls() {}
 
@@ -235,6 +236,7 @@ public final class CombatControls {
         exitRetryPending = false;
         exitAfterStart = false;
         startOperationId = null;
+        exitOperationId = null;
     }
 
     public static void resetForNewEncounter() {
@@ -263,7 +265,10 @@ public final class CombatControls {
             }
             return;
         }
-        if (status.kind() == EncounterProtocol.IntentKind.EXIT && !status.accepted()
+        if (status.kind() != EncounterProtocol.IntentKind.EXIT
+            || !status.operationId().equals(exitOperationId)) return;
+        exitOperationId = null;
+        if (!status.accepted()
             && status.code() == ActionFailure.Code.STALE_ENCOUNTER
             && status.retry() == ActionFailure.Retry.REFRESH_AND_REPROPOSE) {
             exitRetryPending = true;
@@ -282,7 +287,9 @@ public final class CombatControls {
             return;
         }
         lastExitVersion = state.version();
-        send(EncounterProtocol.IntentKind.EXIT, null);
+        exitRetryPending = false;
+        exitOperationId = UUID.randomUUID();
+        send(EncounterProtocol.IntentKind.EXIT, null, exitOperationId);
     }
 
     private static void send(EncounterProtocol.IntentKind kind, UUID target) {
