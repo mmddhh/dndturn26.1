@@ -30,7 +30,7 @@ import java.util.UUID;
 public final class EncounterAuthority {
     public record TurnBoundary(UUID encounter, long round, UUID actor) {}
     private java.util.function.Consumer<TurnBoundary> actorTurnObserver = boundary -> {};
-    /** Observer may update actor-owned state, but must not reenter Encounter mutation or throw. */
+    /** Runs after the turn commit; may re-anchor its field, but must not advance another turn. */
     public void bindActorTurnObserver(java.util.function.Consumer<TurnBoundary> observer) {
         actorTurnObserver = Objects.requireNonNull(observer);
     }
@@ -443,8 +443,8 @@ public final class EncounterAuthority {
             enterEnvironment(encounter);
             encounter.version++;
         } else {
-            if (wasCurrent) beginMemberTurn(encounter, encounter.members.get(encounter.order.get(encounter.cursor)));
             encounter.version++;
+            if (wasCurrent) beginMemberTurn(encounter, encounter.members.get(encounter.order.get(encounter.cursor)));
         }
         return true;
     }
@@ -460,9 +460,11 @@ public final class EncounterAuthority {
             throw new IllegalArgumentException("region dimension changed");
         if (region.version() <= encounter.region.version())
             throw new IllegalArgumentException("region version must advance");
+        long nextVersion = Math.addExact(encounter.version, 1);
+        long nextStructuralRevision = Math.addExact(encounter.structuralRevision, 1);
         encounter.region = region;
-        encounter.version = Math.addExact(encounter.version, 1);
-        encounter.structuralRevision = Math.addExact(encounter.structuralRevision, 1);
+        encounter.version = nextVersion;
+        encounter.structuralRevision = nextStructuralRevision;
     }
 
     public void setHostile(UUID encounterId, UUID source, UUID target, boolean hostile) {
@@ -1011,11 +1013,19 @@ public final class EncounterAuthority {
             || (encounter.phase != EncounterPhase.ACTIVE && encounter.phase != EncounterPhase.CANDIDATE)) return false;
         Member member = encounter.members.get(snapshot.owner());
         long nextVersion = Math.addExact(encounter.version, 1);
+        Map<UUID, InitiativeRoll> rolls = encounter.phase == EncounterPhase.CANDIDATE
+            ? sampleInitiatives(encounter) : Map.of();
+        member.preserveSpentActionOnNextTurn = true;
+        boolean activated = encounter.phase == EncounterPhase.CANDIDATE;
+        if (encounter.phase == EncounterPhase.CANDIDATE) {
+            encounter.hostile.add(new Relation(snapshot.owner(), snapshot.target()));
+            activate(encounter, rolls);
+        }
         encounter.operations.pending.put(snapshot.operationId(), snapshot);
         encounter.operations.causes.put(snapshot.operationId(), snapshot);
         encounter.attackersWithRegisteredAttempt.add(snapshot.owner());
-        member.preserveSpentActionOnNextTurn = true;
         encounter.version = nextVersion;
+        if (activated) notifyActorTurn(encounter);
         return true;
     }
 
@@ -1211,7 +1221,8 @@ public final class EncounterAuthority {
         if (snapshot.kind() == OperationRecord.Kind.DODGE) member.dodging = true;
         if (snapshot.kind() == OperationRecord.Kind.DISENGAGE) member.disengaged = true;
         if (snapshot.kind() == OperationRecord.Kind.DASH) member.economy.addMovement(encounter.movementTicksPerTurn);
-        if (encounter.phase == EncounterPhase.CANDIDATE && snapshot.kind() == OperationRecord.Kind.ATTACK) {
+        boolean activated = encounter.phase == EncounterPhase.CANDIDATE && snapshot.kind() == OperationRecord.Kind.ATTACK;
+        if (activated) {
             encounter.hostile.add(new Relation(snapshot.owner(), snapshot.target()));
             activate(encounter, initiativeRolls);
             if (!snapshot.owner().equals(currentId(encounter)))
@@ -1222,6 +1233,7 @@ public final class EncounterAuthority {
         if (snapshot.kind() == OperationRecord.Kind.ATTACK)
             encounter.attackersWithRegisteredAttempt.add(snapshot.owner());
         encounter.version = nextVersion;
+        if (activated) notifyActorTurn(encounter);
         return true;
     }
 
@@ -1359,8 +1371,8 @@ public final class EncounterAuthority {
         long nextVersion = Math.addExact(encounter.version, 1);
         Map<UUID, InitiativeRoll> rolls = encounter.phase == EncounterPhase.CANDIDATE
             && !encounter.hostile.isEmpty() ? sampleInitiatives(encounter) : Map.of();
-        boolean activated = finishMemberTurnState(encounter, rolls);
         encounter.version = nextVersion;
+        boolean activated = finishMemberTurnState(encounter, rolls);
         return activated;
     }
 
@@ -1502,6 +1514,8 @@ public final class EncounterAuthority {
         encounter.phase = EncounterPhase.ACTIVE;
         for (Member member : encounter.members.values()) applyRoll(member, rolls.get(member.id));
         buildOrder(encounter);
+    }
+    private void notifyActorTurn(Encounter encounter) {
         actorTurnObserver.accept(new TurnBoundary(encounter.id, encounter.round, currentId(encounter)));
     }
     private InitiativeRoll sampleRoll() { return new InitiativeRoll(1 + random.nextInt(20), random.nextInt()); }
@@ -1540,6 +1554,7 @@ public final class EncounterAuthority {
     private boolean finishMemberTurnState(Encounter encounter, Map<UUID, InitiativeRoll> rolls) {
         if (encounter.phase == EncounterPhase.CANDIDATE && !encounter.hostile.isEmpty()) {
             activate(encounter, rolls);
+            notifyActorTurn(encounter);
             return true;
         }
         advanceCursorState(encounter);

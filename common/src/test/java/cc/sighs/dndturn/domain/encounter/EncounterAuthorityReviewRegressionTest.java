@@ -41,6 +41,73 @@ class EncounterAuthorityReviewRegressionTest {
     private record Fixture(EncounterAuthority engine, UUID encounter, UUID owner, UUID target) {}
 
     @Test
+    void activationObserverSeesCommittedOperationAndCannotLoseItsRegionRevision() {
+        for (boolean intrusion : List.of(false, true)) {
+          for (boolean observerFails : List.of(false, true)) {
+            var engine = new EncounterAuthority(new Random(1), 28, 2);
+            UUID encounter = id(100);
+            engine.beginCandidate(encounter, region(0), Set.of(id(1), id(2)));
+            UUID owner = engine.stateView(encounter).current();
+            UUID target = owner.equals(id(1)) ? id(2) : id(1);
+            var attack = new OperationRecord.Snapshot(id(400), null, encounter, owner, owner, target,
+                1, engine.stateView(encounter).version(), null, null, OperationRecord.Kind.ATTACK);
+            long acceptedVersion = attack.encounterVersion() + 1;
+            engine.bindActorTurnObserver(boundary -> {
+                assertEquals(acceptedVersion, engine.stateView(encounter).version());
+                assertNotNull(engine.pendingOperation(encounter, attack.operationId()));
+                engine.updateRegion(encounter, projectedRegion(2, 0, 1));
+                if (observerFails) throw new IllegalStateException("observer failed after region commit");
+            });
+            if (observerFails) assertThrows(IllegalStateException.class,
+                () -> { if (intrusion) engine.beginIntrusionAttack(attack); else engine.beginOperation(attack); });
+            else assertTrue(intrusion ? engine.beginIntrusionAttack(attack) : engine.beginOperation(attack));
+            assertEquals(acceptedVersion + 1, engine.stateView(encounter).version());
+            assertEquals(2, engine.stateView(encounter).region().version());
+            assertNotNull(engine.pendingOperation(encounter, attack.operationId()));
+            assertFalse(intrusion ? engine.beginIntrusionAttack(attack) : engine.beginOperation(attack));
+          }
+        }
+    }
+
+    @Test
+    void intrusionActivatesCandidateAndChargesExactlyItsFirstOwnTurnEvenOnMiss() {
+        for (int seed = 0; seed < 24; seed++) {
+            var engine = new EncounterAuthority(new Random(seed), 28, 2);
+            UUID encounter = id(100), intruder = id(3);
+            engine.beginCandidate(encounter, region(0), Set.of(id(1), id(2)));
+            assertTrue(engine.join(encounter, intruder));
+            var root = new OperationRecord.Snapshot(id(400), null, encounter, intruder, intruder,
+                id(1), 1, engine.stateView(encounter).version(), null, null, OperationRecord.Kind.ATTACK);
+            assertTrue(engine.beginIntrusionAttack(root));
+            assertEquals(EncounterPhase.ACTIVE, engine.stateView(encounter).phase());
+            var accepted = engine.exportSnapshot();
+            assertFalse(engine.beginIntrusionAttack(root));
+            assertEquals(accepted, engine.exportSnapshot());
+            engine.publish(encounter, root.operationId(), 0, OperationRecord.Outcome.COMPLETED, "miss", 0, 0, true);
+            assertFalse(engine.stateView(encounter).order().contains(intruder), "intruder jumped into the current round");
+            for (int step = 0; step < 20 && !intruder.equals(engine.stateView(encounter).current()); step++) {
+                if (engine.stateView(encounter).phase() == EncounterPhase.ENVIRONMENT) {
+                    UUID tick = UUID.randomUUID();
+                    assertTrue(engine.authorizeEnvironmentStep(encounter, tick));
+                    assertTrue(engine.commitEnvironmentStep(encounter, tick));
+                } else engine.endTurn(encounter, engine.stateView(encounter).current());
+            }
+            assertEquals(intruder, engine.stateView(encounter).current());
+            assertFalse(engine.stateView(encounter).members().get(intruder).action());
+            engine.endTurn(encounter, intruder);
+            for (int step = 0; step < 20 && !intruder.equals(engine.stateView(encounter).current()); step++) {
+                if (engine.stateView(encounter).phase() == EncounterPhase.ENVIRONMENT) {
+                    UUID tick = UUID.randomUUID();
+                    engine.authorizeEnvironmentStep(encounter, tick);
+                    engine.commitEnvironmentStep(encounter, tick);
+                } else engine.endTurn(encounter, engine.stateView(encounter).current());
+            }
+            assertEquals(intruder, engine.stateView(encounter).current());
+            assertTrue(engine.stateView(encounter).members().get(intruder).action());
+        }
+    }
+
+    @Test
     void restoredEncountersRetainBudgetsWhileNewSessionsCaptureNewConfiguration() {
         EncounterAuthority original = new EncounterAuthority(new Random(3), 28, 20);
         original.beginCandidate(id(100), region(0), Set.of(id(1), id(3)), 7, 3);

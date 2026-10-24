@@ -7,6 +7,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EncounterRegionSweepTest {
+    @Test
+    void fieldContentIgnoresRevisionAndAnchorOrderButRetainsIdentityAndBounds() {
+        EncounterRegion area = region();
+        var reversed = new java.util.ArrayList<>(area.anchors());
+        java.util.Collections.reverse(reversed);
+        assertTrue(area.sameContent(EncounterRegion.generate(area.dimension(), area.discovery(), reversed, 2, 99)));
+        assertFalse(area.sameContent(EncounterRegion.generate(area.dimension(), area.discovery(), reversed, 3, 1)));
+        assertFalse(area.sameContent(EncounterRegion.generate("other", area.discovery(), reversed, 2, 1)));
+        reversed.set(0, new EncounterRegion.Anchor(UUID.randomUUID(), reversed.get(0).center()));
+        assertFalse(area.sameContent(EncounterRegion.generate(area.dimension(), area.discovery(), reversed, 2, 1)));
+        assertFalse(area.sameContent(EncounterRegion.generate(area.dimension(),
+            new EncounterRegion.Discovery(-3, 0, -2, 12, 8, 12), area.anchors(), 2, 1)));
+    }
+
     private static EncounterRegion region() {
         return EncounterRegion.generate("overworld",
             new EncounterRegion.Discovery(-2, 0, -2, 12, 8, 12),

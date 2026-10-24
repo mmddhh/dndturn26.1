@@ -99,6 +99,14 @@ public final class EncounterRegion {
     public double maxY() { return maxY; }
     public long version() { return version; }
 
+    /** Captured field content, independent of sampling order and revision identity. */
+    public boolean sameContent(EncounterRegion other) {
+        return other != null && dimension.equals(other.dimension)
+            && discovery.equals(other.discovery) && Double.compare(radius, other.radius) == 0
+            && anchors.size() == other.anchors.size()
+            && new HashSet<>(anchors).equals(new HashSet<>(other.anchors));
+    }
+
     public boolean containsPoint(double x, double y, double z) {
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z) || y < minY || y > maxY)
             return false;
