@@ -26,6 +26,10 @@ public final class ContinuousAbilities {
         contributions.put(definition.id(), contribution);
     }
     public void freeze(AbilityRegistry registry) {
+        for (var definition : registry.all())
+            if (definition.activation() == AbilityDefinition.Activation.CONTINUOUS
+                    && !contributions.containsKey(definition.id()))
+                throw new IllegalStateException("continuous contribution missing: " + definition.id());
         for (var contribution : contributions.values()) for (var grant : contribution.grants()) registry.require(grant.ability(), grant.version());
         for (var id : contributions.keySet()) checkCycle(id, new HashSet<>(), new HashSet<>());
         frozen = true;

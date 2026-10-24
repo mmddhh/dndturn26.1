@@ -39,9 +39,22 @@ public final class AbilityExecutors {
     public static synchronized List<AbilityExecutor> all() { return List.copyOf(EXECUTORS.values()); }
     public static synchronized void validate() {
         for (var definition : AbilityAdapterRegistry.definitions().all()) {
-            if (definition.activation() != AbilityDefinition.Activation.CONTINUOUS && !definition.cost().equals(cc.sighs.dndturn.domain.ability.ActionCost.FREE)
-                && !EXECUTORS.containsKey(definition.id())) throw new IllegalStateException("paid ability executor missing: " + definition.id());
+            boolean executable = EXECUTORS.containsKey(definition.id());
+            boolean activation = AbilityAdapterRegistry.activations().supports(definition);
+            boolean paid = !definition.cost().equals(cc.sighs.dndturn.domain.ability.ActionCost.FREE);
+            switch (definition.activation()) {
+                case MANUAL -> require(executable, "manual ability executor missing", definition);
+                // Triggered executions may be emitted by another registered activation (e.g. threshold -> explosion).
+                case TRIGGERED -> require(executable || activation, "triggered ability driver missing", definition);
+                case PERIODIC -> require(activation, "periodic activation missing", definition);
+                case CONTINUOUS -> require(!paid && !executable, "continuous ability execution conflict", definition);
+            }
+            if (paid) require(executable, "paid ability executor missing", definition);
+            if (executable) require(AbilityAdapterRegistry.hasNativeFacts(definition.id()), "native facts missing", definition);
         }
+    }
+    private static void require(boolean valid, String message, AbilityDefinition definition) {
+        if (!valid) throw new IllegalStateException(message + ": " + definition.id());
     }
 
 }

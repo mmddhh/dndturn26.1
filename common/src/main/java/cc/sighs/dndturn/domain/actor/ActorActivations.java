@@ -74,6 +74,10 @@ public final class ActorActivations {
         registrations.put(registration.definition().id(), registration);
     }
     public void freeze() { frozen = true; }
+    public boolean supports(AbilityDefinition definition) {
+        var registration = registrations.get(definition.id());
+        return registration != null && registration.definition().equals(definition);
+    }
     public boolean isEmpty() { return registrations.isEmpty(); }
     public boolean hasEvent(ActivationSpec.Event event) {
         return registrations.values().stream().anyMatch(value -> value.activation().event() == event);

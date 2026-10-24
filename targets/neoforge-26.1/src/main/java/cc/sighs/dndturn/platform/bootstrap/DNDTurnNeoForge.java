@@ -1,12 +1,6 @@
 package cc.sighs.dndturn.platform.bootstrap;
 
-import cc.sighs.dndturn.platform.server.ability.NativeObservations;
-import cc.sighs.dndturn.platform.server.damage.BodyTargets;
-
-import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.ai.MobTurnStrategies;
 import cc.sighs.dndturn.platform.server.builtin.creeper.CreeperExplosion;
-import cc.sighs.dndturn.platform.server.damage.MeleeAdapters;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
 import cc.sighs.dndturn.platform.server.network.CombatIntentHandler;
 import cc.sighs.dndturn.platform.server.runtime.MinecraftCombatRuntime;
@@ -22,14 +16,8 @@ public final class DNDTurnNeoForge {
     public DNDTurnNeoForge(IEventBus modBus) {
         BuiltinAdapters.install();
         modBus.addListener(PayloadRegistration::register);
-        modBus.addListener((net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent event) ->
-            event.enqueueWork(() -> {
-                AbilityAdapterRegistry.freeze();
-                MobTurnStrategies.freeze();
-                MeleeAdapters.server().freeze();
-                BodyTargets.freeze();
-                NativeObservations.REGISTRY.freeze();
-            }));
+        modBus.addListener((net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent event) ->
+            event.enqueueWork(RegistrationLifecycle::freeze));
         modBus.addListener(CombatIntentHandler::register);
         NeoForge.EVENT_BUS.addListener(TacticalCommands::register);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onEntityTickPost);

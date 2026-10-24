@@ -11,7 +11,11 @@ import cc.sighs.dndturn.platform.server.world.WorldOutcomeHooks;
 import cc.sighs.dndturn.platform.server.world.CloudOrigins;
 import java.util.ArrayList;
 
-/** Freezes subsystem registries after builtin and extension registration. */
+/**
+ * Register builtins and extensions during mod construction or common setup (including its queued work).
+ * Load-complete queued work closes all registration before any server starts. Do not register at load complete.
+ * Executors are bound to definition IDs; their executor ID is checked metadata, not a shared lookup key.
+ */
 public final class RegistrationLifecycle {
     private RegistrationLifecycle() {}
     public static synchronized void freeze() {
@@ -27,5 +31,9 @@ public final class RegistrationLifecycle {
         MinecraftFactProviders.freeze(); ActorDefinitions.freeze(); ActorLifecycleAdapters.freeze(); AbilityAdapterRegistry.activations().freeze();
         AbilityAdapterRegistry.freeze();
         cc.sighs.dndturn.platform.server.action.AbilityExecutors.freeze();
+        cc.sighs.dndturn.platform.server.ai.MobTurnStrategies.freeze();
+        cc.sighs.dndturn.platform.server.damage.MeleeAdapters.server().freeze();
+        cc.sighs.dndturn.platform.server.damage.BodyTargets.freeze();
+        cc.sighs.dndturn.platform.server.ability.NativeObservations.REGISTRY.freeze();
     }
 }

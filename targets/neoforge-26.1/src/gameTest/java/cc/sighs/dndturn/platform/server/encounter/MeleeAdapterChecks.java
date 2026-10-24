@@ -57,6 +57,15 @@ public final class MeleeAdapterChecks {
             "frozen registry accepted attacker");
         rejected(helper, () -> MeleeAdapters.server().register(new MeleeAdapters.Attacker("test:late", 1, e -> false)),
             "production registry did not freeze during setup");
+        rejected(helper, () -> cc.sighs.dndturn.platform.server.fact.MinecraftFactProviders.register(
+                new cc.sighs.dndturn.domain.fact.FactKey<>("test:late_fact", Boolean.class), actor -> true),
+                "native facts remained writable after startup");
+        rejected(helper, () -> cc.sighs.dndturn.platform.server.world.WorldOutcomeHooks.register(
+                "test:late_observer", new cc.sighs.dndturn.platform.server.world.WorldOutcomeHooks.Observer() {
+                    public boolean admitSpawn(net.minecraft.world.entity.Entity entity) { return true; }
+                    public void inserted(net.minecraft.world.entity.Entity entity) {}
+                    public boolean authorizesDamage(LivingEntity target, net.minecraft.world.damagesource.DamageSource source) { return false; }
+                }), "world outcome observers remained writable after startup");
     }
     private static void rejected(GameTestHelper helper, Runnable action, String message) {
         boolean rejected = false;
