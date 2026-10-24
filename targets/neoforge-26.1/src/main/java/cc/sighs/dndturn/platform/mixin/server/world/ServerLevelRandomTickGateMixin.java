@@ -1,8 +1,8 @@
 package cc.sighs.dndturn.platform.mixin.server.world;
 
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
-import cc.sighs.dndturn.platform.server.world.EnvironmentProcesses;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.control.EnvironmentProcesses;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;

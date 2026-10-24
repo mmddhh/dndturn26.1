@@ -8,8 +8,7 @@ import cc.sighs.dndturn.domain.fact.ActorFacts;
 import cc.sighs.dndturn.domain.fact.ReadContract;
 import cc.sighs.dndturn.domain.fact.StatKey;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
-import cc.sighs.dndturn.platform.server.actor.MinecraftSnapshotCapture;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.persistence.ActorSavedData;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
@@ -29,28 +28,34 @@ public final class TacticalEffectChecks {
         var actor = new LiveActorContext(body);
         var service = ServerRuntime.encounters(h.getLevel().getServer()).actorStates();
         var reads = new ReadContract(Set.of(ActorFacts.ARMOR_CLASS));
-        double base = MinecraftSnapshotCapture.captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS);
+        double base = service.snapshots().captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS);
         var instance = UUID.randomUUID();
         var application = new ActorStates.Command(UUID.randomUUID(), actor.id(), service.state(actor.id()).revision(),
                 List.of(new ActorStates.Apply(new EffectInstance(instance, UUID.randomUUID(), EFFECT, 1, 2,
                         service.state(actor.id()).revision() + 1, 2, actor.id(), "dndturn:move"))));
         service.command(actor, application);
-        h.assertTrue(MinecraftSnapshotCapture.captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS) == base + 2,
+        h.assertTrue(service.snapshots().captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS) == base + 2,
                 "effect contribution did not reach native actor snapshot");
-        h.assertTrue(MinecraftSnapshotCapture.captureActor(actor).abilities().stream().noneMatch(b -> instance.equals(b.source().grant())),
+        h.assertTrue(service.snapshots().captureActor(actor).abilities().stream().noneMatch(b -> instance.equals(b.source().grant())),
                 "effect grant became available below stack threshold");
         var add = new ActorStates.Command(UUID.randomUUID(), actor.id(), service.state(actor.id()).revision(),
                 List.of(new ActorStates.AddStacks(instance, 1), new ActorStates.RefreshDuration(instance, 3)));
         service.command(actor, add);
-        var snapshot = MinecraftSnapshotCapture.captureActor(actor);
+        var snapshot = service.snapshots().captureActor(actor);
         h.assertTrue(snapshot.abilities().stream().anyMatch(b -> instance.equals(b.source().grant())), "effect grant missing at threshold");
-        h.assertTrue(MinecraftSnapshotCapture.captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS) == base + 4,
+        h.assertTrue(service.snapshots().captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS) == base + 4,
                 "stack contribution missing");
+        // Partial reads must retain native/derived ownership and effect semantics without
+        // needing to discover grants or project unrelated effects.
+        var partialReads = new ReadContract(Set.of(ActorFacts.ARMOR_CLASS, ActorFacts.DAMAGE_REDUCTION,
+                ActorFacts.ARMOR_EFFECTIVE, ActorFacts.SPEED_EFFECTIVE, ActorFacts.POSE));
+        h.assertTrue(service.snapshots().captureFacts(actor, partialReads).equals(snapshot.facts().restrict(partialReads)),
+                "partial fact capture differs from the full actor snapshot");
         var binding = snapshot.abilities().stream().filter(b -> instance.equals(b.source().grant())).findFirst().orElseThrow();
         var refresh = new ActorStates.Command(UUID.randomUUID(), actor.id(), service.state(actor.id()).revision(),
                 List.of(new ActorStates.RefreshDuration(instance, 4)));
         service.command(actor, refresh);
-        var refreshed = MinecraftSnapshotCapture.captureActor(actor);
+        var refreshed = service.snapshots().captureActor(actor);
         h.assertTrue(refreshed.abilities().contains(binding), "duration refresh revoked the effect grant");
         var oldEffect = (EffectSnapshot.Tactical) snapshot.effects().stream()
                 .filter(e -> e instanceof EffectSnapshot.Tactical t && t.instance().equals(instance)).findFirst().orElseThrow();
@@ -59,7 +64,7 @@ public final class TacticalEffectChecks {
         h.assertTrue(nextEffect.revision() > oldEffect.revision() && nextEffect.grantRevision() == oldEffect.grantRevision()
                 && nextEffect.remaining() == 4 && oldEffect.remaining() == 3, "effect snapshot revisions or immutability");
         body.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.SPEED, 80, 2));
-        var nativeProjection = MinecraftSnapshotCapture.captureActor(actor).effects().stream()
+        var nativeProjection = service.snapshots().captureActor(actor).effects().stream()
                 .filter(e -> e instanceof EffectSnapshot.Vanilla).findFirst().orElseThrow();
         h.assertTrue(nativeProjection.rank() == 3 && ((EffectSnapshot.Vanilla)nativeProjection).amplifier() == 2 && nativeProjection.stacks() == 1 && nativeProjection.remaining() == 80,
                 "native amplifier was converted into tactical stacks or duration changed by capture");
@@ -83,14 +88,14 @@ public final class TacticalEffectChecks {
         local.apply(new ActorStates.Command(consume.operation(), actor.id(), local.state(actor.id()).revision(), consume.changes()));
         checkpoint.update(local); restored = checkpoint.restore();
         h.assertTrue(restored.apply(restored.receipt(consume.operation()).command()).equals(local.state(actor.id())), "consume receipt failed round trip");
-        h.assertTrue(MinecraftSnapshotCapture.captureActor(actor).abilities().stream().noneMatch(b -> instance.equals(b.source().grant())),
+        h.assertTrue(service.snapshots().captureActor(actor).abilities().stream().noneMatch(b -> instance.equals(b.source().grant())),
                 "consumed stacks retained conditional grant");
         service.advance(actor.id(), EffectDefinition.Clock.TURN_END);
         service.advance(actor.id(), EffectDefinition.Clock.TURN_END);
         service.advance(actor.id(), EffectDefinition.Clock.TURN_END);
         service.advance(actor.id(), EffectDefinition.Clock.TURN_END);
         h.assertTrue(service.state(actor.id()).runtime().effects().isEmpty(), "effect did not expire");
-        h.assertTrue(MinecraftSnapshotCapture.captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS) == base,
+        h.assertTrue(service.snapshots().captureFacts(actor, reads).read(reads, ActorFacts.ARMOR_CLASS) == base,
                 "expired effect retained stat contribution");
         body.discard(); h.succeed();
     }

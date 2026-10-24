@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.platform.server.encounter;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 
 import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
@@ -31,7 +32,7 @@ public final class CombatSubscriptions {
         if (next.equals(bodies.get(player.getUUID()))) return;
         long sequence = bodySequences.merge(player.getUUID(), 1L, Math::addExact);
         try {
-            if (EncounterProtocol.sendBodyState(player, new EncounterProtocol.BodyState(generation, sequence, paused, movement, controlled)))
+            if (cc.sighs.dndturn.platform.server.network.EncounterSender.sendBodyState(player, new EncounterProtocol.BodyState(generation, sequence, paused, movement, controlled)))
             {
                 bodies.put(player.getUUID(), next);
             }
@@ -45,7 +46,7 @@ public final class CombatSubscriptions {
     public void publish(ServerPlayer player, EncounterProtocol.EncounterState state) {
         pendingStates.put(player.getUUID(), state);
         try {
-            if (EncounterProtocol.sendEncounterState(player, state))
+            if (cc.sighs.dndturn.platform.server.network.EncounterSender.sendEncounterState(player, state))
                 pendingStates.remove(player.getUUID(), state);
         } catch (RuntimeException failure) {
             LogUtils.getLogger().error("Encounter projection failed for {}; queued authoritative resync", player.getUUID(), failure);

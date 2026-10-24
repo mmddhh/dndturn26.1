@@ -28,12 +28,12 @@ public final class EnvironmentDomainChecks {
         var second=helper.makeMockServerPlayerInLevel();second.setPos(base.getX()+secondOffset+.5,base.getY(),base.getZ()+.5);
         var service=ServerRuntime.encounters(level.getServer());List<Entity> entities=new ArrayList<>();
         Runnable cleanup=()->{
-            for(var player:List.of(first,second)){UUID id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);}
+            for(var player:List.of(first,second)){UUID id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);}
             entities.forEach(Entity::discard);
             for(long key:forced){var chunk=ChunkPos.unpack(key);level.setChunkForced(chunk.x(),chunk.z(),false);}forced.clear();
         };
         helper.runAtTickTime(30,()->{
-            service.requestStart(first,UUID.randomUUID());service.requestStart(second,UUID.randomUUID());
+            service.lifecycle().requestStart(first,UUID.randomUUID());service.lifecycle().requestStart(second,UUID.randomUUID());
             UUID a=service.encounterOf(first.getUUID()),b=service.encounterOf(second.getUUID());
             helper.assertTrue(a!=null && b!=null && !a.equals(b),"independent domains not established");
             var exposed=EntityType.COW.create(level,EntitySpawnReason.COMMAND);
@@ -46,12 +46,12 @@ public final class EnvironmentDomainChecks {
             var tnt=new PrimedTnt(level,base.getX()+7.5,base.getY(),base.getZ()+.5,null);
             tnt.setFuse(1);tnt.setNoGravity(true);tnt.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
             level.addFreshEntity(tnt);entities.add(tnt);
-            service.endCurrentTurn(a,UUID.randomUUID(),service.state(a).version());
+            service.combat().endCurrentTurn(a,UUID.randomUUID(),service.state(a).version());
             helper.runAfterDelay(5,()->{
                 helper.assertTrue(tnt.isRemoved() && exposed.getHealth()<health,"fixture did not execute an effective TNT explosion");
                 helper.assertTrue(protectedCow.getHealth()==health && protectedCow.position().distanceToSqr(position)<.001,
                     "A explosion damaged or pushed B's paused domain");
-                helper.assertTrue(service.environmentTimeAt(level,second.blockPosition())==0,"A's step advanced B's clock");
+                helper.assertTrue(service.world().environmentTimeAt(level,second.blockPosition())==0,"A's step advanced B's clock");
                 cleanup.run();helper.succeed();
             });
         });

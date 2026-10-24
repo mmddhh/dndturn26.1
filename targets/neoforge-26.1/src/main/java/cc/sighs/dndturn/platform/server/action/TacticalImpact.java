@@ -1,6 +1,5 @@
 package cc.sighs.dndturn.platform.server.action;
 
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -23,14 +22,15 @@ public final class TacticalImpact {
         public Prepared { writes = Set.copyOf(writes); dependencies = Map.copyOf(dependencies); }
     }
 
-    public static void authorize(ServerPlayer player, BlockPos pos) {
+    public static void authorize(ServerPlayer player, BlockPos pos,
+            cc.sighs.dndturn.domain.encounter.EncounterAuthority engine,
+            java.util.function.BiFunction<net.minecraft.server.level.ServerLevel, BlockPos, java.util.UUID> encounterAt) {
         var level = player.level();
-        var service = ServerRuntime.encounters(level.getServer());
-        var id = service.encounterOf(player.getUUID());
+        var id = engine.encounterOf(player.getUUID());
         if (id == null || !level.hasChunkAt(pos) || !level.isInWorldBounds(pos)
             || !level.getWorldBorder().isWithinBounds(pos)
-            || !service.state(id).region().containsBlock(pos.getX(), pos.getY(), pos.getZ())
-            || !id.equals(service.encounterAtBlock(level, pos)))
+            || !engine.stateView(id).region().containsBlock(pos.getX(), pos.getY(), pos.getZ())
+            || !id.equals(encounterAt.apply(level, pos)))
             throw new IllegalStateException("effect outside loaded encounter");
         if (level.getServer().isUnderSpawnProtection(level, pos, player) || !level.mayInteract(player, pos))
             throw new IllegalStateException("protected effect destination");
@@ -118,4 +118,27 @@ public final class TacticalImpact {
         return new Prepared(use.getClickedPos().immutable(), use.getClickedFace(), use.getClickLocation(),
             player.getYRot(), player.getXRot(), writes, "", dependencies);
     }
+    private static final ThreadLocal<Scope> CURRENT = new ThreadLocal<>();
+    static Scope enter(ActionExecutionCoordinator actions, cc.sighs.dndturn.platform.server.entity.LiveActorContext actor,
+            ActionExecutionCoordinator.Execution execution) { return new Scope(actions, actor, execution); }
+    static final class Scope implements AutoCloseable {
+        private final Scope previous;
+        private final ActionExecutionCoordinator actions;
+        private final cc.sighs.dndturn.platform.server.entity.LiveActorContext actor;
+        private final ActionExecutionCoordinator.Execution execution;
+        private Scope(ActionExecutionCoordinator actions, cc.sighs.dndturn.platform.server.entity.LiveActorContext actor,
+                ActionExecutionCoordinator.Execution execution) {
+            actions.verifyContext(actor, execution, false);
+            this.actions = actions; this.actor = actor; this.execution = execution;
+            previous = CURRENT.get(); CURRENT.set(this);
+        }
+        public void close() { if (previous == null) CURRENT.remove(); else CURRENT.set(previous); }
+    }
+    public static void authorize(ServerPlayer player, BlockPos pos) {
+        var scope = CURRENT.get();
+        if (scope == null || scope.actor.body() != player) throw new IllegalStateException("effect has no bound execution");
+        scope.actions.verifyContext(scope.actor, scope.execution, false);
+        scope.actions.admission.authorizeImpact(player, pos);
+    }
+
 }

@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class TacticalKeyboardInputMixin extends ClientInput {
     @Inject(method = "tick", at = @At("TAIL"))
     private void dndturn$input(CallbackInfo ci) {
-        var steering = ClientTacticalPlan.steering();
+        var steering = cc.sighs.dndturn.platform.client.input.PlanSteering.steering(ClientTacticalPlan.requested(), ClientTacticalPlan.projection(), ClientTacticalPlan.phase() == ClientTacticalPlan.Phase.CANCEL_PENDING);
         if (steering != null) { keyPresses = steering.keys(); moveVector = steering.vector(); return; }
         if (ClientControl.blockMovement()) { keyPresses = Input.EMPTY; moveVector = Vec2.ZERO; }
     }

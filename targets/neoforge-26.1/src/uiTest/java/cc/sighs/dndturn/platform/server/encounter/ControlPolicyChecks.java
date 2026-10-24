@@ -5,8 +5,8 @@ import cc.sighs.dndturn.platform.server.control.ActorControlPolicy;
 import cc.sighs.dndturn.platform.server.control.InputPolicy;
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
 import cc.sighs.dndturn.platform.server.control.WorldOutcomePolicy;
-import cc.sighs.dndturn.platform.server.world.EnvironmentProcesses;
-import cc.sighs.dndturn.platform.server.world.SimulationPreparation;
+import cc.sighs.dndturn.platform.server.control.EnvironmentProcesses;
+import cc.sighs.dndturn.platform.server.control.SimulationPreparation;
 import java.util.UUID;
 
 /** Pure policy counterexamples; platform behavior is additionally covered by GameTest. */

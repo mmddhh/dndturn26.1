@@ -2,20 +2,13 @@ package cc.sighs.dndturn.platform.server.damage;
 
 import cc.sighs.dndturn.domain.encounter.operation.DamageTrace;
 import cc.sighs.dndturn.platform.bootstrap.DNDTurnNeoForge;
-import cc.sighs.dndturn.platform.server.control.WorldOutcomePolicy;
-import cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
-import cc.sighs.dndturn.platform.server.world.WorldOutcomeHooks;
+
 import java.util.UUID;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
@@ -128,16 +121,15 @@ public final class TacticalDamageContext {
 
     public static boolean hurt(ServerLevel level, LivingEntity target, DamageSource source, float amount,
                                boolean knockback, UUID operationId) {
-        return hurtObserved(level, target, source, amount, knockback, operationId).accepted();
+        return cc.sighs.dndturn.platform.server.runtime.DamageHooks.hurtObserved(level, target, source, amount, knockback, operationId).accepted();
     }
 
     public static HurtObservation hurtObserved(ServerLevel level, LivingEntity target, DamageSource source,
-                                               float amount, boolean knockback, UUID operationId) {
+                                               float amount, boolean knockback, UUID operationId, DamageAttempt runtime) {
         if (!level.getServer().isSameThread() || target.level() != level
             || !source.is(DAMAGE_TYPE) || !Float.isFinite(amount) || amount < 0)
             throw new IllegalArgumentException("invalid tactical damage call");
         if (CURRENT.get() != null) throw new IllegalStateException("nested tactical damage needs a child operation");
-        var runtime = ServerRuntime.existingEncounter(level.getServer());
         if (runtime != null && runtime.cancelDamageAttempt(target, source, amount, operationId))
             return new HurtObservation(false, 0, false, false, false, knockback, null);
         Frame frame = new Frame(target, source, knockback, operationId);
@@ -182,25 +174,7 @@ public final class TacticalDamageContext {
         }
     }
 
-    public static void onIncoming(LivingIncomingDamageEvent event) {
-        if (WorldOutcomeHooks.authorizesDamage(event.getEntity(), event.getSource())) return;
-        if (VanillaEffectRoundController.authorizeIncoming(event)) return;
-        Frame frame = CURRENT.get();
-        if (frame != null && event.getEntity() == frame.target && event.getSource() == frame.source) {
-            // 26.1.2.84 rejects zero here despite its error text. Clear the one tick after hurtServer returns.
-            event.setInvulnerabilityTicks(1);
-        } else if (event.getEntity().level() instanceof ServerLevel level) {
-            EncounterRuntime service = ServerRuntime.existingEncounter(level.getServer());
-            if (!WorldOutcomePolicy.unscopedDamage(AuthorityProjection.incomingDamage(event.getEntity(), event.getSource())).allowed()) {
-                event.setCanceled(true);
-                // An out-of-encounter melee hit is converted to an immediate turn-based settlement
-                // (settled later this tick); unsupported external damage keeps its explicit rejection.
-                if (service != null && service.enqueueMeleeIntrusion(event.getEntity(), event.getSource())) return;
-                if (event.getEntity() instanceof ServerPlayer player)
-                    player.sendOverlayMessage(Component.literal("DNDTurn: unsupported external damage rejected"));
-            }
-        }
-    }
+
 
     public static void onKnockback(LivingKnockBackEvent event) {
         Frame frame = CURRENT.get();
@@ -209,4 +183,11 @@ public final class TacticalDamageContext {
             else event.setCanceled(true);
         }
     }
+    public static boolean configureIncoming(LivingIncomingDamageEvent event) {
+        Frame frame = CURRENT.get();
+        if (frame == null || frame.target != event.getEntity() || frame.source != event.getSource()) return false;
+        event.setInvulnerabilityTicks(1);
+        return true;
+    }
+
 }

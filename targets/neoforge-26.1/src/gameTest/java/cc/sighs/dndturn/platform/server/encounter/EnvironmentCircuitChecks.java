@@ -23,12 +23,12 @@ public final class EnvironmentCircuitChecks {
         var player=helper.makeMockServerPlayerInLevel();player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
         var service=ServerRuntime.encounters(level.getServer());List<Entity> entities=new ArrayList<>();
         Runnable cleanup=()->{
-            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);
+            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);
             entities.forEach(Entity::discard);
             for(long key:forced){var chunk=ChunkPos.unpack(key);level.setChunkForced(chunk.x(),chunk.z(),false);}forced.clear();
         };
         helper.runAtTickTime(30,()->{
-            service.requestStart(player,UUID.randomUUID());UUID id=service.encounterOf(player.getUUID());
+            service.lifecycle().requestStart(player,UUID.randomUUID());UUID id=service.encounterOf(player.getUUID());
             var leaf=base.north(4);var piston=base.south(4);var water=base.west(4);
             level.setBlockAndUpdate(leaf.below(),Blocks.CLAY.defaultBlockState());
             level.setBlockAndUpdate(leaf,Blocks.BIG_DRIPLEAF.defaultBlockState());
@@ -43,7 +43,7 @@ public final class EnvironmentCircuitChecks {
                         +level.getBlockState(leaf)+" cow="+cow.position()+" grounded="+cow.onGround());
                 helper.assertTrue(!level.getBlockState(piston).getValue(BlockStateProperties.EXTENDED),"piston event ran during thinking");
                 helper.assertTrue(level.getFluidState(water.west()).isEmpty(),"fluid propagated during thinking");
-                service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+                service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
                 helper.runAfterDelay(12,()->helper.assertTrue(level.getBlockState(leaf).getValue(BlockStateProperties.TILT)==Tilt.PARTIAL,
                     "dripleaf did not retain its ten-step intermediate phase"));
                 helper.runAfterDelay(32,()->{
@@ -54,7 +54,7 @@ public final class EnvironmentCircuitChecks {
                     class ResetRounds {
                         int completed;
                         void advance() {
-                            service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+                            service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
                             helper.runAfterDelay(32,()->{
                                 completed++;
                                 Tilt expected=completed==3?Tilt.NONE:Tilt.FULL;

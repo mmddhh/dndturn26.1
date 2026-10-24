@@ -1,11 +1,11 @@
 package cc.sighs.dndturn.platform.server.ai;
+import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.fact.FactKey;
 import cc.sighs.dndturn.domain.spatial.GridCell;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import java.util.*;
 import net.minecraft.world.entity.Mob;
 
@@ -13,8 +13,8 @@ import net.minecraft.world.entity.Mob;
 public final class MovementPorts {
     public interface Port {
         boolean matches(Mob actor);
-        ActionIntent opportunity(LiveActorContext actor, EncounterAuthority.StateView encounter, OperationRecord.Result previous);
-        List<GridCell> plan(LiveActorContext actor, EncounterAuthority.StateView encounter, ActionIntent intent,
+        ActionIntent opportunity(LiveActorContext actor, StateView encounter, OperationRecord.Result previous);
+        List<GridCell> plan(LiveActorContext actor, StateView encounter, ActionIntent intent,
                             GridCell target, Runnable probeBudget);
         Driver start(Mob actor, GridCell destination);
     }

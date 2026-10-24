@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.server.damage;
 
 import cc.sighs.dndturn.domain.fact.FactKey;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import java.util.*;
 import java.util.function.Predicate;
 import net.minecraft.world.entity.LivingEntity;

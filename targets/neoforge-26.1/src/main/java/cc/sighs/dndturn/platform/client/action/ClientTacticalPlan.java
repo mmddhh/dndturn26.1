@@ -17,8 +17,6 @@ import cc.sighs.dndturn.platform.spatial.ProjectileProfiles;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Input;
-import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
@@ -27,8 +25,6 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 public final class ClientTacticalPlan {
     private static ActionProtocol.Projection projection;
     private static long sequence = -1;
-    private static int steeringCursor;
-    private static UUID steeringOperation;
     private static UUID requested;
     // Terminal authority feedback survives background selection refresh and local path recomputation.
     private static String terminalFailure = "";
@@ -248,7 +244,7 @@ public final class ClientTacticalPlan {
             + " item=" + value.item() + " abilities=" + value.abilities().size() + " offers=" + value.offers().size()
             + " failure=" + value.failure() + " reason=" + value.reason());
         var connection = context.connection(); var level = Minecraft.getInstance().level; var player = Minecraft.getInstance().player;
-        context.enqueueWork(() -> {
+        cc.sighs.dndturn.platform.client.ClientSession.enqueue(context, () -> {
             var mc = Minecraft.getInstance(); var state = ClientCombatState.encounter();
             if (state == null || mc.level != level || mc.player != player || mc.getConnection() == null || mc.getConnection().getConnection() != connection
                 || !state.generation().equals(value.generation()) || !state.encounterId().equals(value.encounter()) || !value.query().equals(queryId) || value.revision() != revision
@@ -374,7 +370,7 @@ public final class ClientTacticalPlan {
         var connection = context.connection();
         var level = Minecraft.getInstance().level;
         var player = Minecraft.getInstance().player;
-        context.enqueueWork(() -> {
+        cc.sighs.dndturn.platform.client.ClientSession.enqueue(context, () -> {
             var mc = Minecraft.getInstance();
             var encounter = ClientCombatState.encounter();
             if (mc.level != level || mc.player != player || mc.getConnection() == null
@@ -474,34 +470,7 @@ public final class ClientTacticalPlan {
         // merely because input/packet handling ran before that tick's turn reconciliation.
         observeTurn(current, round);
     }
-    public record Steering(Input keys, Vec2 vector) {}
-    public static Steering steering() {
-        var mc = Minecraft.getInstance();
-        var state = ClientCombatState.encounter();
-        if (phase == Phase.CANCEL_PENDING) return new Steering(Input.EMPTY, Vec2.ZERO);
-        if (requested == null || projection == null || !requested.equals(projection.operation()) || !projection.running() || projection.waypoint() == null || mc.player == null
-            || state == null || !state.generation().equals(projection.generation()) || !state.encounterId().equals(projection.encounter()) || !ClientCombatState.movementAllowed()) return null;
-        if (mc.screen != null || !mc.isWindowActive() || ClientControl.modal()) return new Steering(Input.EMPTY, Vec2.ZERO);
-        GridCell cell = projection.waypoint();
-        if (!projection.operation().equals(steeringOperation)) { steeringOperation=projection.operation(); steeringCursor=projection.cursor(); }
-        steeringCursor=Math.max(steeringCursor,projection.cursor());
-        var path=projection.route();
-        if (!path.isEmpty()) {
-            while (steeringCursor<path.size()-1
-                && mc.player.position().distanceToSqr(vector(path.get(steeringCursor).feet()))<.09) steeringCursor++;
-        }
-        Vec3 waypoint = projection.route().isEmpty() ? new Vec3(cell.x() + .5, cell.y(), cell.z() + .5)
-            : vector(path.get(steeringCursor).feet());
-        Vec3 delta = waypoint.subtract(mc.player.position());
-        boolean finalPoint=path.isEmpty() || steeringCursor==path.size()-1;
-        if (delta.lengthSqr() < (path.isEmpty() ? .16 : finalPoint?.0064:.09)) return new Steering(Input.EMPTY, Vec2.ZERO);
-        double yaw = Math.toRadians(mc.player.getYRot());
-        double forward = -Math.sin(yaw) * delta.x + Math.cos(yaw) * delta.z;
-        double left = Math.cos(yaw) * delta.x + Math.sin(yaw) * delta.z;
-        double length = Math.max(.001, Math.hypot(forward, left));
-        float scale = finalPoint ? (float)Math.min(1, delta.horizontalDistance() * 3) : 1;
-        boolean jump = delta.y > .5 && mc.player.onGround();
-        return new Steering(new Input(forward > .01, forward < -.01, left > .01, left < -.01, jump, false, false),
-            new Vec2((float)(left / length) * scale, (float)(forward / length) * scale));
-    }
+    public static ActionProtocol.Projection projection() { return projection; }
+    public static UUID requested() { return requested; }
+
 }

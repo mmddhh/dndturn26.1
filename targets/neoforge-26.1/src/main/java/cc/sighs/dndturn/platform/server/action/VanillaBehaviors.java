@@ -1,18 +1,18 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.AbilityDefinition;
 import cc.sighs.dndturn.domain.ability.ActionCost;
 import cc.sighs.dndturn.domain.ability.BuiltinAbilities;
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.fact.RuleFacts;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import cc.sighs.dndturn.platform.mixin.server.action.TacticalDestroyAccessor;
 import cc.sighs.dndturn.platform.projection.PresentationUseIdentity;
-import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.ability.MinecraftAbilityAdapter;
+import cc.sighs.dndturn.platform.server.action.MinecraftAbilityAdapter;
 import cc.sighs.dndturn.platform.server.control.ActiveBodyControl;
 import cc.sighs.dndturn.platform.spatial.PreviewPathfinder;
 import java.util.*;
@@ -30,7 +30,7 @@ import static cc.sighs.dndturn.platform.server.action.ActionExecutionCoordinator
 public final class VanillaBehaviors {
     private VanillaBehaviors() {}
     private static void register(MinecraftAbilityAdapter adapter) {
-        AbilityAdapterRegistry.register(adapter.definition(), adapter, adapter);
+        cc.sighs.dndturn.platform.server.action.AbilityExecutors.register(adapter.definition(), adapter, adapter);
     }
     public static void register() {
         register(new Move());
@@ -63,7 +63,7 @@ public final class VanillaBehaviors {
     static final class Move extends MinecraftAbilityAdapter {
         Move() { super(BuiltinAbilities.require("dndturn:move")); }
         public GrantEvidence source(LiveActorContext actor, ActionIntent.Hand hand) { return GrantEvidence.basic(); }
-        public String unavailable(LiveActorContext actor, ActionIntent i, EncounterAuthority.StateView s) { return null; }
+        public String unavailable(LiveActorContext actor, ActionIntent i, StateView s) { return null; }
         public int approachRadius() { return 0; }
         public boolean canExecute(LiveActorContext actor, ActionIntent i, Vec3 feet) {
             return feet.distanceToSqr(i.approach() == null ? point(i.target().cell()) : PreviewPathfinder.vector(i.approach().feet())) < .16;
@@ -82,7 +82,7 @@ public final class VanillaBehaviors {
         public boolean supportsItem(ItemStack stack) {
             return !stack.isEmpty();
         }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
             if (i.hand() != ActionIntent.Hand.MAIN_HAND) return "melee requires main hand";
             if (stack(p, i).isEmpty()) return "selected item is empty";
             return attackTarget(p, i, s);
@@ -91,7 +91,7 @@ public final class VanillaBehaviors {
             return cell(BlockPos.containing(feet)).chebyshev(targetCell(p, i)) <= 1 && super.canExecute(p, i, feet);
         }
         public void start(ActionExecutionCoordinator a, ServerPlayer p, Execution e) {
-            a.service.actionHost().attackPlan(new LiveActorContext(p), e.root.target(), UUID.randomUUID(), e.root.operationId(),
+            a.combat.attackPlan(a.actorStates.context(p), e.root.target(), UUID.randomUUID(), e.root.operationId(),
                 result -> a.finish(p, e, result.outcome(), result.reason()));
         }
         public void tick(ActionExecutionCoordinator a, ServerPlayer p, Execution e) { throw new IllegalStateException("melee already terminal"); }
@@ -111,11 +111,11 @@ public final class VanillaBehaviors {
             a.beginStep(p, e);
             try {
                 InteractionResult result;
-                try (var effects = new ItemWorldMutationScope(p,e)) { result = invoke(p, e); }
+                try (var effects = new ItemWorldMutationScope(p,e,a.effects)) { result = invoke(p, e); }
                 // Tactical submission has no client-side use prediction. Bridge either native
                 // swing source once through the existing confirmed presentation event channel.
                 if (result instanceof InteractionResult.Success success && success.swingSource() != InteractionResult.SwingSource.NONE)
-                    a.service.entityProjections().swing(p, e.root.encounterId(), e.action, hand(e.root.intent()));
+                    a.effects.swing(p, e.root.encounterId(), e.action, hand(e.root.intent()));
                 a.confirmSourceChange(p, e);
                 if (result.consumesAction() && p.isUsingItem()) {
                     e.useIdentity = ((PresentationUseIdentity)p).dndturn$useIdentity();
@@ -131,14 +131,14 @@ public final class VanillaBehaviors {
         }
         public void tick(ActionExecutionCoordinator a, ServerPlayer p, Execution e) {
             if (!p.isUsingItem() || p.getUsedItemHand() != hand(e.root.intent())) throw new IllegalStateException("item use interrupted");
-            try (var effects = new ItemWorldMutationScope(p,e)) { ActiveBodyControl.tickUse(p); }
+            try (var effects = new ItemWorldMutationScope(p,e,a.effects)) { ActiveBodyControl.tickUse(p); }
             a.confirmSourceChange(p, e);
             if (!p.isUsingItem()) a.finishAction(p, e, OperationRecord.Outcome.COMPLETED, "item use finished");
         }
     }
     static final class BlockUse extends Interaction {
         BlockUse() { super("dndturn:block"); }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
             return i.hand() == ActionIntent.Hand.MAIN_HAND ? null : "block-only vanilla branch requires main hand";
         }
         protected InteractionResult invoke(ServerPlayer p, ActionIntent i) {
@@ -157,7 +157,7 @@ public final class VanillaBehaviors {
                 .stream().map(ActionExecutionCoordinator::cell).toList();
         }
         public boolean supportsItem(ItemStack stack) { return supports.test(stack); }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) { return supports.test(stack(p, i)) ? null : "item-on-block contract unavailable"; }
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) { return supports.test(stack(p, i)) ? null : "item-on-block contract unavailable"; }
         public void prepare(ActionExecutionCoordinator a, ServerPlayer p, Execution e) {
             super.prepare(a,p,e);
             if (!e.preparedImpact.equals(TacticalImpact.prepare(new net.minecraft.world.item.context.UseOnContext(p,hand(e.root.intent()),hit(e.root.intent())))))
@@ -182,7 +182,7 @@ public final class VanillaBehaviors {
     static final class Consume extends Interaction {
         public boolean supportsItem(ItemStack stack) { return stack.has(DataComponents.CONSUMABLE); }
         Consume() { super("dndturn:consume"); }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
             return stack(p, i).has(DataComponents.CONSUMABLE) ? null : "consumable component required";
         }
         protected InteractionResult invoke(ServerPlayer p, ActionIntent i) { return p.gameMode.useItem(p, p.level(), stack(p, i), hand(i)); }
@@ -202,7 +202,7 @@ public final class VanillaBehaviors {
                     && !(item instanceof SnowballItem) && !(item instanceof EggItem)
                     && !(item instanceof ExperienceBottleItem) && !(item instanceof SplashPotionItem);
         }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
             return supportsItem(stack(p,i)) ? null : "item uses a dedicated ability";
         }
         protected InteractionResult invoke(ServerPlayer p, ActionIntent i) {
@@ -215,7 +215,7 @@ public final class VanillaBehaviors {
             var value=stack.get(DataComponents.EQUIPPABLE);
             return value!=null && value.swappable() && !stack.has(DataComponents.CONSUMABLE);
         }
-        public String unavailable(ServerPlayer p,ActionIntent i,EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p,ActionIntent i,StateView s) {
             var stack=stack(p,i);var equip=stack.get(DataComponents.EQUIPPABLE);
             if(equip==null || !equip.swappable() || !equip.canBeEquippedBy(p.typeHolder()) || !p.canUseSlot(equip.slot())) return "equipment slot unavailable";
             if(stack.getCount()>1 && !p.getItemBySlot(equip.slot()).isEmpty() && p.getInventory().getFreeSlot()<0)
@@ -228,7 +228,7 @@ public final class VanillaBehaviors {
     static final class Brush extends Interaction {
         Brush() { super("dndturn:brush"); }
         public boolean supportsItem(ItemStack stack) { return stack.getItem() instanceof BrushItem; }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
             return p.level().getBlockEntity(pos(i.target().cell())) instanceof net.minecraft.world.level.block.entity.BrushableBlockEntity
                 ? null : "target is not brushable";
         }
@@ -237,7 +237,7 @@ public final class VanillaBehaviors {
         }
         public void prepare(ActionExecutionCoordinator a, ServerPlayer p, Execution e) {
             super.prepare(a,p,e);
-            for (var c : observationFootprint(new LiveActorContext(p),e.root.intent())) TacticalImpact.authorize(p,pos(c));
+            for (var c : observationFootprint(a.actorStates.context(p),e.root.intent())) TacticalImpact.authorize(p,pos(c));
             verifyRay(p,e.root.intent());
         }
         private void verifyRay(ServerPlayer p, ActionIntent i) {
@@ -264,7 +264,7 @@ public final class VanillaBehaviors {
         }
         public boolean supportsItem(ItemStack stack) { return stack.getItem() instanceof BucketItem; }
         Bucket() { super("dndturn:bucket"); }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
             var stack = stack(p, i);
             if (!supportsItem(stack)) return "fluid or vanilla entity bucket required";
             BlockPos adjacent = pos(i.target().cell()).relative(Direction.values()[i.target().face()]);
@@ -291,7 +291,7 @@ public final class VanillaBehaviors {
         Bottle() { super("dndturn:bottle"); }
         public boolean supportsItem(ItemStack stack) { return stack.is(Items.GLASS_BOTTLE); }
         protected ClipContext.Fluid fluids(ServerPlayer p,ActionIntent i) { return ClipContext.Fluid.SOURCE_ONLY; }
-        public String unavailable(ServerPlayer p,ActionIntent i,EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p,ActionIntent i,StateView s) {
             return p.level().getFluidState(pos(i.target().cell())).is(net.minecraft.tags.FluidTags.WATER) ? null : "water source required";
         }
         public void prepare(ActionExecutionCoordinator a,ServerPlayer p,Execution e) {
@@ -313,7 +313,7 @@ public final class VanillaBehaviors {
     static final class EntityItem extends Interaction {
         public boolean supportsItem(ItemStack stack) { return MinecraftEntityUse.supports(stack); }
         EntityItem() { super("dndturn:entity_item"); }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) {
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
             return MinecraftEntityUse.unavailable(p,i);
         }
         public void prepare(ActionExecutionCoordinator a, ServerPlayer p, Execution e) {
@@ -327,7 +327,7 @@ public final class VanillaBehaviors {
     }
     static final class Break extends PlayerBehavior {
         Break() { super("dndturn:break"); }
-        public String unavailable(ServerPlayer p, ActionIntent i, EncounterAuthority.StateView s) { return i.hand() == ActionIntent.Hand.MAIN_HAND ? null : "breaking requires main hand"; }
+        public String unavailable(ServerPlayer p, ActionIntent i, StateView s) { return i.hand() == ActionIntent.Hand.MAIN_HAND ? null : "breaking requires main hand"; }
         public void start(ActionExecutionCoordinator a, ServerPlayer p, Execution e) {
             a.beginStep(p, e);
             BlockPos target = pos(e.targetCell); var before = p.level().getBlockState(target);

@@ -1,7 +1,9 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.platform.projection.PresentationUseIdentity;
 import cc.sighs.dndturn.platform.server.control.ActiveBodyControl;
@@ -21,7 +23,7 @@ final class RangedBehavior extends PlayerBehavior {
     @Override public boolean supportsItem(ItemStack stack) { return weapon instanceof BowItem ? stack.getItem() instanceof BowItem
             : weapon instanceof CrossbowItem ? stack.getItem() instanceof CrossbowItem
             : weapon instanceof SnowballItem ? stack.getItem() instanceof SnowballItem : stack.is(weapon); }
-    @Override public String unavailable(ServerPlayer player, ActionIntent intent, EncounterAuthority.StateView state) {
+    @Override public String unavailable(ServerPlayer player, ActionIntent intent, StateView state) {
         if (!supportsItem(stack(player, intent))) return "selected ranged weapon required";
         try { validateAmmo(player, intent); } catch (IllegalStateException e) { return e.getMessage(); }
         return attackTarget(player, intent, state);
@@ -48,15 +50,15 @@ final class RangedBehavior extends PlayerBehavior {
         return Set.copyOf(slots);
     }
     public void start(ActionExecutionCoordinator actions, ServerPlayer player, ActionExecutionCoordinator.Execution execution) {
-        var service = actions.service; var engine = actions.engine; UUID child = UUID.randomUUID();
+        var engine = actions.engine; UUID child = UUID.randomUUID();
         var root = execution.root;
         var snapshot = new OperationRecord.Snapshot(child, root.operationId(), root.encounterId(), player.getUUID(), player.getUUID(),
-            root.target(), service.actionHost().planClock(), engine.stateView(root.encounterId()).version(), MinecraftCoordinates.cell(player.blockPosition()), execution.targetCell,
-            OperationRecord.Kind.ATTACK, service.generation());
+            root.target(), actions.evidence.planClock(), engine.stateView(root.encounterId()).version(), MinecraftCoordinates.cell(player.blockPosition()), execution.targetCell,
+            OperationRecord.Kind.ATTACK, actions.generation);
         boolean opening = !engine.hasAttemptedAttack(root.encounterId(), player.getUUID())
             && player.level().getEntity(root.target()) instanceof net.minecraft.world.entity.Mob mob && mob.getTarget() != player;
         if (!engine.beginPlanStep(snapshot)) throw new IllegalStateException("ranged attack rejected");
-        execution.launchTrace = service.actionHost().rangedTrace(player, root.target(), child, opening);
+        execution.launchTrace = actions.combat.rangedTrace(player, root.target(), child, opening);
         execution.action = child;
         aim(player, root.target());
         try (var launch = new TacticalLaunchContext(player.getUUID(), root.encounterId(), child, root.target(), execution.launchTrace, root.operationId(), root.intent())) {

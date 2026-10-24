@@ -6,8 +6,8 @@ import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.encounter.operation.WorldOutcomeObservation;
 import cc.sighs.dndturn.platform.mixin.server.effect.CreeperEffectAccess;
 import cc.sighs.dndturn.platform.observation.VanillaEffectTypes;
-import cc.sighs.dndturn.platform.server.action.MinecraftCoordinates;
-import cc.sighs.dndturn.platform.server.effect.TriggeredAbilities;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
+import cc.sighs.dndturn.platform.server.action.TriggeredAbilities;
 import java.util.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -123,7 +123,7 @@ public final class CreeperExplosion {
         engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit, root.encounterId(), root.operationId(), root.owner(),
                 Set.of(target.getUUID()), Set.of(EncounterPhase.CANDIDATE, EncounterPhase.ACTIVE), 1, engine.stateView(root.encounterId()).round()));
         var child = new OperationRecord.Snapshot(operation, root.operationId(), root.encounterId(), root.owner(), root.owner(), target.getUUID(),
-                frame.context.service().actionHost().planClock(), engine.stateView(root.encounterId()).version(), root.sourceCell(),
+                frame.context.service().clock(), engine.stateView(root.encounterId()).version(), root.sourceCell(),
                 MinecraftCoordinates.cell(target.blockPosition()), OperationRecord.Kind.DAMAGE, frame.context.service().generation());
         float health = target.getHealth(), absorption = target.getAbsorptionAmount();
         boolean admitted = false;

@@ -7,8 +7,8 @@ import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
 import cc.sighs.dndturn.platform.server.control.InputPolicy;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import cc.sighs.dndturn.platform.server.encounter.ExitAuthorizationChecks;
 import cc.sighs.dndturn.platform.server.encounter.MeleeAdapterChecks;
 import cc.sighs.dndturn.platform.server.network.CombatIntentHandler;
@@ -140,7 +140,7 @@ public final class RepairGameTests {
         var rejected = EncounterRuntime.restoreForGameTest(server, saved);
         helper.assertTrue(rejected.encounterOf(member) == null, "bad metadata installed a member");
         boolean refused = false;
-        try { rejected.requestStart(helper.makeMockServerPlayerInLevel(), UUID.randomUUID()); }
+        try { rejected.lifecycle().requestStart(helper.makeMockServerPlayerInLevel(), UUID.randomUUID()); }
         catch (IllegalStateException expected) { refused = true; }
         rejected.persistIfChanged();
         helper.assertTrue(refused && original.equals(saved.json()), "bad recovery allowed START or overwrote original JSON");
@@ -155,7 +155,7 @@ public final class RepairGameTests {
         var restored = EncounterRuntime.restoreForGameTest(server, saved);
         helper.assertTrue(encounter.equals(restored.encounterOf(member))
             && restored.state(encounter).members().containsKey(member), "valid recovery did not install member");
-        helper.assertTrue(restored.isProjectileQuarantined(arrow), "production recovery lost quarantine evidence");
+        helper.assertTrue(restored.projectiles().isProjectileQuarantined(arrow), "production recovery lost quarantine evidence");
         helper.assertTrue(ServerRuntime.existingEncounter(server) == live, "valid recovery replaced live service");
         helper.assertTrue(saved.envelope().cumulativeServerTicks() == 40, "clock-only save retained an old clock");
         var tickRate = helper.getLevel().tickRateManager();
@@ -166,14 +166,14 @@ public final class RepairGameTests {
             tickRate.setFrozen(true);
             tickRate.setFrozenTicksToRun(0);
             tickRate.tick();
-            restored.beforeLevelTick(helper.getLevel());
+            restored.world().beforeLevelTick(helper.getLevel());
             helper.assertTrue(beforeAudit.equals(restored.state(encounter)),
                 "frozen recovery settled or released an unaudited encounter");
             tickRate.setFrozen(false);
             tickRate.tick();
             // This member deliberately has no world entity. Exercise the production audit,
             // including its null-target UNKNOWN and subsequent release, not just decoding.
-            restored.beforeLevelTick(helper.getLevel());
+            restored.world().beforeLevelTick(helper.getLevel());
             helper.assertTrue(restored.encounterOf(member) == null,
                 "missing restored member retained control");
             restored.persistIfChanged();
@@ -184,13 +184,13 @@ public final class RepairGameTests {
             var results = audited.rules().closed().getFirst().results();
             helper.assertTrue(results.stream().anyMatch(result -> result.outcome() == OperationRecord.Outcome.UNKNOWN
                 && result.snapshot().target() == null), "recovery lost its encounter-wide UNKNOWN evidence");
-            helper.assertTrue(restored.isProjectileQuarantined(arrow), "release removed projectile quarantine");
-            restored.beforeLevelTick(helper.getLevel());
+            helper.assertTrue(restored.projectiles().isProjectileQuarantined(arrow), "release removed projectile quarantine");
+            restored.world().beforeLevelTick(helper.getLevel());
             restored.persistIfChanged();
             helper.assertTrue(audited.equals(saved.envelope()), "repeated audit changed terminal evidence");
             var reloaded = EncounterRuntime.restoreForGameTest(server, saved);
-            reloaded.beforeLevelTick(helper.getLevel());
-            helper.assertTrue(reloaded.encounterOf(member) == null && reloaded.isProjectileQuarantined(arrow),
+            reloaded.world().beforeLevelTick(helper.getLevel());
+            helper.assertTrue(reloaded.encounterOf(member) == null && reloaded.projectiles().isProjectileQuarantined(arrow),
                 "reloading recovery results resurrected control or lost quarantine");
         } finally {
             tickRate.setFrozen(frozen);
@@ -255,7 +255,7 @@ public final class RepairGameTests {
             }
         var service = ServerRuntime.encounters(helper.getLevel().getServer());
         Runnable cleanup = () -> {
-            service.leave(player.getUUID());
+            service.lifecycle().leave(player.getUUID());
             for (long packed : forcedChunks) {
                 var chunk = net.minecraft.world.level.ChunkPos.unpack(packed);
                 helper.getLevel().setChunkForced(chunk.x(), chunk.z(), false);
@@ -282,7 +282,7 @@ public final class RepairGameTests {
             && player.getUUID().equals(first.current()), "player-only candidate has incorrect membership or turn");
         CombatIntentHandler.handleIntent(player, intent);
         helper.assertTrue(service.state(encounter).equals(first), "START retry changed the existing session");
-        service.endCurrentTurn(encounter, UUID.randomUUID(), first.version());
+        service.combat().endCurrentTurn(encounter, UUID.randomUUID(), first.version());
         helper.assertTrue(service.state(encounter).phase() == EncounterPhase.ENVIRONMENT,
             "player-only end turn skipped the environment");
         helper.startSequence().thenWaitUntil(() -> {
@@ -294,7 +294,7 @@ public final class RepairGameTests {
             helper.assertTrue(next.members().get(player.getUUID()).action()
                 && next.members().get(player.getUUID()).movementTicks() == first.members().get(player.getUUID()).movementTicks(),
                 "player-only next turn did not refresh resources");
-            service.endCurrentTurn(encounter, UUID.randomUUID(), next.version());
+            service.combat().endCurrentTurn(encounter, UUID.randomUUID(), next.version());
         }).thenWaitUntil(() -> {
             var next = service.state(encounter);
             helper.assertTrue(next.phase() == EncounterPhase.CANDIDATE && next.round() == first.round() + 2,

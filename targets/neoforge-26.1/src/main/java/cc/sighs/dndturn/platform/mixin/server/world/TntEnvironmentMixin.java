@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.mixin.server.world;
 
-import cc.sighs.dndturn.platform.server.world.EnvironmentExplosion;
+import cc.sighs.dndturn.platform.server.runtime.EnvironmentExplosion;
 import net.minecraft.world.entity.item.PrimedTnt;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;

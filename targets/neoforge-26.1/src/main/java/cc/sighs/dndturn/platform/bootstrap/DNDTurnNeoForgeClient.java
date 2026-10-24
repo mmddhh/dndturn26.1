@@ -6,7 +6,6 @@ import cc.sighs.dndturn.platform.client.presentation.ClientPresentation;
 import cc.sighs.dndturn.platform.client.presentation.PresentationAdapters;
 import cc.sighs.dndturn.platform.client.render.ActionPreviewRenderer;
 import cc.sighs.dndturn.platform.client.simulation.ClientEntitySimulation;
-import cc.sighs.dndturn.platform.client.state.ClientCombatState;
 import cc.sighs.dndturn.platform.client.state.ClientInspection;
 import cc.sighs.dndturn.platform.client.ui.TacticalOverlay;
 import cc.sighs.dndturn.platform.network.ActionProtocol;
@@ -27,7 +26,7 @@ public final class DNDTurnNeoForgeClient {
         modBus.addListener(CombatControls::registerKeys);
         modBus.addListener(CombatControls::registerHud);
         modBus.addListener(ClientPresentation::register);
-        NeoForge.EVENT_BUS.addListener(ClientCombatState::onClientTick);
+        NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.platform.client.ClientSession::onClientTick);
         NeoForge.EVENT_BUS.addListener(ActionPreviewRenderer::extract);
         NeoForge.EVENT_BUS.addListener(ClientPresentation::tick);
         NeoForge.EVENT_BUS.addListener(ClientPresentation::leave);
@@ -40,11 +39,11 @@ public final class DNDTurnNeoForgeClient {
         event.register(InspectionProtocol.Reply.TYPE, ClientInspection::receive);
         event.register(ActionProtocol.Options.TYPE, ClientTacticalPlan::receiveOptions);
         event.register(ActionProtocol.Projection.TYPE, ClientTacticalPlan::receive);
-        event.register(EncounterProtocol.BodyState.TYPE, ClientCombatState::receive);
+        event.register(EncounterProtocol.BodyState.TYPE, cc.sighs.dndturn.platform.client.ClientSession::receive);
         event.register(EncounterProtocol.EntitySimulation.TYPE, ClientEntitySimulation::receive);
         event.register(EncounterProtocol.TacticalSwing.TYPE, ClientPresentation::receiveSwing);
-        event.register(EncounterProtocol.EncounterState.TYPE, ClientCombatState::receiveEncounter);
-        event.register(EncounterProtocol.IntentStatus.TYPE, ClientCombatState::receiveIntentStatus);
-        event.register(EncounterProtocol.ConsentState.TYPE, ClientCombatState::receiveConsent);
+        event.register(EncounterProtocol.EncounterState.TYPE, cc.sighs.dndturn.platform.client.ClientSession::receiveEncounter);
+        event.register(EncounterProtocol.IntentStatus.TYPE, cc.sighs.dndturn.platform.client.ClientSession::receiveIntentStatus);
+        event.register(EncounterProtocol.ConsentState.TYPE, cc.sighs.dndturn.platform.client.ClientSession::receiveConsent);
     }
 }

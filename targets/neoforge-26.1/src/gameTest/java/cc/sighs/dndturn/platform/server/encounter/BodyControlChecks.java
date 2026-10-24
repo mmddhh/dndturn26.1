@@ -1,9 +1,10 @@
 package cc.sighs.dndturn.platform.server.encounter;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 
 import cc.sighs.dndturn.domain.ai.AiDefinition;
 import cc.sighs.dndturn.gametest.TestPlayers;
 import cc.sighs.dndturn.platform.server.action.ActionTestAccess;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.actor.ActorDefinitions;
 import cc.sighs.dndturn.platform.server.ai.AiDefinitions;
 import cc.sighs.dndturn.platform.server.ai.AiTestAccess;
@@ -29,7 +30,7 @@ public final class BodyControlChecks {
         UUID first=UUID.randomUUID(),second=UUID.randomUUID();
         for(UUID operation:java.util.List.of(first,second)) {
             var before=target.position();
-            var result=TacticalDamageContext.hurtObserved(level,target,source,1,true,operation);
+            var result=cc.sighs.dndturn.platform.server.runtime.DamageHooks.hurtObserved(level,target,source,1,true,operation);
             var evidence=result.displacement();
             helper.assertTrue(result.accepted()&&evidence!=null,"missing passive response evidence");
             helper.assertTrue(evidence.operationId().equals(operation)&&evidence.settlementTick()==level.getServer().getTickCount(),
@@ -60,14 +61,14 @@ public final class BodyControlChecks {
         wither.setPos(base.getX()-4.5,base.getY()+2,base.getZ()+.5);wither.setNoAi(true);level.addFreshEntity(wither);
         var service=ServerRuntime.encounters(level.getServer());
         Runnable cleanup=()-> {
-            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);mob.discard();creeper.discard();snow.discard();wither.discard();
+            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);mob.discard();creeper.discard();snow.discard();wither.discard();
             for(long key:forced){var c=net.minecraft.world.level.ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);}forced.clear();
         };
         helper.runAtTickTime(99,cleanup);
         helper.runAtTickTime(30,()-> {
-            service.requestStart(player,UUID.randomUUID()); UUID id=service.encounterOf(player.getUUID());
+            service.lifecycle().requestStart(player,UUID.randomUUID()); UUID id=service.encounterOf(player.getUUID());
             for(int i=0;i<service.state(id).members().size()&&!player.getUUID().equals(service.state(id).current());i++)
-                service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+                service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
             helper.assertTrue(player.getUUID().equals(service.state(id).current()),"fixture player turn unavailable");
             snow.setNoAi(false);wither.setNoAi(false);wither.setAlternativeTarget(0,player.getId());
             for(var p:BlockPos.betweenClosed(snow.blockPosition().offset(-1,0,-1),snow.blockPosition().offset(1,0,1)))
@@ -89,7 +90,7 @@ public final class BodyControlChecks {
                 .equals(CreeperAbilities.CHARGE), "Creeper did not use its explicit charge provider");
             helper.assertTrue(AiDefinitions.definition(ActorDefinitions.capture(new LiveActorContext(snow)), snow).targetPreference()
                 == AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS, "default neutral AI changed into indiscriminate player targeting");
-            var view=AiTestAccess.capture(new LiveActorContext(mob),service.state(id),null,ActionTestAccess.authority(service.tacticalActions()));
+            var view=AiTestAccess.capture(new LiveActorContext(mob),service.state(id),null,ActionTestAccess.authority(service.actions()), service.mobDecisionFacts());
             var seen=view.perception().actors().stream().filter(t->t.id().equals(player.getUUID())).findFirst().orElseThrow();
             // A real target lock is the hostility entry point: it joins the mob and records the
             // directed relation in both directions, so perception must expose it as hostile.
@@ -98,8 +99,8 @@ public final class BodyControlChecks {
                     + " player=" + player.position());
             int ticks=mob.tickCount;Vec3 before=mob.position();float health=player.getHealth();
             helper.runAfterDelay(12,()-> {
-                helper.assertTrue(mob.tickCount>ticks&&!service.isEntitySimulationPaused(mob),"body lifecycle remained frozen");
-                helper.assertTrue(mob.position().distanceToSqr(before)<.01&&!service.hasMobMoveLease(mob.getUUID())
+                helper.assertTrue(mob.tickCount>ticks&&!service.world().isEntitySimulationPaused(mob),"body lifecycle remained frozen");
+                helper.assertTrue(mob.position().distanceToSqr(before)<.01&&!service.movement().hasMobMoveLease(mob.getUUID())
                     && player.getHealth()==health,"unlicensed AI or navigation leaked");
                 // Membership, not mere presence, decides autonomy: a non-member inside the field
                 // keeps its AI so it can lock a target and be pulled in.

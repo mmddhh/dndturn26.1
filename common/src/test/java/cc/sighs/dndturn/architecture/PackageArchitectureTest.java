@@ -82,7 +82,7 @@ class PackageArchitectureTest {
         for (var ref : references(writer)) {
             if (!ref.startsWith(BASE + "platform.")) continue;
             assertTrue(ref.startsWith(BASE + "platform.server.persistence.")
-                || ref.equals(BASE + "platform.server.action.AbilityCheckpoint"),
+                || ref.startsWith(BASE + "platform.server.checkpoint."),
                 "checkpoint writer depends on live runtime: " + ref);
         }
         assertFalse(code(writer).contains("net.minecraft.world.entity."));
@@ -104,18 +104,18 @@ class PackageArchitectureTest {
     // This list admits hook contracts, policies, projections and fixed-version access interfaces, never owners.
     private static final Set<String> MIXIN_SEAMS = Set.of(
         "diagnostics.DebugDiagnostics", "server.runtime.MinecraftCombatRuntime",
-        "client.action.ClientTacticalPlan", "client.input.ClientControl", "client.input.MouseInputReset",
+        "client.action.ClientTacticalPlan", "client.input.ClientControl", "client.input.PlanSteering", "client.input.MouseInputReset",
         "client.presentation.ClientPresentation", "client.presentation.PresentationUse", "client.simulation.ClientEntitySimulation",
         "client.state.ClientCombatState", "client.ui.OverlayUi", "client.ui.ParticipantPortraits", "client.ui.TacticalOverlay",
         "projection.PresentationIdentity", "projection.PresentationUseIdentity",
-        "server.action.BrushRay", "server.action.ItemWorldMutationScope", "server.action.ProjectileImpactHooks", "server.action.TacticalUseContext",
-        "server.actor.ActorLifecycleHooks", "server.actor.EquipmentRevisions",
+        "server.action.BrushRay", "server.action.ItemWorldMutationScope", "server.runtime.ProjectileImpactHooks", "server.action.TacticalUseContext",
+        "server.runtime.ActorLifecycleHooks", "server.actor.EquipmentRevisions",
         "server.builtin.creeper.CreeperClouds", "server.builtin.creeper.CreeperExplosion",
-        "server.control.ActorControlPolicy", "server.control.InputPolicy", "server.control.MovementInputHooks",
+        "server.control.ActorControlPolicy", "server.control.InputPolicy", "server.runtime.MovementInputHooks",
         "server.control.SimulationPolicy", "server.control.VanillaInputPolicy", "server.damage.TacticalDamageContext",
-        "server.effect.vanilla.EffectTimerAccess", "server.effect.vanilla.VanillaEffectRoundController",
-        "server.encounter.AuthorityProjection", "server.presentation.ChestPresentation", "server.world.ConduitTimeAccess",
-        "server.world.EnvironmentExplosion", "server.world.EnvironmentProcesses", "server.world.ScheduledTickHooks", "server.world.WorldSimulationHooks"
+        "server.effect.vanilla.EffectTimerAccess", "server.runtime.VanillaEffectHooks",
+        "server.runtime.AuthorityProjection", "server.presentation.ChestPresentation", "server.world.ConduitTimeAccess",
+        "server.runtime.EnvironmentExplosion", "server.control.EnvironmentProcesses", "server.world.ScheduledTickHooks", "server.runtime.WorldSimulationHooks"
     );
     @Test void mixinsEnterOnlyApprovedPlatformSeams() throws Exception {
         for (var path : javaFiles(platform().resolve("cc/sighs/dndturn/platform/mixin")))
@@ -138,5 +138,27 @@ class PackageArchitectureTest {
             declared.add(packageOf(path).substring((BASE + "platform.mixin.").length()) + "." + path.getFileName().toString().replace(".java", ""));
         }
         assertEquals(declared, registered);
+    }
+    @Test void runtimeAndSideBoundariesRemainDirected() throws Exception {
+        for (var path : javaFiles(platform())) {
+            var pkg = packageOf(path);
+            var refs = references(path);
+            if (pkg.startsWith(BASE + "platform.server."))
+                assertTrue(refs.stream().noneMatch(ref -> ref.startsWith(BASE + "platform.client.")), path.toString());
+            if (pkg.equals(BASE + "platform.network")) {
+                assertTrue(refs.stream().noneMatch(ref -> ref.startsWith(BASE + "platform.bootstrap.")), path.toString());
+                assertFalse(code(path).contains("PacketDistributor"), path.toString());
+            }
+            if (List.of("actor", "ability", "entity", "fact").stream()
+                    .anyMatch(part -> pkg.equals(BASE + "platform.server." + part)))
+                assertTrue(refs.stream().noneMatch(ref -> ref.startsWith(BASE + "platform.server.runtime.")), path.toString());
+            if (pkg.equals(BASE + "platform.client.state"))
+                assertTrue(refs.stream().noneMatch(ref -> ref.startsWith(BASE + "platform.client.input.")
+                    || ref.startsWith(BASE + "platform.client.ui.")), path.toString());
+        }
+        for (String value : List.of("MemberView", "StateView"))
+            assertFalse(code(common().resolve("cc/sighs/dndturn/domain/encounter/" + value + ".java")).contains("EncounterAuthority"));
+        assertFalse(code(common().resolve("cc/sighs/dndturn/domain/resolution/ResolutionContext.java")).contains("EncounterAuthority"));
+        assertFalse(code(common().resolve("cc/sighs/dndturn/domain/action/ExecutionRequest.java")).contains("domain.resolution"));
     }
 }

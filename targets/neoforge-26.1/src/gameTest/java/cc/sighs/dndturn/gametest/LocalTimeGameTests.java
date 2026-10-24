@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.gametest;
+import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.application.planning.MovementPlanner;
 import cc.sighs.dndturn.domain.encounter.ConsentWindow;
@@ -14,15 +15,15 @@ import cc.sighs.dndturn.domain.resolution.CombatRules;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import cc.sighs.dndturn.platform.bootstrap.DNDTurnNeoForge;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
-import cc.sighs.dndturn.platform.server.action.MinecraftCellProbe;
+import cc.sighs.dndturn.platform.spatial.MinecraftCellProbe;
 import cc.sighs.dndturn.platform.server.actor.EffectReactionChecks;
 import cc.sighs.dndturn.platform.server.actor.EffectReactionRestartChecks;
 import cc.sighs.dndturn.platform.server.control.ActorControlPolicy;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 import cc.sighs.dndturn.platform.server.encounter.BodyControlChecks;
 import cc.sighs.dndturn.platform.server.encounter.DiscoveryCursorChecks;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import cc.sighs.dndturn.platform.server.encounter.EnvironmentBoundaryTimeChecks;
 import cc.sighs.dndturn.platform.server.encounter.EnvironmentCircuitChecks;
 import cc.sighs.dndturn.platform.server.encounter.EnvironmentClassificationChecks;
@@ -251,45 +252,45 @@ public final class LocalTimeGameTests {
             target.setNoAi(true); target.setNoGravity(true);
             EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
             UUID request = UUID.randomUUID();
-            service.requestStart(first, request);
-            var initial = service.consentView(request);
+            service.lifecycle().requestStart(first, request);
+            var initial = service.lifecycle().consentView(request);
             helper.assertTrue(initial.members().containsAll(Set.of(first.getUUID(), second.getUUID(), third.getUUID()))
-                    && service.encounterOf(first.getUUID()) == null && !service.isEntitySimulationPaused(first),
+                    && service.encounterOf(first.getUUID()) == null && !service.world().isEntitySimulationPaused(first),
                 "consent preflight paused world or lost required participants");
-            service.respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
+            service.lifecycle().respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
                 request, UUID.randomUUID(), second.getUUID(), initial.revision(), true));
             second.teleportTo(anchor.getX() + 80, anchor.getY(), anchor.getZ() + 0.5);
-            service.tickConsent();
-            helper.assertFalse(service.consentView(request).approvals().contains(second.getUUID()), "departure kept consent");
+            service.lifecycle().tickConsent();
+            helper.assertFalse(service.lifecycle().consentView(request).approvals().contains(second.getUUID()), "departure kept consent");
             second.teleportTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
-            service.tickConsent();
-            var reentered = service.consentView(request);
+            service.lifecycle().tickConsent();
+            var reentered = service.lifecycle().consentView(request);
             helper.assertTrue(reentered.members().contains(second.getUUID()) && !reentered.approvals().contains(second.getUUID()),
                 "reentry silently restored consent");
             UUID overlap = UUID.randomUUID();
-            service.requestStart(third, overlap);
-            var merged = service.consentView(overlap);
-            helper.assertTrue(merged.id().equals(service.consentView(request).id())
+            service.lifecycle().requestStart(third, overlap);
+            var merged = service.lifecycle().consentView(overlap);
+            helper.assertTrue(merged.id().equals(service.lifecycle().consentView(request).id())
                     && merged.deadline() == initial.deadline() && service.encounterOf(first.getUUID()) == null,
                 "overlapping request extended deadline or started before all consented");
             boolean stale = false;
             try {
-                service.respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
+                service.lifecycle().respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
                     request, UUID.randomUUID(), second.getUUID(), initial.revision(), true));
             } catch (IllegalStateException expected) { stale = true; }
             helper.assertTrue(stale && service.encounterOf(first.getUUID()) == null, "stale consent created a session");
             var reply = new EncounterProtocol.ConsentReply(service.generation(), request,
                 UUID.randomUUID(), second.getUUID(), merged.revision(), true);
-            service.respondToConsent(second, reply);
+            service.lifecycle().respondToConsent(second, reply);
             UUID encounter = service.encounterOf(first.getUUID());
             helper.assertTrue(encounter != null && encounter.equals(service.encounterOf(second.getUUID()))
                     && encounter.equals(service.encounterOf(third.getUUID())), "all consent did not create one shared session");
             long version = service.state(encounter).version();
-            service.respondToConsent(second, reply);
+            service.lifecycle().respondToConsent(second, reply);
             helper.assertTrue(service.state(encounter).version() == version, "duplicate consent changed the encounter");
             boolean conflict = false;
             try {
-                service.respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
+                service.lifecycle().respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
                     request, reply.operationId(), second.getUUID(), reply.revision(), false));
             } catch (IllegalStateException expected) { conflict = true; }
             helper.assertTrue(conflict && service.state(encounter).version() == version,
@@ -305,13 +306,13 @@ public final class LocalTimeGameTests {
             target.setTarget(first);
             helper.assertTrue(target.getTarget() == first, "exit fixture requires a live target");
             boolean insideRejected = false;
-            try { service.exitEncounter(first, encounter, exit, beforeExit); }
+            try { service.lifecycle().exitEncounter(first, encounter, exit, beforeExit); }
             catch (IllegalStateException expected) { insideRejected = true; }
             helper.assertTrue(insideRejected && encounter.equals(service.encounterOf(first.getUUID()))
                 && service.state(encounter).version() == beforeExit, "inside EXIT changed membership or resources");
             // Another player remains in combat; the neutral requester exits in place.
             target.setTarget(second);
-            service.exitEncounter(first, encounter, exit, beforeExit);
+            service.lifecycle().exitEncounter(first, encounter, exit, beforeExit);
             helper.assertTrue(first.position().equals(exitStart) && !MinecraftCombatRuntime.isBodyPaused(first),
                 "neutral inside exit teleported or retained body control");
             helper.assertTrue(service.encounterOf(first.getUUID()) == null
@@ -319,42 +320,42 @@ public final class LocalTimeGameTests {
                     && encounter.equals(service.encounterOf(third.getUUID())),
                 "one participant's exit ended another participant's session");
             long afterExit = service.state(encounter).version();
-            service.exitEncounter(first, encounter, exit, beforeExit);
+            service.lifecycle().exitEncounter(first, encounter, exit, beforeExit);
             helper.assertTrue(service.state(encounter).version() == afterExit, "exit retry changed remaining members");
-            service.exitEncounter(third, encounter, UUID.randomUUID(), afterExit);
+            service.lifecycle().exitEncounter(third, encounter, UUID.randomUUID(), afterExit);
             long lastVersion = service.state(encounter).version();
             second.setPos(exitStart.x + 128, exitStart.y, exitStart.z);
             boolean combatStopRejected = false;
-            try { service.exitEncounter(second, encounter, UUID.randomUUID(), lastVersion); }
+            try { service.lifecycle().exitEncounter(second, encounter, UUID.randomUUID(), lastVersion); }
             catch (IllegalStateException expected) { combatStopRejected = true; }
             helper.assertTrue(combatStopRejected && service.state(encounter).version() == lastVersion,
                 "last targeted player ended turn-based mode after crossing the boundary");
             target.setTarget(null);
             second.setPos(exitStart);
-            service.exitEncounter(second, encounter, UUID.randomUUID(), lastVersion);
+            service.lifecycle().exitEncounter(second, encounter, UUID.randomUUID(), lastVersion);
             helper.getLevel().getServer().setDifficulty(exitDifficulty, true);
             first.setPos(exitStart);
             UUID disconnect = UUID.randomUUID();
-            service.requestStart(first, disconnect);
-            service.consentDisconnected(second.getUUID());
-            helper.assertTrue(service.consentView(disconnect).status() == ConsentWindow.Status.DISCONNECTED
+            service.lifecycle().requestStart(first, disconnect);
+            service.lifecycle().consentDisconnected(second.getUUID());
+            helper.assertTrue(service.lifecycle().consentView(disconnect).status() == ConsentWindow.Status.DISCONNECTED
                     && service.encounterOf(first.getUUID()) == null, "disconnect did not cancel the entire request");
             UUID expiring = UUID.randomUUID();
-            service.requestStart(first, expiring);
+            service.lifecycle().requestStart(first, expiring);
             helper.runAtTickTime(410, () -> {
                 try {
-                    helper.assertTrue(service.consentView(expiring).status() == ConsentWindow.Status.EXPIRED,
+                    helper.assertTrue(service.lifecycle().consentView(expiring).status() == ConsentWindow.Status.EXPIRED,
                         "server did not expire consent after 400 actual ticks");
                     boolean expired = false;
                     try {
-                        service.respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
-                            expiring, UUID.randomUUID(), second.getUUID(), service.consentView(expiring).revision(), true));
+                        service.lifecycle().respondToConsent(second, new EncounterProtocol.ConsentReply(service.generation(),
+                            expiring, UUID.randomUUID(), second.getUUID(), service.lifecycle().consentView(expiring).revision(), true));
                     } catch (IllegalStateException expected) { expired = true; }
                     helper.assertTrue(expired && service.encounterOf(first.getUUID()) == null, "late consent created a session");
                     helper.succeed();
                 } finally {
                     for (ServerPlayer player : List.of(first, second, third)) {
-                        UUID id = service.encounterOf(player.getUUID()); if (id != null) service.stop(id);
+                        UUID id = service.encounterOf(player.getUUID()); if (id != null) service.lifecycle().stop(id);
                     }
                     for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
                         for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
@@ -377,21 +378,21 @@ public final class LocalTimeGameTests {
         return player;
     }
 
-    private static EncounterAuthority.StateView startEncounter(GameTestHelper helper, ServerPlayer player) {
+    private static StateView startEncounter(GameTestHelper helper, ServerPlayer player) {
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         UUID request = UUID.randomUUID();
-        var created = service.requestStart(player, request);
+        var created = service.lifecycle().requestStart(player, request);
         if (created.status() == StartDisposition.STARTED) return created.state();
         if (created.status() != StartDisposition.WAITING)
             throw new IllegalStateException(created.reason());
-        var window = service.consentView(request);
+        var window = service.lifecycle().consentView(request);
         for (UUID id : window.members()) if (!window.approvals().contains(id)) {
             var member = helper.getLevel().getServer().getPlayerList().getPlayer(id);
-            service.respondToConsent(member, new EncounterProtocol.ConsentReply(
-                service.generation(), request, UUID.randomUUID(), id, service.consentView(request).revision(), true));
+            service.lifecycle().respondToConsent(member, new EncounterProtocol.ConsentReply(
+                service.generation(), request, UUID.randomUUID(), id, service.lifecycle().consentView(request).revision(), true));
         }
         UUID encounter = service.encounterOf(player.getUUID());
-        if (encounter == null) throw new IllegalStateException("normal consent did not create a session: " + service.consentView(request));
+        if (encounter == null) throw new IllegalStateException("normal consent did not create a session: " + service.lifecycle().consentView(request));
         return service.state(encounter);
     }
 
@@ -436,7 +437,7 @@ public final class LocalTimeGameTests {
             helper.assertTrue(id.equals(service.encounterOf(cow.getUUID())) && id.equals(service.encounterOf(sheep.getUUID())),
                 "non-hostile mobs missing from turn roster");
             for (int n = 0; n < 3 && !cow.getUUID().equals(service.state(id).current()); n++)
-                service.endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
+                service.combat().endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
             helper.assertTrue(cow.getUUID().equals(service.state(id).current()), "cow turn not reached");
             Vec3 before = cow.position();
             Vec3 sheepBefore = sheep.position();
@@ -447,7 +448,7 @@ public final class LocalTimeGameTests {
                 helper.runAfterDelay(tick, () -> {
                     if (done[0]) return;
                     var state = service.state(id);
-                    var results = service.results(id, 0, 100).results();
+                    var results = service.lifecycle().results(id, 0, 100).results();
                     int charged = results.stream().filter(r -> r.snapshot().owner().equals(cow.getUUID())
                         && r.snapshot().kind() == OperationRecord.Kind.MOVE).mapToInt(OperationRecord.Result::actualMovementTicks).sum();
                     boolean terminal = results.stream().anyMatch(r -> r.snapshot().owner().equals(cow.getUUID())
@@ -457,14 +458,14 @@ public final class LocalTimeGameTests {
                     try {
                         helper.assertTrue(cow.position().distanceToSqr(before) > .01 && charged > 0 && charged <= budget,
                             "neutral cow did not move with a bounded charge: " + results);
-                        helper.assertTrue(terminal && !service.hasMobMoveLease(cow.getUUID()), "neutral movement lease did not terminate");
+                        helper.assertTrue(terminal && !service.movement().hasMobMoveLease(cow.getUUID()), "neutral movement lease did not terminate");
                         helper.assertTrue(sheep.position().equals(sheepBefore), "another neutral mob moved during the cow turn");
                         helper.assertTrue(state.phase() != EncounterPhase.ACTIVE && cow.getTarget() == null,
                             "neutral movement invented hostility");
                         helper.assertFalse(MinecraftCombatRuntime.isBodyPaused(player), "ordinary player body was paused during Cow movement");
                         helper.succeed();
                     } finally {
-                        service.stop(id);
+                        service.lifecycle().stop(id);
                         cow.discard(); sheep.discard();
                         for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
                             for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
@@ -609,13 +610,13 @@ public final class LocalTimeGameTests {
                 try {
                     helper.assertFalse(firstId.equals(secondId), "forbidden PvP merged the sessions");
                     helper.assertTrue(second.getHealth() == second.getMaxHealth(), "forbidden arrow harmed the player");
-                    var rejected = service.results(firstId, 0, 200).results().stream()
+                    var rejected = service.lifecycle().results(firstId, 0, 200).results().stream()
                         .filter(r -> r.snapshot().source().equals(fired[0].getUUID())
                             && r.reason().contains("PvP arrow forbidden")).toList();
                     helper.assertTrue(rejected.size() == 1, "PvP did not publish one explicit rejection");
                     helper.succeed();
                 } finally {
-                    service.stop(firstId); service.stop(secondId);
+                    service.lifecycle().stop(firstId); service.lifecycle().stop(secondId);
                     for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
                         for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
@@ -624,13 +625,13 @@ public final class LocalTimeGameTests {
             }
             if (removePending && fired[0] != null && fired[0].isRemoved()) {
                 try {
-                    var unknown = service.results(secondId, 0, 200).results().stream()
+                    var unknown = service.lifecycle().results(secondId, 0, 200).results().stream()
                         .filter(r -> r.snapshot().source().equals(fired[0].getUUID())
                             && r.outcome() == OperationRecord.Outcome.UNKNOWN).toList();
                     helper.assertTrue(unknown.size() == 1 && unknown.getFirst().terminal(),
                         "pending AB removal lost its unique UNKNOWN result: " + unknown);
-                    service.noteArrowLeave(fired[0]);
-                    helper.assertTrue(service.results(secondId, 0, 200).results().stream()
+                    service.projectiles().noteArrowLeave(fired[0]);
+                    helper.assertTrue(service.lifecycle().results(secondId, 0, 200).results().stream()
                             .filter(r -> r.snapshot().source().equals(fired[0].getUUID())).count() == 1,
                         "duplicate removal published another collision result");
                     service.persistIfChanged();
@@ -642,8 +643,8 @@ public final class LocalTimeGameTests {
                     helper.succeed();
                 } finally {
                     net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(removalProbe);
-                    service.stop(firstId);
-                    if (!firstId.equals(secondId)) service.stop(secondId);
+                    service.lifecycle().stop(firstId);
+                    if (!firstId.equals(secondId)) service.lifecycle().stop(secondId);
                     for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
                         for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
@@ -651,7 +652,7 @@ public final class LocalTimeGameTests {
                 return;
             }
             if (firstId.equals(secondId)) {
-                var attacks = service.results(firstId, 0, 200).results().stream()
+                var attacks = service.lifecycle().results(firstId, 0, 200).results().stream()
                     .filter(r -> r.snapshot().kind() == OperationRecord.Kind.ATTACK
                         && r.snapshot().owner().equals(first.getUUID())).toList();
                 if (!attacks.isEmpty()) {
@@ -662,7 +663,7 @@ public final class LocalTimeGameTests {
                             "AB arrow did not settle exactly once with observed damage: " + attacks);
                         helper.succeed();
                     } finally {
-                        service.stop(firstId);
+                        service.lifecycle().stop(firstId);
                         for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
                             for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
                                 helper.getLevel().setChunkForced(x, z, false);
@@ -673,7 +674,7 @@ public final class LocalTimeGameTests {
             for (UUID id : new java.util.HashSet<>(List.of(firstId, secondId))) {
                 var state = service.state(id);
                 for (int turns = 0; turns < 5 && state.phase() != EncounterPhase.ENVIRONMENT; turns++) {
-                    service.endCurrentTurn(id, UUID.randomUUID(), state.version());
+                    service.combat().endCurrentTurn(id, UUID.randomUUID(), state.version());
                     state = service.state(id);
                 }
             }
@@ -689,11 +690,11 @@ public final class LocalTimeGameTests {
             first.teleportTo(anchor.getX() + sourceX + 0.5, anchor.getY(), anchor.getZ() + 2.5);
             second.teleportTo(anchor.getX() + destinationX + 0.5, anchor.getY(), anchor.getZ() + 2.5);
             var a = startEncounter(helper, first);
-            EncounterAuthority.StateView b;
+            StateView b;
             try {
                 b = startEncounter(helper, second);
             } catch (RuntimeException failure) {
-                service.stop(a.id());
+                service.lifecycle().stop(a.id());
                 throw failure;
             }
             helper.assertFalse(a.region().overlaps(b.region()), "AB fixture regions must be disjoint");
@@ -716,7 +717,7 @@ public final class LocalTimeGameTests {
             float health = target.getHealth();
             for (UUID id : List.of(a.id(), b.id())) {
                 for (int turns = 0; turns < 4 && service.state(id).phase() != EncounterPhase.ENVIRONMENT; turns++)
-                    service.endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
+                    service.combat().endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
             }
             helper.runAtTickTime(settlementDeadline, () -> {
                 net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(removalProbe);
@@ -741,9 +742,9 @@ public final class LocalTimeGameTests {
                             + " target=" + target.getBoundingBox() + " alive=" + target.isAlive()
                             + " nativeLookup=" + helper.getLevel().getEntitiesOfClass(Zombie.class, target.getBoundingBox().inflate(1)).contains(target)
                             + " stateA=" + service.state(primary)
-                            + " A=" + service.results(primary, 0, 200).results()
-                            + " B=" + service.results(service.encounterOf(second.getUUID()), 0, 200).results());
-                    var attacks = service.results(primary, 0, 200).results().stream()
+                            + " A=" + service.lifecycle().results(primary, 0, 200).results()
+                            + " B=" + service.lifecycle().results(service.encounterOf(second.getUUID()), 0, 200).results());
+                    var attacks = service.lifecycle().results(primary, 0, 200).results().stream()
                         .filter(r -> r.snapshot().kind() == OperationRecord.Kind.ATTACK
                             && arrow.getUUID().equals(r.snapshot().source())).toList();
                     helper.assertTrue(attacks.size() == 1 && attacks.getFirst().damageTrace() != null
@@ -752,9 +753,9 @@ public final class LocalTimeGameTests {
                             + " initialHealth=" + health + " health=" + target.getHealth() + " fireTicks=" + target.getRemainingFireTicks());
                     helper.succeed();
                 } finally {
-                    service.stop(primary);
+                    service.lifecycle().stop(primary);
                     UUID remaining = service.encounterOf(second.getUUID());
-                    if (remaining != null) service.stop(remaining);
+                    if (remaining != null) service.lifecycle().stop(remaining);
                     for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
                         for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
@@ -804,7 +805,7 @@ public final class LocalTimeGameTests {
             }
             player.teleportTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
             EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-            EncounterAuthority.StateView created = startEncounter(helper, player);
+            StateView created = startEncounter(helper, player);
             service.useAttackRandomForGameTest(created.id(), new Random() {
                 @Override public int nextInt(int bound) { return scenario == 1 ? 0 : bound - 1; }
             });
@@ -815,25 +816,25 @@ public final class LocalTimeGameTests {
             helper.getLevel().addFreshEntity(arrow);
             for (int i = 0; i < 3 && service.state(created.id()).phase() != EncounterPhase.ENVIRONMENT; i++) {
                 var state = service.state(created.id());
-                service.endCurrentTurn(created.id(), UUID.randomUUID(), state.version());
+                service.combat().endCurrentTurn(created.id(), UUID.randomUUID(), state.version());
             }
             helper.assertTrue(service.state(created.id()).phase() == EncounterPhase.ENVIRONMENT,
                 "arrow test did not reach environment phase");
             float healthBefore = target.getHealth();
             helper.startSequence().thenWaitUntil(() -> helper.assertTrue(
-                service.results(created.id(), 0, 100).results().stream().anyMatch(result ->
+                service.lifecycle().results(created.id(), 0, 100).results().stream().anyMatch(result ->
                     result.snapshot().kind() == OperationRecord.Kind.ATTACK
                         && result.snapshot().source().equals(arrow.getUUID())), "waiting for scheduled arrow collision"))
                 .thenExecute(() -> {
                 try {
-                    var attacks = service.results(created.id(), 0, 100).results().stream()
+                    var attacks = service.lifecycle().results(created.id(), 0, 100).results().stream()
                         .filter(result -> result.snapshot().kind() == OperationRecord.Kind.ATTACK
                             && result.snapshot().source().equals(arrow.getUUID())).toList();
                     helper.assertTrue(attacks.size() == 1 && attacks.getFirst().terminal(),
                         "arrow collision did not publish exactly one terminal causal attack: " + attacks
                             + "; arrow=" + arrow.position() + ", removed=" + arrow.isRemoved()
                             + ", target=" + target.getBoundingBox() + ", phase=" + service.state(created.id()).phase()
-                            + ", results=" + service.results(created.id(), 0, 100).results());
+                            + ", results=" + service.lifecycle().results(created.id(), 0, 100).results());
                     helper.assertTrue(scenario == 0 ? target.getHealth() < healthBefore
                             : target.getHealth() == healthBefore,
                         "arrow health observation did not match the scenario " + scenario);
@@ -862,7 +863,7 @@ public final class LocalTimeGameTests {
                     helper.assertTrue(trace.equals(savedTrace), "arrow trace did not survive SavedData encoding");
                     helper.succeed();
                 } finally {
-                    service.stop(created.id());
+                    service.lifecycle().stop(created.id());
                     for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
                         for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
@@ -893,7 +894,7 @@ public final class LocalTimeGameTests {
             helper.getLevel().setBlockAndUpdate(anchor.offset(6, 1, 0), Blocks.STONE.defaultBlockState());
             helper.runAtTickTime(6, () -> {
             EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-            EncounterAuthority.StateView created = startEncounter(helper, player);
+            StateView created = startEncounter(helper, player);
             Arrow arrow = new Arrow(helper.getLevel(), anchor.getX() + 13, anchor.getY() + 1,
                 anchor.getZ() + 0.5, new ItemStack(Items.ARROW), null);
             arrow.setNoGravity(true);
@@ -901,12 +902,12 @@ public final class LocalTimeGameTests {
             helper.getLevel().addFreshEntity(arrow);
             for (int i = 0; i < 3 && service.state(created.id()).phase() != EncounterPhase.ENVIRONMENT; i++) {
                 var state = service.state(created.id());
-                service.endCurrentTurn(created.id(), UUID.randomUUID(), state.version());
+                service.combat().endCurrentTurn(created.id(), UUID.randomUUID(), state.version());
             }
             float healthBefore = target.getHealth();
             helper.runAtTickTime(12, () -> {
                 try {
-                    var rejected = service.results(created.id(), 0, 100).results().stream()
+                    var rejected = service.lifecycle().results(created.id(), 0, 100).results().stream()
                         .filter(result -> result.snapshot().source().equals(arrow.getUUID())
                             && result.snapshot().kind() == OperationRecord.Kind.ENVIRONMENT
                             && result.outcome() == OperationRecord.Outcome.REJECTED).toList();
@@ -924,7 +925,7 @@ public final class LocalTimeGameTests {
                         "destroyed arrow retained a live scheduler domain or lost launch history");
                     helper.succeed();
                 } finally {
-                    service.stop(created.id());
+                    service.lifecycle().stop(created.id());
                     for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
                         for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
@@ -953,7 +954,7 @@ public final class LocalTimeGameTests {
         target.setNoAi(true);
         helper.runAtTickTime(2, () -> {
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-        EncounterAuthority.StateView state = startEncounter(helper, player);
+        StateView state = startEncounter(helper, player);
         Arrow crossing = new Arrow(helper.getLevel(), anchor.getX() - 12, anchor.getY() + 1,
             anchor.getZ() + 0.5, new ItemStack(Items.ARROW), null);
         crossing.setNoGravity(true);
@@ -970,7 +971,7 @@ public final class LocalTimeGameTests {
                     "fast arrow crossed a paused encounter before first-entry classification");
                 helper.assertTrue(outside.tickCount > 0,
                     "unrelated outside arrow was incorrectly paused");
-                service.stop(state.id());
+                service.lifecycle().stop(state.id());
                 var next = startEncounter(helper, player);
                 helper.runAtTickTime(11, () -> {
                     try {
@@ -984,14 +985,14 @@ public final class LocalTimeGameTests {
                             "arrow did not rebind scheduling independently of launch history");
                         helper.succeed();
                     } finally {
-                        service.stop(next.id());
+                        service.lifecycle().stop(next.id());
                         for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
                             for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
                                 helper.getLevel().setChunkForced(x, z, false);
                     }
                 });
             } catch (RuntimeException | Error failure) {
-                service.stop(state.id());
+                service.lifecycle().stop(state.id());
                 for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
                     for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
                         helper.getLevel().setChunkForced(x, z, false);
@@ -1067,7 +1068,7 @@ public final class LocalTimeGameTests {
                 for (int turn = 0; turn < 6
                     && service.state(id).phase() != EncounterPhase.ENVIRONMENT; turn++) {
                     var state = service.state(id);
-                    service.endCurrentTurn(id, UUID.randomUUID(), state.version());
+                    service.combat().endCurrentTurn(id, UUID.randomUUID(), state.version());
                 }
             helper.startSequence().thenExecuteFor(90, () -> {
                 UUID canonical = service.encounterOf(players[0].getUUID());
@@ -1076,7 +1077,7 @@ public final class LocalTimeGameTests {
                 for (UUID original : ids) {
                     var current = service.state(original);
                     for (int turn = 0; turn < 6 && current.phase() != EncounterPhase.ENVIRONMENT; turn++) {
-                        service.endCurrentTurn(current.id(), UUID.randomUUID(), current.version());
+                        service.combat().endCurrentTurn(current.id(), UUID.randomUUID(), current.version());
                         current = service.state(current.id());
                     }
                 }
@@ -1103,7 +1104,7 @@ public final class LocalTimeGameTests {
                     Set<UUID> stopped = new java.util.HashSet<>();
                     for (ServerPlayer player : players) {
                         UUID active = service.encounterOf(player.getUUID());
-                        if (active != null && stopped.add(active)) service.stop(active);
+                        if (active != null && stopped.add(active)) service.lifecycle().stop(active);
                     }
                     for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++)
                         for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++)
@@ -1175,8 +1176,8 @@ public final class LocalTimeGameTests {
                     if (players[i].getUUID().equals(state.current()) && oldResults[i] == null) {
                         oldOperations[i] = UUID.randomUUID();
                         oldVersions[i] = state.version();
-                        oldResults[i] = service.endTurn(id, players[i], oldOperations[i], oldVersions[i]);
-                    } else service.endCurrentTurn(id, UUID.randomUUID(), state.version());
+                        oldResults[i] = service.combat().endTurn(id, players[i], oldOperations[i], oldVersions[i]);
+                    } else service.combat().endCurrentTurn(id, UUID.randomUUID(), state.version());
                 }
                 helper.assertTrue(oldResults[i] != null, "fixture did not record a player turn receipt");
             }
@@ -1191,36 +1192,36 @@ public final class LocalTimeGameTests {
                         + " secondMob=" + service.encounterOf(secondMob.getUUID()));
                 helper.assertTrue(service.sessionProjectionSequence(canonical) > secondProjection,
                     "merged primary reused a projection sequence older than a source tombstone");
-                helper.assertTrue(service.results(canonical, 0, 100).results().stream()
+                helper.assertTrue(service.lifecycle().results(canonical, 0, 100).results().stream()
                     .anyMatch(result -> result.snapshot().kind() == OperationRecord.Kind.MERGE),
                     "merged domain has no immutable merge result");
                 int sourceIndex = canonical.equals(firstId) ? 1 : 0;
-                helper.assertTrue(oldResults[sourceIndex].equals(service.completedRetry(players[sourceIndex],
+                helper.assertTrue(oldResults[sourceIndex].equals(service.lifecycle().completedRetry(players[sourceIndex],
                     ids[sourceIndex], oldOperations[sourceIndex], OperationRecord.Kind.END_TURN,
                     oldVersions[sourceIndex], null, true)),
                     "a completed request under the source encounter ID was not replayable after merge");
                 boolean conflict = false;
                 try {
-                    service.completedRetry(players[sourceIndex], ids[sourceIndex], oldOperations[sourceIndex],
+                    service.lifecycle().completedRetry(players[sourceIndex], ids[sourceIndex], oldOperations[sourceIndex],
                         OperationRecord.Kind.END_TURN, oldVersions[sourceIndex] + 1, null, true);
                 } catch (IllegalStateException expected) { conflict = true; }
                 helper.assertTrue(conflict, "same operation ID with a changed version was accepted");
                 boolean disclosed = false;
                 try {
-                    service.completedRetry(players[1 - sourceIndex], ids[sourceIndex],
+                    service.lifecycle().completedRetry(players[1 - sourceIndex], ids[sourceIndex],
                         oldOperations[sourceIndex], OperationRecord.Kind.END_TURN,
                         oldVersions[sourceIndex], null, true);
                 } catch (IllegalStateException expected) { disclosed = true; }
                 helper.assertTrue(disclosed, "old encounter result was disclosed to a different participant");
-                service.leave(players[sourceIndex].getUUID());
+                service.lifecycle().leave(players[sourceIndex].getUUID());
                 long versionAfterLeave = service.state(canonical).version();
-                int resultsAfterLeave = service.results(canonical, 0, 100).results().size();
+                int resultsAfterLeave = service.lifecycle().results(canonical, 0, 100).results().size();
                 helper.assertTrue(service.encounterOf(players[sourceIndex].getUUID()) == null
-                    && oldResults[sourceIndex].equals(service.completedRetry(players[sourceIndex],
+                    && oldResults[sourceIndex].equals(service.lifecycle().completedRetry(players[sourceIndex],
                         ids[sourceIndex], oldOperations[sourceIndex], OperationRecord.Kind.END_TURN,
                         oldVersions[sourceIndex], null, true))
                     && service.state(canonical).version() == versionAfterLeave
-                    && service.results(canonical, 0, 100).results().size() == resultsAfterLeave,
+                    && service.lifecycle().results(canonical, 0, 100).results().size() == resultsAfterLeave,
                     "departed source owner could not replay an immutable merged receipt");
                 helper.assertTrue(helper.getLevel().getChunkAt(held)
                     .getTicksForSerialization(helper.getLevel().getGameTime()).blocks().stream()
@@ -1240,7 +1241,7 @@ public final class LocalTimeGameTests {
                             "held tick delay did not decrease by exactly five authorized environment steps");
                         helper.succeed();
                     } finally {
-                        service.stop(canonical);
+                        service.lifecycle().stop(canonical);
                         for (int x = (origin.getX() - 24) >> 4; x <= (origin.getX() + 32) >> 4; x++)
                             for (int z = (origin.getZ() - 24) >> 4; z <= (origin.getZ() + 24) >> 4; z++)
                                 helper.getLevel().setChunkForced(x, z, false);
@@ -1270,11 +1271,11 @@ public final class LocalTimeGameTests {
                 helper.getLevel().getChunk(chunkX, chunkZ);
         Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(2050, 261, 1));
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-        EncounterAuthority.StateView candidate = startEncounter(helper, player);
+        StateView candidate = startEncounter(helper, player);
         try {
             if (!player.getUUID().equals(candidate.current())) {
                 zombie.setTarget(null);
-                service.endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
+                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
                 candidate = service.state(candidate.id());
             }
             helper.assertTrue(candidate.phase() == EncounterPhase.CANDIDATE
@@ -1287,7 +1288,7 @@ public final class LocalTimeGameTests {
                     "test target was rejected by vanilla Mob validation: mode=" + player.gameMode()
                         + " invulnerable=" + player.isInvulnerable() + " canAttack=" + zombie.canAttack(player)
                         + " difficulty=" + helper.getLevel().getDifficulty());
-                service.endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
+                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
                 helper.assertTrue(service.state(candidate.id()).phase() == EncounterPhase.ACTIVE,
                     "player turn end did not review another member's directed target");
             } finally {
@@ -1295,7 +1296,7 @@ public final class LocalTimeGameTests {
             }
             helper.succeed();
         } finally {
-            service.stop(candidate.id());
+            service.lifecycle().stop(candidate.id());
         }
     }
 
@@ -1311,11 +1312,11 @@ public final class LocalTimeGameTests {
                 helper.getLevel().getChunk(chunkX, chunkZ);
         Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(1026, 261, 1));
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-        EncounterAuthority.StateView candidate = startEncounter(helper, player);
+        StateView candidate = startEncounter(helper, player);
         try {
             if (!candidate.current().equals(player.getUUID())) {
                 zombie.setTarget(null);
-                service.endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
+                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
                 candidate = service.state(candidate.id());
             }
             helper.assertTrue(candidate.phase() == EncounterPhase.CANDIDATE
@@ -1323,7 +1324,7 @@ public final class LocalTimeGameTests {
                 "candidate player turn was not available for deterministic attack");
             boolean rejected = false;
             try {
-                service.attack(player, UUID.randomUUID(), UUID.randomUUID(),
+                service.combat().attack(player, UUID.randomUUID(), UUID.randomUUID(),
                     candidate.version());
             } catch (IllegalStateException expected) {
                 rejected = true;
@@ -1336,7 +1337,7 @@ public final class LocalTimeGameTests {
             zombie.setTarget(null);
             float playerHealth = player.getHealth();
             float zombieHealth = zombie.getHealth();
-            OperationRecord.Result miss = service.attack(player, zombie.getUUID(),
+            OperationRecord.Result miss = service.combat().attack(player, zombie.getUUID(),
                 UUID.randomUUID(), service.state(candidate.id()).version());
             helper.assertTrue(miss != null && miss.outcome() == OperationRecord.Outcome.COMPLETED
                 && miss.damageTrace() != null && !miss.damageTrace().hit()
@@ -1348,7 +1349,7 @@ public final class LocalTimeGameTests {
                 "candidate miss returned the initiating actor's action");
             helper.succeed();
         } finally {
-            service.stop(candidate.id());
+            service.lifecycle().stop(candidate.id());
         }
     }
 
@@ -1373,21 +1374,21 @@ public final class LocalTimeGameTests {
         UUID exitId = UUID.randomUUID();
         long version = started.version();
         boolean insideRejected = false;
-        try { service.exitEncounter(player, started.id(), exitId, version); }
+        try { service.lifecycle().exitEncounter(player, started.id(), exitId, version); }
         catch (IllegalStateException expected) { insideRejected = true; }
         helper.assertTrue(insideRejected && started.id().equals(service.encounterOf(player.getUUID()))
             && service.state(started.id()).version() == version, "inside EXIT mutated the encounter");
         exitEnemy.setTarget(null);
         helper.getLevel().getServer().setDifficulty(exitDifficulty, true);
-        service.exitEncounter(player, started.id(), exitId, version);
+        service.lifecycle().exitEncounter(player, started.id(), exitId, version);
         helper.assertFalse(MinecraftCombatRuntime.isBodyPaused(player), "no-enemy inside EXIT retained body control");
         helper.assertTrue(service.encounterOf(player.getUUID()) == null
-            && service.completedExitRetry(player, started.id(), exitId, version),
+            && service.lifecycle().completedExitRetry(player, started.id(), exitId, version),
             "successful EXIT did not retain its same-generation receipt");
-        service.exitEncounter(player, started.id(), exitId, version);
+        service.lifecycle().exitEncounter(player, started.id(), exitId, version);
         boolean conflict = false;
         try {
-            service.completedExitRetry(player, started.id(), exitId, version + 1);
+            service.lifecycle().completedExitRetry(player, started.id(), exitId, version + 1);
         } catch (IllegalStateException expected) {
             conflict = true;
         }
@@ -1395,7 +1396,7 @@ public final class LocalTimeGameTests {
         ServerPlayer stranger = makeTargetablePlayer(helper);
         boolean disclosed = false;
         try {
-            service.completedExitRetry(stranger, started.id(), exitId, version);
+            service.lifecycle().completedExitRetry(stranger, started.id(), exitId, version);
             disclosed = true;
         } catch (IllegalStateException expected) {
             // The receipt belongs to the original connection player.
@@ -1403,7 +1404,7 @@ public final class LocalTimeGameTests {
         helper.assertFalse(disclosed, "EXIT receipt was disclosed to another player");
         boolean reusedAsAnotherKind = false;
         try {
-            service.rejectExitIdReuse(exitId);
+            service.lifecycle().rejectExitIdReuse(exitId);
         } catch (IllegalStateException expected) {
             reusedAsAnotherKind = true;
         }
@@ -1430,62 +1431,62 @@ public final class LocalTimeGameTests {
         UUID nextId = null;
         try {
             if (!player.getUUID().equals(state.current())) {
-                service.endCurrentTurn(encounterId, UUID.randomUUID(), state.version());
+                service.combat().endCurrentTurn(encounterId, UUID.randomUUID(), state.version());
                 state = service.state(encounterId);
             }
             UUID operationId = UUID.randomUUID();
             long version = state.version();
-            OperationRecord.Result original = service.endTurn(encounterId, player, operationId, version);
-            service.leave(player.getUUID());
+            OperationRecord.Result original = service.combat().endTurn(encounterId, player, operationId, version);
+            service.lifecycle().leave(player.getUUID());
             helper.assertTrue(service.encounterOf(player.getUUID()) == null
                 && service.encounterOf(zombie.getUUID()).equals(encounterId),
                 "fixture did not leave an active encounter after the owner departed");
             long unchangedVersion = service.state(encounterId).version();
-            int unchangedResults = service.results(encounterId, 0, 100).results().size();
+            int unchangedResults = service.lifecycle().results(encounterId, 0, 100).results().size();
             int unchangedBudget = service.state(encounterId).members().get(zombie.getUUID()).movementTicks();
             float playerHealth = player.getHealth();
             float zombieHealth = zombie.getHealth();
-            helper.assertTrue(original.equals(service.completedRetry(player, encounterId, operationId,
+            helper.assertTrue(original.equals(service.lifecycle().completedRetry(player, encounterId, operationId,
                 OperationRecord.Kind.END_TURN, version, null, true)),
                 "departed owner could not read a completed result from an active encounter");
             boolean foreign = false;
             try {
-                service.completedRetry(other, encounterId, operationId,
+                service.lifecycle().completedRetry(other, encounterId, operationId,
                     OperationRecord.Kind.END_TURN, version, null, true);
             } catch (IllegalStateException expected) { foreign = true; }
             helper.assertTrue(foreign, "another connection read the departed owner's result");
             for (int change = 0; change < 3; change++) {
                 boolean conflict = false;
                 try {
-                    service.completedRetry(player, encounterId, operationId,
+                    service.lifecycle().completedRetry(player, encounterId, operationId,
                         change == 0 ? OperationRecord.Kind.ATTACK : OperationRecord.Kind.END_TURN,
                         change == 1 ? version + 1 : version,
                         change == 2 ? UUID.randomUUID() : null, true);
                 } catch (IllegalStateException expected) { conflict = true; }
                 helper.assertTrue(conflict, "changed completed request payload was accepted: " + change);
             }
-            helper.assertTrue(service.completedRetry(player, encounterId, UUID.randomUUID(),
+            helper.assertTrue(service.lifecycle().completedRetry(player, encounterId, UUID.randomUUID(),
                 OperationRecord.Kind.END_TURN, version, null, true) == null,
                 "unknown operation ID acquired a historical result");
             helper.assertTrue(service.state(encounterId).version() == unchangedVersion
-                && service.results(encounterId, 0, 100).results().size() == unchangedResults
+                && service.lifecycle().results(encounterId, 0, 100).results().size() == unchangedResults
                 && service.state(encounterId).members().get(zombie.getUUID()).movementTicks() == unchangedBudget
                 && player.getHealth() == playerHealth && zombie.getHealth() == zombieHealth,
                 "old receipt lookup changed rules or world effects");
-            service.leave(zombie.getUUID());
-            helper.assertTrue(original.equals(service.completedRetry(player, encounterId, operationId,
+            service.lifecycle().leave(zombie.getUUID());
+            helper.assertTrue(original.equals(service.lifecycle().completedRetry(player, encounterId, operationId,
                 OperationRecord.Kind.END_TURN, version, null, true)),
                 "departed owner could not query the closed encounter");
             var next = startEncounter(helper, player);
             nextId = next.id();
             helper.assertTrue(!nextId.equals(encounterId)
-                && original.equals(service.completedRetry(player, encounterId, operationId,
+                && original.equals(service.lifecycle().completedRetry(player, encounterId, operationId,
                     OperationRecord.Kind.END_TURN, version, null, true)),
                 "joining a new encounter obscured the owner's earlier result");
             helper.succeed();
         } finally {
-            if (nextId != null) service.stop(nextId);
-            if (service.encounterOf(zombie.getUUID()) != null) service.stop(encounterId);
+            if (nextId != null) service.lifecycle().stop(nextId);
+            if (service.encounterOf(zombie.getUUID()) != null) service.lifecycle().stop(encounterId);
         }
     }
 
@@ -1516,7 +1517,7 @@ public final class LocalTimeGameTests {
         AtomicBoolean closed = new AtomicBoolean();
         Runnable cleanup = () -> {
             if (!closed.compareAndSet(false, true)) return;
-            service.stop(started.id());
+            service.lifecycle().stop(started.id());
             for (int x = minX; x <= maxX; x++) for (int z = minZ; z <= maxZ; z++)
                 helper.getLevel().setChunkForced(x, z, false);
         };
@@ -1529,12 +1530,12 @@ public final class LocalTimeGameTests {
         // Zombie AI may now legitimately attack first, so arrange that opener synchronously.
         var opening = service.state(started.id());
         if (!player.getUUID().equals(opening.current())) {
-            service.endCurrentTurn(opening.id(), UUID.randomUUID(), opening.version());
+            service.combat().endCurrentTurn(opening.id(), UUID.randomUUID(), opening.version());
             opening = service.state(started.id());
         }
         helper.assertTrue(opening.phase() == EncounterPhase.CANDIDATE && player.getUUID().equals(opening.current()),
             "five-round fixture did not arrange the player's candidate opener");
-        service.attack(player, zombie.getUUID(), UUID.randomUUID(), opening.version());
+        service.combat().attack(player, zombie.getUUID(), UUID.randomUUID(), opening.version());
         for (int tick = 1; tick <= 200; tick++) {
             final int observedTick = tick;
             helper.runAtTickTime(tick, () -> {
@@ -1542,7 +1543,7 @@ public final class LocalTimeGameTests {
                 try {
                     var state = service.state(started.id());
                     if (state.round() >= 5) {
-                        long mobAttacks = service.results(started.id(), 0, 200).results().stream()
+                        long mobAttacks = service.lifecycle().results(started.id(), 0, 200).results().stream()
                             .filter(result -> result.snapshot().kind() == OperationRecord.Kind.ATTACK
                                 && result.snapshot().owner().equals(zombie.getUUID()) && result.terminal())
                             .count();
@@ -1551,24 +1552,24 @@ public final class LocalTimeGameTests {
                             "five actual rounds did not retain attacks and action resources: attacks=" + mobAttacks
                                 + " restored=" + restored + " later=" + laterAttackChecked + " dash=" + dashChecked
                                 + " dodge=" + dodgeChecked + " disengage=" + disengageChecked
-                                + " results=" + service.results(started.id(), 0, 200).results().stream()
+                                + " results=" + service.lifecycle().results(started.id(), 0, 200).results().stream()
                                     .filter(OperationRecord.Result::terminal).map(OperationRecord.Result::reason).toList());
                         cleanup.run();
-                        helper.assertFalse(service.isEntitySimulationPaused(player),
+                        helper.assertFalse(service.world().isEntitySimulationPaused(player),
                             "normal prototype exit retained regional player control");
                         helper.succeed();
                         return;
                     }
                     if (player.getUUID().equals(state.current())) {
                         if (state.phase() == EncounterPhase.CANDIDATE)
-                            service.attack(player, zombie.getUUID(), UUID.randomUUID(),
+                            service.combat().attack(player, zombie.getUUID(), UUID.randomUUID(),
                                 state.version());
                         else if (state.phase() == EncounterPhase.ACTIVE) {
                             if (state.round() > 0 && state.members().get(player.getUUID()).action())
                                 restored.set(true);
                             if (restored.get() && !laterAttackChecked.get()) {
                                 zombie.setTarget(null);
-                                var laterAttack = service.attack(player, zombie.getUUID(),
+                                var laterAttack = service.combat().attack(player, zombie.getUUID(),
                                     UUID.randomUUID(), state.version());
                                 helper.assertTrue(laterAttack.damageTrace() != null
                                     && laterAttack.damageTrace().rollMode() == CombatRules.RollMode.NORMAL,
@@ -1579,19 +1580,19 @@ public final class LocalTimeGameTests {
                                 var beforeDash = service.state(started.id());
                                 int movementBefore = beforeDash.members().get(player.getUUID()).movementTicks();
                                 UUID dashId = UUID.randomUUID();
-                                var dash = service.dash(player, dashId, beforeDash.version());
+                                var dash = service.combat().dash(player, dashId, beforeDash.version());
                                 var afterDash = service.state(started.id());
                                 helper.assertTrue(dash.snapshot().kind() == OperationRecord.Kind.DASH
                                         && afterDash.members().get(player.getUUID()).movementTicks()
                                             == movementBefore + 30
                                         && !afterDash.members().get(player.getUUID()).action(),
                                     "DASH did not consume action and grant one movement budget");
-                                helper.assertTrue(service.dash(player, dashId, beforeDash.version()) == dash
+                                helper.assertTrue(service.combat().dash(player, dashId, beforeDash.version()) == dash
                                         && service.state(started.id()).version() == afterDash.version(),
                                     "retrying DASH changed resources or result identity");
                                 boolean conflict = false;
                                 try {
-                                    service.dash(player, dashId, afterDash.version());
+                                    service.combat().dash(player, dashId, afterDash.version());
                                 } catch (IllegalStateException expected) {
                                     conflict = true;
                                 }
@@ -1601,13 +1602,13 @@ public final class LocalTimeGameTests {
                             if (state.round() >= 3 && !dodgeChecked.get()) {
                                 var before = service.state(started.id());
                                 UUID actionId = UUID.randomUUID();
-                                var action = service.defensiveAction(player, actionId,
+                                var action = service.combat().defensiveAction(player, actionId,
                                     before.version(), OperationRecord.Kind.DODGE);
                                 var after = service.state(started.id());
                                 helper.assertTrue(after.members().get(player.getUUID()).dodging()
                                         && !after.members().get(player.getUUID()).action(),
                                     "DODGE did not spend action and set defense");
-                                helper.assertTrue(service.defensiveAction(player, actionId,
+                                helper.assertTrue(service.combat().defensiveAction(player, actionId,
                                         before.version(), OperationRecord.Kind.DODGE) == action
                                         && service.state(started.id()).version() == after.version(),
                                     "DODGE retry changed resources or result");
@@ -1616,14 +1617,14 @@ public final class LocalTimeGameTests {
                             if (state.round() >= 4 && !disengageChecked.get()) {
                                 var before = service.state(started.id());
                                 UUID actionId = UUID.randomUUID();
-                                service.defensiveAction(player, actionId, before.version(),
+                                service.combat().defensiveAction(player, actionId, before.version(),
                                     OperationRecord.Kind.DISENGAGE);
                                 helper.assertTrue(service.state(started.id()).members()
                                         .get(player.getUUID()).disengaged(),
                                     "DISENGAGE did not set this-turn protection");
                                 disengageChecked.set(true);
                             }
-                            service.endTurn(started.id(), player, UUID.randomUUID(),
+                            service.combat().endTurn(started.id(), player, UUID.randomUUID(),
                                 service.state(started.id()).version());
                             if (disengageChecked.get())
                                 helper.assertFalse(service.state(started.id()).members()
@@ -1635,7 +1636,7 @@ public final class LocalTimeGameTests {
                         String diagnosis = "round=" + state.round() + " phase=" + state.phase()
                             + " current=" + state.current() + " player=" + player.getUUID()
                             + " zombie=" + zombie.getUUID() + " env=" + state.environmentRemaining()
-                            + " results=" + service.results(started.id(), 0, 200).results().stream()
+                            + " results=" + service.lifecycle().results(started.id(), 0, 200).results().stream()
                                 .map(OperationRecord.Result::reason).toList();
                         cleanup.run();
                         helper.assertTrue(false, "prototype did not finish five world-driven rounds: " + diagnosis);
@@ -1670,7 +1671,7 @@ public final class LocalTimeGameTests {
             zombie.setHealth(1);
             var source = helper.getLevel().damageSources().source(TacticalDamageContext.DAMAGE_TYPE, player);
             TacticalDamageContext.hurt(helper.getLevel(), zombie, source, 10);
-            service.confirmPendingDeaths();
+            service.lifecycle().confirmPendingDeaths();
             helper.assertTrue(service.encounterOf(zombie.getUUID()) != null,
                 "a canceled death event released a surviving member");
         } finally {
@@ -1680,18 +1681,18 @@ public final class LocalTimeGameTests {
             var source = helper.getLevel().damageSources().source(TacticalDamageContext.DAMAGE_TYPE, player);
             TacticalDamageContext.hurt(helper.getLevel(), zombie, source, 10);
             helper.assertTrue(!zombie.isAlive(), "authorized second hit did not kill the target");
-            service.confirmPendingDeaths();
+            service.lifecycle().confirmPendingDeaths();
             helper.assertTrue(service.encounterOf(zombie.getUUID()) == null,
                 "confirmed death retained formal membership");
         } finally {
-            service.stop(state.id());
+            service.lifecycle().stop(state.id());
         }
         helper.succeed();
     }
 
     private static void movementLeaseExit(GameTestHelper helper) {
         helper.runAtTickTime(50, () -> {
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            ServerPlayer player = TestPlayers.survival(helper);
             player.connection.markClientLoaded();
             for (int teleportId = 0; teleportId < 4; teleportId++)
                 player.connection.handleAcceptTeleportPacket(new ServerboundAcceptTeleportationPacket(teleportId));
@@ -1713,7 +1714,10 @@ public final class LocalTimeGameTests {
                 BlockPos zombiePos = helper.absolutePos(new BlockPos(22002, 121, 2));
                 zombie.setPos(zombiePos.getX() + 0.5, zombiePos.getY(), zombiePos.getZ() + 0.5);
                 zombie.setHealth(zombie.getMaxHealth());
-                EncounterAuthority.StateView state = startEncounter(helper, player);
+                zombie.setTarget(player);
+                StateView state = startEncounter(helper, player);
+                helper.assertTrue(state.members().containsKey(zombie.getUUID()),
+                    "hostile movement fixture target did not join, scenario " + scenario);
                 if (scenario == 0) {
                     helper.assertTrue(MinecraftCombatRuntime.isPlayerMovementPaused(player),
                         "rotation fixture must have no movement lease");
@@ -1737,21 +1741,23 @@ public final class LocalTimeGameTests {
                         player.connection.handleAcceptTeleportPacket(new ServerboundAcceptTeleportationPacket(teleportId));
                     CursorFacingChecks.verify(helper, player);
                 }
-                if (!player.getUUID().equals(state.current())) {
-                    service.endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
+                for (int turn = 0; turn < state.members().size() && !player.getUUID().equals(state.current()); turn++) {
+                    service.combat().endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
                     state = service.state(state.id());
                 }
-                service.attack(player, zombie.getUUID(), UUID.randomUUID(), state.version());
+                helper.assertTrue(player.getUUID().equals(state.current()),
+                    "movement fixture player turn unavailable in scenario " + scenario + ": " + state);
+                service.combat().attack(player, zombie.getUUID(), UUID.randomUUID(), state.version());
                 state = service.state(state.id());
                 if (!player.getUUID().equals(state.current())) {
-                    service.endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
+                    service.combat().endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
                     state = service.state(state.id());
                 }
                 if (special) {
                     player.getAbilities().flying = true;
                     boolean denied = false;
                     try {
-                        service.beginPlayerMove(player, UUID.randomUUID(), state.version());
+                        service.movement().beginPlayerMove(player, UUID.randomUUID(), state.version());
                     } catch (IllegalStateException expected) {
                         denied = true;
                     }
@@ -1759,7 +1765,7 @@ public final class LocalTimeGameTests {
                     player.getAbilities().flying = false;
                 }
                 UUID moveId = UUID.randomUUID();
-                service.beginPlayerMove(player, moveId, state.version());
+                service.movement().beginPlayerMove(player, moveId, state.version());
                 if (scenario == 1) player.applyPostImpulseGraceTime(40);
                 player.connection.handlePlayerInput(new ServerboundPlayerInputPacket(
                     new Input(true, false, false, false, false, false, false)));
@@ -1771,11 +1777,11 @@ public final class LocalTimeGameTests {
                 if (special) {
                     player.getAbilities().flying = true;
                     Vec3 proposed = player.position();
-                    helper.assertFalse(service.preparePlayerMovePacket(player,
+                    helper.assertFalse(service.movement().preparePlayerMovePacket(player,
                         new ServerboundMovePlayerPacket.Pos(proposed.x + 0.2,
                             proposed.y, proposed.z, true, false), false),
                         "special movement packet used an ordinary movement lease");
-                    helper.assertFalse(service.hasPlayerMoveLease(player.getUUID()),
+                    helper.assertFalse(service.movement().hasPlayerMoveLease(player.getUUID()),
                         "special movement state did not release the ordinary movement lease");
                     player.getAbilities().flying = false;
                 }
@@ -1784,25 +1790,25 @@ public final class LocalTimeGameTests {
                     // active share unprovable, so closing the lease must not charge it.
                     Vec3 beforeCorrection = player.position();
                     player.setPos(beforeCorrection.x + 0.1, beforeCorrection.y, beforeCorrection.z);
-                    service.observePlayerMovePacket(player, beforeCorrection, true,
+                    service.movement().observePlayerMovePacket(player, beforeCorrection, true,
                         player.onGround(), player.isInWater(), true);
                     Vec3 inside = player.position();
                     player.setPos(inside.x + 64, inside.y, inside.z);
-                    service.reconcileMemberLocations();
+                    service.lifecycle().reconcileMemberLocations();
                     helper.assertTrue(state.id().equals(service.encounterOf(player.getUUID())),
-                        "crossing the fixed region removed encounter membership");
-                    helper.assertFalse(service.hasPlayerMoveLease(player.getUUID()),
-                        "movement lease survived leaving the fixed region");
+                        "crossing the field removed encounter membership");
+                    helper.assertTrue(service.movement().hasPlayerMoveLease(player.getUUID()),
+                        "crossing the field revoked an otherwise valid movement lease");
                     player.setPos(inside.x, inside.y, inside.z);
                 }
-                if (stop) service.stop(state.id());
+                if (stop) service.lifecycle().stop(state.id());
                 else {
-                    service.leave(zombie.getUUID());
-                    service.leave(player.getUUID());
+                    service.lifecycle().leave(zombie.getUUID());
+                    service.lifecycle().leave(player.getUUID());
                 }
-                helper.assertFalse(service.hasPlayerMoveLease(player.getUUID()),
+                helper.assertFalse(service.movement().hasPlayerMoveLease(player.getUUID()),
                     "lease survived stop or leave");
-                int charged = service.results(state.id(), 0, 100).results().stream()
+                int charged = service.lifecycle().results(state.id(), 0, 100).results().stream()
                     .filter(result -> result.snapshot().operationId().equals(moveId))
                     .mapToInt(OperationRecord.Result::actualMovementTicks).sum();
                 helper.assertTrue(charged == (stop || special ? 0 : 1),
@@ -1826,7 +1832,7 @@ public final class LocalTimeGameTests {
             String lastState;
 
             void release() {
-                if (encounterId != null) service.stop(encounterId);
+                if (encounterId != null) service.lifecycle().stop(encounterId);
                 if (zombie != null) zombie.discard();
                 if (playerPos != null)
                     for (int chunkX = (playerPos.getX() - 32) >> 4;
@@ -1884,11 +1890,11 @@ public final class LocalTimeGameTests {
                     "native discovery omitted the navigation fixture Zombie");
                 for (int turns = 0; turns < state.members().size() && !probe.player.getUUID().equals(state.current()); turns++) {
                     helper.assertTrue(state.phase() != EncounterPhase.ENVIRONMENT, "navigation fixture reached environment before player");
-                    probe.service.endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
+                    probe.service.combat().endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
                     state = probe.service.state(state.id());
                 }
                 helper.assertTrue(probe.player.getUUID().equals(state.current()), "navigation fixture player turn unavailable");
-                probe.service.attack(probe.player, probe.zombie.getUUID(),
+                probe.service.combat().attack(probe.player, probe.zombie.getUUID(),
                     UUID.randomUUID(), state.version());
                 BlockPos distant = helper.absolutePos(new BlockPos(arenaX + 4, arenaY, 2));
                 probe.zombie.setPos(distant.getX() + 0.5, distant.getY(), distant.getZ() + 0.5);
@@ -1900,7 +1906,7 @@ public final class LocalTimeGameTests {
                 helper.assertTrue(active.phase() == EncounterPhase.ACTIVE,
                     "legal candidate attack did not open an active encounter");
                 if (probe.player.getUUID().equals(active.current()))
-                    probe.service.endTurn(state.id(), probe.player, UUID.randomUUID(), active.version());
+                    probe.service.combat().endTurn(state.id(), probe.player, UUID.randomUUID(), active.version());
                 probe.initial = probe.zombie.position();
                 probe.transitions.add("setup=" + probe.service.state(state.id()));
             } catch (RuntimeException | Error failure) {
@@ -1919,7 +1925,7 @@ public final class LocalTimeGameTests {
                         probe.lastState = signature;
                         if (probe.transitions.size() < 16) probe.transitions.add(observedTick + "=" + signature);
                     }
-                    if (probe.service.hasMobMoveLease(probe.zombie.getUUID())) {
+                    if (probe.service.movement().hasMobMoveLease(probe.zombie.getUUID())) {
                         var control = AuthorityProjection.actor(probe.zombie);
                         helper.assertTrue(ActorControlPolicy.nativeMovement(control).allowed()
                             && !ActorControlPolicy.autonomousDecision(control).allowed()
@@ -1927,7 +1933,7 @@ public final class LocalTimeGameTests {
                             "movement lease authorized autonomous decisions or item use");
                     }
                     boolean moved = probe.initial.distanceToSqr(probe.zombie.position()) > 0.01;
-                    boolean charged = probe.service.results(probe.encounterId, 0, 100).results().stream()
+                    boolean charged = probe.service.lifecycle().results(probe.encounterId, 0, 100).results().stream()
                         .anyMatch(result -> result.snapshot().kind() == OperationRecord.Kind.MOVE
                             && result.snapshot().owner().equals(probe.zombie.getUUID())
                             && result.actualMovementTicks() > 0);
@@ -1940,8 +1946,8 @@ public final class LocalTimeGameTests {
                                 + " phase=" + probe.service.state(probe.encounterId).phase() + " currentActor="
                                 + probe.service.state(probe.encounterId).current() + " navDone="
                                 + probe.zombie.getNavigation().isDone() + " leased="
-                                + probe.service.hasMobMoveLease(probe.zombie.getUUID()) + " results="
-                                + probe.service.results(probe.encounterId, 0, 100).results().stream()
+                                + probe.service.movement().hasMobMoveLease(probe.zombie.getUUID()) + " results="
+                                + probe.service.lifecycle().results(probe.encounterId, 0, 100).results().stream()
                                     .map(OperationRecord.Result::reason).toList() + " transitions=" + probe.transitions
                                 + " zombieAlive=" + probe.zombie.isAlive() + " removal=" + probe.zombie.getRemovalReason()
                                 + " playerAlive=" + probe.player.isAlive());
@@ -1967,7 +1973,7 @@ public final class LocalTimeGameTests {
             boolean completed;
 
             void release() {
-                if (encounterId != null) service.stop(encounterId);
+                if (encounterId != null) service.lifecycle().stop(encounterId);
                 if (playerPos != null)
                     for (int chunkX = (playerPos.getX() - 32) >> 4;
                          chunkX <= (playerPos.getX() + 32) >> 4; chunkX++)
@@ -2007,10 +2013,10 @@ public final class LocalTimeGameTests {
                 var state = startEncounter(helper, probe.player);
                 probe.encounterId = state.id();
                 if (!probe.player.getUUID().equals(state.current())) {
-                    probe.service.endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
+                    probe.service.combat().endCurrentTurn(state.id(), UUID.randomUUID(), state.version());
                     state = probe.service.state(state.id());
                 }
-                probe.service.attack(probe.player, probe.zombie.getUUID(),
+                probe.service.combat().attack(probe.player, probe.zombie.getUUID(),
                     UUID.randomUUID(), state.version());
                 probe.zombie.setPos(water.getX() + 0.5, water.getY(), water.getZ() + 0.5);
                 probe.zombie.setOnGround(true);
@@ -2019,7 +2025,7 @@ public final class LocalTimeGameTests {
                 helper.assertTrue(active.phase() == EncounterPhase.ACTIVE,
                     "legal candidate attack did not open the water-step encounter");
                 if (probe.player.getUUID().equals(active.current()))
-                    probe.service.endTurn(state.id(), probe.player, UUID.randomUUID(), active.version());
+                    probe.service.combat().endTurn(state.id(), probe.player, UUID.randomUUID(), active.version());
             } catch (RuntimeException | Error failure) {
                 probe.release();
                 throw failure;
@@ -2031,9 +2037,9 @@ public final class LocalTimeGameTests {
                 if (probe.completed || probe.encounterId == null) return;
                 try {
                     if (probe.terminalTick < 0) {
-                        if (probe.service.hasMobMoveLease(probe.zombie.getUUID()))
-                            probe.service.underreserveNextExpensiveMobStepForGameTest(probe.zombie.getUUID());
-                        var results = probe.service.results(probe.encounterId, 0, 100).results();
+                        if (probe.service.movement().hasMobMoveLease(probe.zombie.getUUID()))
+                            probe.service.movement().underreserveNextExpensiveMobStepForGameTest(probe.zombie.getUUID());
+                        var results = probe.service.lifecycle().results(probe.encounterId, 0, 100).results();
                         var unknown = results.stream()
                             .filter(result -> result.snapshot().kind() == OperationRecord.Kind.MOVE
                                 && result.snapshot().owner().equals(probe.zombie.getUUID())
@@ -2045,7 +2051,7 @@ public final class LocalTimeGameTests {
                                     + " phase=" + probe.service.state(probe.encounterId).phase()
                                     + " current=" + probe.service.state(probe.encounterId).current()
                                     + " water=" + probe.zombie.isInWater()
-                                    + " leased=" + probe.service.hasMobMoveLease(probe.zombie.getUUID())
+                                    + " leased=" + probe.service.movement().hasMobMoveLease(probe.zombie.getUUID())
                                     + " bodyTicks=" + probe.zombie.tickCount);
                             return;
                         }
@@ -2057,22 +2063,22 @@ public final class LocalTimeGameTests {
                                         .get(probe.zombie.getUUID()).movementTicks()
                                     + " pathOwned=true"),
                             "water step UNKNOWN lacked actual displacement evidence: " + unknown);
-                        helper.assertFalse(probe.service.hasMobMoveLease(probe.zombie.getUUID()),
+                        helper.assertFalse(probe.service.movement().hasMobMoveLease(probe.zombie.getUUID()),
                             "terminal UNKNOWN retained the Mob movement lease");
-                        helper.assertTrue(!probe.service.isEntitySimulationPaused(probe.zombie)
-                                && !probe.service.hasMobMoveLease(probe.zombie.getUUID()),
+                        helper.assertTrue(!probe.service.world().isEntitySimulationPaused(probe.zombie)
+                                && !probe.service.movement().hasMobMoveLease(probe.zombie.getUUID()),
                             "terminal Mob lease did not separate body maintenance from active control");
-                        probe.service.noteMobTick(probe.zombie.getUUID());
+                        probe.service.movement().noteMobTick(probe.zombie.getUUID());
                         probe.bodyTicks = probe.zombie.tickCount;
                         probe.stoppedAt = probe.zombie.position();
                         probe.resultCount = results.size();
                         probe.terminalTick = observedTick;
                     } else if (observedTick >= probe.terminalTick + 3) {
                         helper.assertTrue(probe.zombie.tickCount > probe.bodyTicks
-                                && !probe.service.hasMobMoveLease(probe.zombie.getUUID())
+                                && !probe.service.movement().hasMobMoveLease(probe.zombie.getUUID())
                                 && probe.zombie.getNavigation().isDone(),
                             "terminal lease retained navigation or blocked body maintenance");
-                        helper.assertTrue(probe.service.results(probe.encounterId, 0, 100)
+                        helper.assertTrue(probe.service.lifecycle().results(probe.encounterId, 0, 100)
                                 .results().size() == probe.resultCount,
                             "terminal lease emitted a duplicate result after revocation");
                         probe.completed = true;
@@ -2126,7 +2132,7 @@ public final class LocalTimeGameTests {
                     "prototype member phase did not hold a due scheduled block tick");
                 for (int i = 0; i < 3 && service.state(created.id()).phase() != EncounterPhase.ENVIRONMENT; i++) {
                     var state = service.state(created.id());
-                    service.endCurrentTurn(created.id(), UUID.randomUUID(), state.version());
+                    service.combat().endCurrentTurn(created.id(), UUID.randomUUID(), state.version());
                 }
                 var environment = service.state(created.id());
                 helper.assertTrue(environment.phase() == EncounterPhase.ENVIRONMENT,
@@ -2142,7 +2148,7 @@ public final class LocalTimeGameTests {
                             "environment budget was not charged after real world simulation");
                         helper.succeed();
                     } finally {
-                        service.stop(created.id());
+                        service.lifecycle().stop(created.id());
                         zombie.discard();
                         for (int x = minChunkX; x <= maxChunkX; x++)
                             for (int z = minChunkZ; z <= maxChunkZ; z++)
@@ -2201,7 +2207,7 @@ public final class LocalTimeGameTests {
             helper.runAtTickTime(26, () -> {
                 helper.assertTrue(helper.getLevel().getBlockState(preexisting).getValue(RedstoneLampBlock.LIT),
                     "vanilla tick captured at encounter creation ran during the paused phase: initial=" + state.phase()
-                        + " current=" + service.state(state.id()).phase() + " domain=" + service.encounterAtBlock(helper.getLevel(), preexisting)
+                        + " current=" + service.state(state.id()).phase() + " domain=" + service.world().encounterAtBlock(helper.getLevel(), preexisting)
                         + " expected=" + state.id() + " held=" + helper.getLevel().getBlockTicks().hasScheduledTick(preexisting, Blocks.REDSTONE_LAMP));
                 helper.assertTrue(helper.getLevel().getBlockState(inside).getValue(RedstoneLampBlock.LIT),
                     "regional scheduled block tick ran during paused member phase");
@@ -2268,7 +2274,7 @@ public final class LocalTimeGameTests {
                     "reloaded scheduled tick ran before the paused encounter advanced");
                 helper.assertTrue(helper.getLevel().getBlockTicks().hasScheduledTick(inside, Blocks.REDSTONE_LAMP),
                     "reloaded scheduled tick was lost during paused recapture");
-                service.stop(state.id());
+                service.lifecycle().stop(state.id());
                 helper.assertTrue(helper.getLevel().getBlockTicks().hasScheduledTick(preexisting,
                     Blocks.REDSTONE_LAMP) && helper.getLevel().getBlockTicks().hasScheduledTick(inside,
                     Blocks.REDSTONE_LAMP), "encounter exit did not return held ticks to vanilla");
@@ -2278,7 +2284,7 @@ public final class LocalTimeGameTests {
                 try {
                     helper.assertFalse(helper.getLevel().getBlockState(preexisting).getValue(RedstoneLampBlock.LIT),
                         "captured vanilla tick did not resume after the encounter ended: domain="
-                            + service.encounterAtBlock(helper.getLevel(), preexisting)
+                            + service.world().encounterAtBlock(helper.getLevel(), preexisting)
                             + " queued=" + helper.getLevel().getBlockTicks().hasScheduledTick(preexisting, Blocks.REDSTONE_LAMP)
                             + " held=" + RegionalScheduledTicks.isHeld(helper.getLevel().getBlockTicks(), preexisting, Blocks.REDSTONE_LAMP)
                             + " ticking=" + helper.getLevel().shouldTickBlocksAt(preexisting)
@@ -2327,7 +2333,7 @@ public final class LocalTimeGameTests {
             player.setYHeadRot(facingAttacker);
             int before = player.getOffhandItem().getDamageValue();
             float healthBefore = player.getHealth();
-            var front = TacticalDamageContext.hurtObserved(helper.getLevel(), player, source, 5,
+            var front = cc.sighs.dndturn.platform.server.runtime.DamageHooks.hurtObserved(helper.getLevel(), player, source, 5,
                 false, UUID.randomUUID());
             helper.assertTrue(front.accepted() && front.shieldWearCalled()
                 && front.shieldBlockedContribution() > 0,
@@ -2338,7 +2344,7 @@ public final class LocalTimeGameTests {
                 "directional shield wear reduced tactical damage a second time");
             player.setYHeadRot(facingAttacker + 180.0F);
             int afterFrontHit = player.getOffhandItem().getDamageValue();
-            var back = TacticalDamageContext.hurtObserved(helper.getLevel(), player, source, 5,
+            var back = cc.sighs.dndturn.platform.server.runtime.DamageHooks.hurtObserved(helper.getLevel(), player, source, 5,
                 false, UUID.randomUUID());
             helper.assertTrue(back.accepted() && !back.shieldWearCalled(),
                 "back-facing tactical damage was rejected");
@@ -2380,7 +2386,7 @@ public final class LocalTimeGameTests {
         helper.spawn(EntityType.ZOMBIE, new BlockPos(arenaX + 2, 1, 2));
         ArmorStand inside = helper.spawn(EntityType.ARMOR_STAND, new BlockPos(arenaX + 3, 1, 2));
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-        EncounterAuthority.StateView state = startEncounter(helper, player);
+        StateView state = startEncounter(helper, player);
         ArmorStand outside = helper.spawn(EntityType.ARMOR_STAND, new BlockPos(arenaX + 3, 25, 2));
         outside.setNoGravity(true);
         var outsideVehicle = helper.spawn(EntityType.PIG, new BlockPos(arenaX + 3, 25, 4));
@@ -2421,12 +2427,12 @@ public final class LocalTimeGameTests {
         int outsideTicks = outside.tickCount;
         int vehicleTicks = outsideVehicle.tickCount;
         int passengerTicks = insidePassenger.tickCount;
-        helper.assertFalse(service.isEntitySimulationPaused(inside), "ordinary inside body was paused");
-        helper.assertFalse(service.isEntitySimulationPaused(outside), "outside entity incorrectly classified as paused");
-        helper.assertFalse(service.isEntitySimulationPaused(insidePassenger), "ordinary passenger lifecycle was paused");
-        helper.assertTrue(service.isBlockSimulationPaused(helper.getLevel(), insideBlock.getPos()),
+        helper.assertFalse(service.world().isEntitySimulationPaused(inside), "ordinary inside body was paused");
+        helper.assertFalse(service.world().isEntitySimulationPaused(outside), "outside entity incorrectly classified as paused");
+        helper.assertFalse(service.world().isEntitySimulationPaused(insidePassenger), "ordinary passenger lifecycle was paused");
+        helper.assertTrue(service.world().isBlockSimulationPaused(helper.getLevel(), insideBlock.getPos()),
             "inside block not classified as paused");
-        helper.assertFalse(service.isBlockSimulationPaused(helper.getLevel(), outsideBlock.getPos()),
+        helper.assertFalse(service.world().isBlockSimulationPaused(helper.getLevel(), outsideBlock.getPos()),
             "outside block incorrectly classified as paused");
         helper.runAtTickTime(20, () -> {
             helper.assertFalse(MinecraftCombatRuntime.isBodyPaused(player), "ordinary player body was paused");
@@ -2444,7 +2450,7 @@ public final class LocalTimeGameTests {
                 "inside block event executed during decision pause");
             helper.assertTrue(helper.getLevel().getBlockState(outsidePiston).getValue(PistonBaseBlock.EXTENDED),
                 "outside block event did not execute");
-            service.stop(state.id());
+            service.lifecycle().stop(state.id());
             for (int attempt = 0; attempt < 3
                 && helper.getLevel().getBlockState(insideOre).getValue(RedStoneOreBlock.LIT); attempt++) {
                 helper.getLevel().tickChunk(helper.getLevel().getChunk(insideOre.getX() >> 4,
@@ -2501,7 +2507,7 @@ public final class LocalTimeGameTests {
         }
         var zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(1538, 301, 2));
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-        EncounterAuthority.StateView view = startEncounter(helper, player);
+        StateView view = startEncounter(helper, player);
         helper.assertTrue(view.members().size() == 2, "Service did not create two rule members");
         helper.assertTrue(view.members().containsKey(zombie.getUUID()), "Service omitted supported Mob");
         helper.assertTrue(view.region().anchors().stream().anyMatch(anchor -> anchor.entityId().equals(zombie.getUUID())),
@@ -2510,15 +2516,15 @@ public final class LocalTimeGameTests {
         helper.assertTrue(commands != null && commands.getChild("local") == null
             && commands.getChild("tactical") != null, "obsolete local command is exposed or tactical is missing");
         UUID operationId = UUID.randomUUID();
-        var result = service.endCurrentTurn(view.id(), operationId, view.version());
+        var result = service.combat().endCurrentTurn(view.id(), operationId, view.version());
         long advancedVersion = service.state(view.id()).version();
         helper.assertTrue(advancedVersion == view.version() + 2, "END_TURN did not advance exactly once");
-        helper.assertTrue(service.endCurrentTurn(view.id(), operationId, view.version()) == result,
+        helper.assertTrue(service.combat().endCurrentTurn(view.id(), operationId, view.version()) == result,
             "Repeated operation did not return its original result");
         helper.assertTrue(service.state(view.id()).version() == advancedVersion,
             "Repeated operation advanced the session again");
-        helper.assertTrue(service.stop(view.id()).size() == 2, "Service did not release both members");
-        helper.assertTrue(service.stop(view.id()).isEmpty(), "Repeated stop was not idempotent");
+        helper.assertTrue(service.lifecycle().stop(view.id()).size() == 2, "Service did not release both members");
+        helper.assertTrue(service.lifecycle().stop(view.id()).isEmpty(), "Repeated stop was not idempotent");
         helper.assertTrue(service.encounterOf(player.getUUID()) == null, "Service retained player membership");
         helper.succeed();
     }

@@ -1,14 +1,14 @@
 package cc.sighs.dndturn.platform.server.ai;
+import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.application.planning.MovementPlanner;
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
-import cc.sighs.dndturn.platform.server.action.MinecraftCellProbe;
-import cc.sighs.dndturn.platform.server.action.MinecraftCoordinates;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
+import cc.sighs.dndturn.platform.spatial.MinecraftCellProbe;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 import java.util.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -23,10 +23,10 @@ import net.minecraft.world.phys.Vec3;
 /** Fixed .84 ground translation; path weights are estimates, never movement charges. */
 public final class GroundMovementPort implements MovementPorts.Port {
     public boolean matches(Mob actor) { return actor instanceof PathfinderMob && actor.getNavigation() instanceof GroundPathNavigation; }
-    public ActionIntent opportunity(LiveActorContext actor, EncounterAuthority.StateView encounter, OperationRecord.Result previous) {
+    public ActionIntent opportunity(LiveActorContext actor, StateView encounter, OperationRecord.Result previous) {
         return MinecraftMovementOpportunities.movement(actor, encounter, previous);
     }
-    public List<GridCell> plan(LiveActorContext actor, EncounterAuthority.StateView state, ActionIntent intent,
+    public List<GridCell> plan(LiveActorContext actor, StateView state, ActionIntent intent,
                                GridCell target, Runnable budget) {
         var world = new MinecraftCellProbe(actor.level(), actor.body(), state.region());
         MovementPlanner.CellProbe probe = new MovementPlanner.CellProbe() {

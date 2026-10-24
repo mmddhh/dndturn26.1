@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.server.runtime;
 
 import cc.sighs.dndturn.platform.server.actor.ActorStateAuthority;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -24,7 +24,7 @@ public final class ServerRuntime {
             throw failure;
         }
     }
-    public static EncounterRuntime encounters(MinecraftServer server) {
+    public static EncounterRuntime start(MinecraftServer server) {
         requireThread(server);
         if (CLOSED.contains(server)) throw new IllegalStateException("server runtime is closed");
         return SERVERS.computeIfAbsent(server, ServerRuntime::new).encounters;
@@ -37,13 +37,21 @@ public final class ServerRuntime {
         requireThread(server);
         var runtime = SERVERS.get(server);
         if (!CLOSED.add(server) || runtime == null) return;
-        try { runtime.encounters.close(); }
-        finally {
-            try { runtime.actors.close(); }
-            finally { SERVERS.remove(server); }
-        }
+        RuntimeException failure = null;
+        try { runtime.encounters.close(); } catch (RuntimeException error) { failure = error; }
+        try { runtime.actors.close(); }
+        catch (RuntimeException error) { if (failure == null) failure = error; else if (failure != error) failure.addSuppressed(error); }
+        finally { SERVERS.remove(server); }
+        if (failure != null) throw failure;
     }
     private static void requireThread(MinecraftServer server) {
         if (!server.isSameThread()) throw new IllegalStateException("server lifecycle requires server thread");
     }
+    public static EncounterRuntime encounters(MinecraftServer server) {
+        requireThread(server);
+        var runtime = SERVERS.get(server);
+        if (runtime == null || CLOSED.contains(server)) throw new IllegalStateException("server runtime is not active");
+        return runtime.encounters;
+    }
+
 }

@@ -1,9 +1,9 @@
 package cc.sighs.dndturn.platform.mixin.server.control;
 
 import cc.sighs.dndturn.platform.server.control.InputPolicy;
-import cc.sighs.dndturn.platform.server.control.MovementInputHooks;
+import cc.sighs.dndturn.platform.server.runtime.MovementInputHooks;
 import cc.sighs.dndturn.platform.server.control.VanillaInputPolicy;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;

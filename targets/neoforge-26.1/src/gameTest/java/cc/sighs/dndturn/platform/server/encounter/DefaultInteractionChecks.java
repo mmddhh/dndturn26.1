@@ -4,7 +4,7 @@ import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.gametest.TestPlayers;
 import cc.sighs.dndturn.platform.network.ActionProtocol;
-import cc.sighs.dndturn.platform.server.action.MinecraftCoordinates;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.*;
@@ -29,7 +29,7 @@ public final class DefaultInteractionChecks {
         player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5); player.connection.resetPosition();
         var service=ServerRuntime.encounters(level.getServer());
         Runnable cleanup=()->{
-            var id=service.encounterOf(player.getUUID()); if(id!=null) service.stop(id);
+            var id=service.encounterOf(player.getUUID()); if(id!=null) service.lifecycle().stop(id);
             for(long key:forced) { var c=net.minecraft.world.level.ChunkPos.unpack(key); level.setChunkForced(c.x(),c.z(),false); }
             forced.clear();
         };
@@ -43,20 +43,20 @@ public final class DefaultInteractionChecks {
                     var item=scenario==0?Items.OAK_FENCE:scenario==1?Items.POTION:Items.REDSTONE;
                     player.getInventory().setSelectedSlot(0); player.getInventory().setItem(0,new ItemStack(item,8));
                     if(scenario==1) player.getMainHandItem().set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.WATER));
-                    service.requestStart(player,UUID.randomUUID()); var encounter=service.encounterOf(player.getUUID());
+                    service.lifecycle().requestStart(player,UUID.randomUUID()); var encounter=service.encounterOf(player.getUUID());
                     for(int n=0;n<service.state(encounter).members().size() && !player.getUUID().equals(service.state(encounter).current());n++)
-                        service.endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
+                        service.combat().endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
                     var pos=scenario==2?destination:clicked;
                     var target=new ActionIntent.Target(ActionIntent.TargetKind.BLOCK,level.dimension().identifier().toString(),null,
                         MinecraftCoordinates.cell(pos),Direction.UP.ordinal(),.5,1,.5);
-                    var options=service.tacticalActions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
+                    var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
                     String behavior=scenario==0?"dndturn:place":scenario==1?"dndturn:tool":"dndturn:block";
                     var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals(behavior)).findFirst().orElseThrow(()->new IllegalStateException("missing "+behavior+": "+options));
                     h.assertTrue(offer.reason().isEmpty(),behavior+" unavailable: "+offer.reason());
                     h.assertTrue(player.getMainHandItem().getCount()==8,"query consumed item");
                     var operation=UUID.randomUUID();
-                    service.tacticalActions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),offer.intent(),false));
-                    var results=service.results(encounter,0,128).results();
+                    service.actions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),offer.intent(),false));
+                    var results=service.lifecycle().results(encounter,0,128).results();
                     var result=results.stream().filter(r->r.snapshot().operationId().equals(operation)).findFirst().orElseThrow();
                     h.assertTrue(result.outcome()==OperationRecord.Outcome.COMPLETED,behavior+" failed: "+results);
                     if(scenario<2) {
@@ -69,23 +69,23 @@ public final class DefaultInteractionChecks {
                         h.assertTrue(service.state(encounter).members().get(player.getUUID()).action(),"free block interaction spent action");
                     }
                     System.out.println("DEFAULT_INTERACTION behavior="+behavior+" passed");
-                    service.stop(encounter);
+                    service.lifecycle().stop(encounter);
                 }
                 var cow=net.minecraft.world.entity.EntityType.COW.create(level,net.minecraft.world.entity.EntitySpawnReason.COMMAND);
                 cow.setPos(base.getX()+.5,base.getY(),base.getZ()+1.5); cow.setNoAi(true); level.addFreshEntity(cow);
                 try {
                     player.getInventory().setItem(0,new ItemStack(Items.BUCKET));
-                    service.requestStart(player,UUID.randomUUID()); var encounter=service.encounterOf(player.getUUID());
+                    service.lifecycle().requestStart(player,UUID.randomUUID()); var encounter=service.encounterOf(player.getUUID());
                     for(int n=0;n<service.state(encounter).members().size() && !player.getUUID().equals(service.state(encounter).current());n++)
-                        service.endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
+                        service.combat().endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
                     var target=new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,level.dimension().identifier().toString(),cow.getUUID(),null,-1,0,0,0);
-                    var options=service.tacticalActions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
+                    var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
                     var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:entity_item")).findFirst().orElseThrow();
                     h.assertTrue(offer.reason().isEmpty(),"cow item interaction unavailable: "+offer.reason());
                     h.assertTrue(player.getMainHandItem().is(Items.BUCKET),"discovery milked cow");
                     var operation=UUID.randomUUID();
-                    service.tacticalActions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),offer.intent(),false));
-                    var results=service.results(encounter,0,128).results();
+                    service.actions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),offer.intent(),false));
+                    var results=service.lifecycle().results(encounter,0,128).results();
                     h.assertTrue(results.stream().anyMatch(r->r.snapshot().operationId().equals(operation) && r.outcome()==OperationRecord.Outcome.COMPLETED),"cow interaction failed: "+results);
                     h.assertTrue(player.getMainHandItem().is(Items.MILK_BUCKET),"native milking callback missing");
                     System.out.println("DEFAULT_INTERACTION behavior=dndturn:entity_item cow passed");

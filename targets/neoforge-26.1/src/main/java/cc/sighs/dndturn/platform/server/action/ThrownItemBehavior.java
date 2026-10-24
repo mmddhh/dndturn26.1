@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.*;
@@ -16,7 +16,7 @@ final class ThrownItemBehavior extends VanillaBehaviors.Interaction {
     public boolean supportsItem(ItemStack stack) { return item == Items.EGG ? stack.getItem() instanceof EggItem
             : item == Items.EXPERIENCE_BOTTLE ? stack.getItem() instanceof ExperienceBottleItem
             : item == Items.SPLASH_POTION && stack.getItem() instanceof SplashPotionItem; }
-    public String unavailable(ServerPlayer p,ActionIntent i,EncounterAuthority.StateView s) {
+    public String unavailable(ServerPlayer p,ActionIntent i,StateView s) {
         if (!supportsItem(stack(p,i))) return "selected throwable changed";
         if (item==Items.SPLASH_POTION) {
             var contents=stack(p,i).get(DataComponents.POTION_CONTENTS);

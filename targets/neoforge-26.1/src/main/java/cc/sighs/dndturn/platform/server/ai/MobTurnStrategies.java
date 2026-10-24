@@ -1,4 +1,6 @@
 package cc.sighs.dndturn.platform.server.ai;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.domain.encounter.EncounterPhase;
 
 import cc.sighs.dndturn.domain.ai.AiMemory;
 
@@ -18,51 +20,68 @@ import cc.sighs.dndturn.domain.fact.ActorFacts;
 import cc.sighs.dndturn.domain.fact.FactSlice;
 import cc.sighs.dndturn.platform.diagnostics.DebugDiagnostics;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.action.AbilityWorkBudget;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
-import cc.sighs.dndturn.platform.server.actor.MinecraftFactProviders;
+import cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
+import cc.sighs.dndturn.platform.server.fact.MinecraftFactProviders;
 import cc.sighs.dndturn.platform.server.actor.MinecraftSnapshotCapture;
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.entity.Entity;
 import java.util.*;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.PathfinderMob;
-import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 
 /** Strategies propose values only. Execution, resources and navigation belong to the shared PLAN. */
 public final class MobTurnStrategies {
+    public interface Facts {
+        MinecraftSnapshotCapture snapshots();
+        long actorRevision(UUID actor);
+        long planClock();
+        boolean takeAbilityWork(UUID actor, UUID encounter, AbilityWorkBudget.Work work);
+    }
+    public interface TurnCommands {
+        boolean recovering(UUID encounter);
+        boolean runningIn(UUID encounter);
+        boolean controlFault(UUID actor);
+        Entity resolve(UUID actor);
+        UUID mobOperation(UUID actor);
+        void observeMobMovement(Mob actor, UUID operation);
+        void endCurrentTurn(UUID encounter, UUID operation, long version);
+        void submit(LiveActorContext actor, UUID encounter, UUID operation, long version, ActionIntent intent);
+    }
+
     private record TargetSample(PerceptionSnapshot.ObservedActor perception, boolean hostile,
                                 List<AiDecisionContext.Option> options) {}
-    static AiDecisionContext capture(LiveActorContext actor, EncounterAuthority.StateView state,
-                                        OperationRecord.Result previous, EncounterAuthority engine) {
-        return capture(actor, state, previous, engine, new Capture(actor, state),
-            new AiRuntimeState(actor.id(), actor.instance(), state.round(), 0, null));
+    static AiDecisionContext capture(LiveActorContext actor, StateView state,
+                                        OperationRecord.Result previous, EncounterAuthority engine, Facts facts) {
+        actor = facts.snapshots().context(actor.body());
+        return capture(actor, state, previous, engine, new Capture(actor, state, facts),
+            new AiRuntimeState(actor.id(), actor.instance(), state.round(), 0, null), facts);
     }
     private record Dependencies(UUID instance, long version, FactSlice facts,
                                 net.minecraft.world.phys.Vec3 position, UUID target,
                                 List<List<GrantEvidence>> sources, long actorRevision) {}
-    private static Dependencies dependencies(LiveActorContext actor, EncounterAuthority.StateView state) {
+    private static Dependencies dependencies(LiveActorContext actor, StateView state, Facts facts) {
         var target = ((Mob)actor.body()).getTarget();
         return new Dependencies(actor.instance(), state.version(), MinecraftFactProviders.capture(actor, ActorFacts.DECISION), actor.body().position(),
-            target == null ? null : target.getUUID(), AbilityAdapterRegistry.all().stream()
+            target == null ? null : target.getUUID(), cc.sighs.dndturn.platform.server.action.AbilityExecutors.all().stream()
                 .map(behavior -> AbilityAdapterRegistry.facts(behavior.id()).checkedSources(actor)).toList(),
-            ServerRuntime.encounters(actor.level().getServer()).actorStates().state(actor.id()).revision());
+            facts.actorRevision(actor.id()));
     }
     private static final class Capture {
         final UUID actor;
         final Dependencies dependencies;
         final ActorSnapshot snapshot;
         final BudgetedScan<UUID, TargetSample> scan;
-        Capture(LiveActorContext actor, EncounterAuthority.StateView state) {
-            this.actor = actor.id(); this.dependencies = dependencies(actor, state);
-            this.snapshot = MinecraftSnapshotCapture.capture(actor, state);
+        Capture(LiveActorContext actor, StateView state, Facts facts) {
+            this.actor = actor.id(); this.dependencies = dependencies(actor, state, facts);
+            this.snapshot = facts.snapshots().capture(actor, state);
             scan = new BudgetedScan<>(state.members().keySet().stream().sorted().toList(), 4096);
         }
     }
-    private static AiDecisionContext capture(LiveActorContext actor, EncounterAuthority.StateView state,
-                                        OperationRecord.Result previous, EncounterAuthority engine, Capture capture, AiRuntimeState runtime) {
+    private static AiDecisionContext capture(LiveActorContext actor, StateView state,
+                                        OperationRecord.Result previous, EncounterAuthority engine, Capture capture, AiRuntimeState runtime, Facts facts) {
         var mob = (Mob) actor.body();
-        var service = ServerRuntime.encounters(actor.level().getServer());
+        var service = facts;
         boolean complete = capture.scan.advance(() -> service.takeAbilityWork(actor.id(),
             state.id(), AbilityWorkBudget.Work.CANDIDATE), id -> {
             if (id.equals(actor.id())) return null;
@@ -87,10 +106,10 @@ public final class MobTurnStrategies {
                 if (mob.distanceToSqr(living) > follow * follow) return null;
             }
             var aim = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY, state.region().dimension(), id, null, -1, 0, 0, 0);
-            var options = AbilityAdapterRegistry.discover(actor, capture.snapshot, state, aim).stream()
+            var options = cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor, capture.snapshot, state, aim).stream()
                 .map(o -> new AiDecisionContext.Option(id, o.binding(),
-                    o.availability() == AbilityAdapterRegistry.Availability.EXECUTABLE
-                        || o.availability() == AbilityAdapterRegistry.Availability.APPROACH_REQUIRED,
+                    o.availability() == cc.sighs.dndturn.platform.server.ability.AbilityQueries.Availability.EXECUTABLE
+                        || o.availability() == cc.sighs.dndturn.platform.server.ability.AbilityQueries.Availability.APPROACH_REQUIRED,
                     AiDefinitions.SEMANTICS.get(o.binding().id(), o.binding().version())))
                 // An equipped/specialized ranged action keeps priority over the universal melee fallback.
                 .sorted(Comparator.comparingInt(o -> o.semantics().contains(AiAffordance.RANGED) ? 0 : 1)).toList();
@@ -118,6 +137,10 @@ public final class MobTurnStrategies {
     public static void freeze() { AiDefinitions.freeze(); MovementPorts.freeze(); }
     /** Bounded decision memory, not a resource balance. Reset on owner, instance or turn changes. */
     public static final class Decisions {
+        private final Facts facts;
+        private long decisionCursor;
+        public Decisions(Facts facts) { this.facts = Objects.requireNonNull(facts); }
+
         private record Proposal(UUID actor, UUID instance, long version, UUID operation, ActionIntent intent) {}
         private final Map<UUID, AiRuntimeState> turns = new HashMap<>();
         private final Map<UUID, Proposal> proposals = new HashMap<>();
@@ -127,7 +150,7 @@ public final class MobTurnStrategies {
         private final Map<MemoryOwner, AiMemory> memories = new HashMap<>();
         public void retain(Set<UUID> ids) { turns.keySet().retainAll(ids); proposals.keySet().retainAll(ids); waits.keySet().retainAll(ids); captures.keySet().retainAll(ids);
             memories.keySet().removeIf(key -> !ids.contains(key.encounter())); }
-        public ActionIntent next(LiveActorContext actor, EncounterAuthority.StateView state, EncounterAuthority engine) {
+        public ActionIntent next(LiveActorContext actor, StateView state, EncounterAuthority engine) {
             var old = turns.get(state.id());
             if (old == null || !old.actor().equals(actor.id()) || !old.instance().equals(actor.instance()) || old.round() != state.round()) {
                 memories.keySet().removeIf(key -> key.actor().equals(actor.id()) && (!key.instance().equals(actor.instance())
@@ -139,7 +162,7 @@ public final class MobTurnStrategies {
                 waits.remove(state.id());
                 captures.remove(state.id());
             }
-            long now = ServerRuntime.encounters(actor.level().getServer()).actionHost().planClock();
+            long now = facts.planClock();
             var waiting = waits.get(state.id());
             if (waiting != null && now < waiting.until()) throw deferredWait();
             if (old.count() >= 8) throw new IllegalStateException("AI_DECISION_LIMIT");
@@ -151,12 +174,12 @@ public final class MobTurnStrategies {
                 && cached.version == state.version()) return cached.intent;
             proposals.remove(state.id());
             var pending = captures.get(state.id());
-            if (pending == null || !pending.actor.equals(actor.id()) || !pending.dependencies.equals(dependencies(actor, state))) {
-                pending = new Capture(actor, state);
+            if (pending == null || !pending.actor.equals(actor.id()) || !pending.dependencies.equals(dependencies(actor, state, facts))) {
+                pending = new Capture(actor, state, facts);
                 captures.put(state.id(), pending);
             }
             var definition = AiDefinitions.definition(pending.snapshot.definition(), (Mob)actor.body());
-            var input = capture(actor, state, previous, engine, pending, old);
+            var input = capture(actor, state, previous, engine, pending, old, facts);
             var memory = old.memory().remember(input.perception(), state.round(), state.version());
             var memoryOwner = new MemoryOwner(state.id(), actor.id(), actor.instance());
             if (!memories.containsKey(memoryOwner) && memories.size() >= 4096) throw new IllegalStateException("AI_MEMORY_LIMIT");
@@ -179,12 +202,54 @@ public final class MobTurnStrategies {
             if (intent != null) proposals.put(state.id(), new Proposal(actor.id(), actor.instance(), state.version(), UUID.randomUUID(), intent));
             return intent;
         }
+    public void advance(MinecraftServer server, EncounterAuthority engine, TurnCommands commands) {
+        if (!server.isSameThread()) throw new IllegalStateException("AI requires server thread");
+        if (server.tickRateManager().isFrozen()) return;
+        retain(engine.encounterIds());
+        var decisionOrder = new ArrayList<>(engine.encounterIds());
+        decisionOrder.sort(UUID::compareTo);
+        if (!decisionOrder.isEmpty()) java.util.Collections.rotate(decisionOrder, -(int)Math.floorMod(decisionCursor++, decisionOrder.size()));
+        for (UUID encounterId : decisionOrder) {
+            if (commands.recovering(encounterId) || commands.runningIn(encounterId)) continue;
+            var state = engine.stateView(encounterId);
+            if (state.phase() == EncounterPhase.ENVIRONMENT || state.current() == null) continue;
+            if (!(commands.resolve(state.current()) instanceof Mob mob) || commands.controlFault(mob.getUUID())) continue;
+            var leased = commands.mobOperation(mob.getUUID());
+            if (leased != null) { commands.observeMobMovement(mob, leased); continue; }
+            if (engine.hasPendingOperations(encounterId)) continue;
+            if (!facts.takeAbilityWork(mob.getUUID(), encounterId, AbilityWorkBudget.Work.AI)) continue;
+            ActionIntent decision;
+            try {
+                for (UUID ignored : state.members().keySet())
+                    if (!facts.takeAbilityWork(mob.getUUID(), encounterId, AbilityWorkBudget.Work.CANDIDATE)) throw new ActionFailure(ActionFailure.Code.EVALUATION_DEFERRED, ActionFailure.Retry.REFRESH_AND_REPROPOSE, "AI work budget exhausted");
+                decision = next(facts.snapshots().context(mob), state, engine);
+            }
+            catch (RuntimeException failure) {
+                DebugDiagnostics.log("MOB_DECISION_FAILURE", () -> "actor=" + mob.getUUID()
+                    + " encounter=" + encounterId + " failure=" + ActionFailure.classify(failure) + " reason=" + failure.getMessage());
+                if (failure instanceof ActionFailure deferred && deferred.code() == ActionFailure.Code.EVALUATION_DEFERRED) continue;
+                decision = null;
+            }
+            if (decision == null) {
+                commands.endCurrentTurn(encounterId, UUID.randomUUID(), state.version());
+            } else {
+                UUID operation = operation(state);
+                try {
+                    commands.submit(facts.snapshots().context(mob), encounterId, operation, state.version(), decision);
+                    submitted(state, operation);
+                } catch (ActionFailure deferred) {
+                    if (deferred.code() != ActionFailure.Code.EVALUATION_DEFERRED) throw deferred;
+                    // No root was accepted. Preserve this turn's decision allowance for a later tick.
+                }
+            }
+        }
+    }
         private static ActionFailure deferredWait() {
             return new ActionFailure(ActionFailure.Code.EVALUATION_DEFERRED,
                 ActionFailure.Retry.REFRESH_AND_REPROPOSE, "AI observation wait");
         }
-        public UUID operation(EncounterAuthority.StateView state) { return proposals.get(state.id()).operation; }
-        public void submitted(EncounterAuthority.StateView state, UUID operation) {
+        public UUID operation(StateView state) { return proposals.get(state.id()).operation; }
+        public void submitted(StateView state, UUID operation) {
             var old = turns.get(state.id());
             turns.put(state.id(), old.submitted(operation));
             proposals.remove(state.id());

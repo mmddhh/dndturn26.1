@@ -1,7 +1,8 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.AbilityDefinition;
-import cc.sighs.dndturn.platform.server.ability.MinecraftAbilityAdapter;
+import cc.sighs.dndturn.platform.server.action.MinecraftAbilityAdapter;
 
 /** External behaviors use scoped ports instead of acquiring the service or rule engine.
  * Callbacks are synchronous on the server thread; retained contexts fail after the callback.

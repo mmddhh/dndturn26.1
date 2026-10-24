@@ -37,9 +37,7 @@ public final class ClientControl {
     private static boolean session;
     private static Object level, player;
     private static Entity cameraOwner;
-    private static Vec3 position, focus;
-    private static double distance = 12;
-    private static float yaw, pitch;
+    private static final cc.sighs.dndturn.platform.client.camera.CameraRig rig = new cc.sighs.dndturn.platform.client.camera.CameraRig();
     private static long frameTime, revision;
     private static boolean restoreGrab;
     private static final Set<KeyMapping> cameraKeys = new HashSet<>();
@@ -66,14 +64,12 @@ public final class ClientControl {
         if (valid && !session) {
             session = true;
             cameraOwner = mc.getCameraEntity();
-            focus = mc.player.position().add(0, 1, 0);
-            yaw = 0; pitch = 55; distance = 12;
-            updateRig();
+            rig.start(mc.player.position().add(0, 1, 0));
             restoreGrab = mc.mouseHandler.isMouseGrabbed();
             transition();
         } else if (!valid && session) {
             ClientTacticalPlan.reset();
-            session = false; position = null; focus = null; cameraOwner = null; transition();
+            session = false; rig.reset(); cameraOwner = null; transition();
         }
         Recipient next = !mc.isWindowActive() ? Recipient.UNFOCUSED : mc.screen != null ? Recipient.SCREEN
             : modal() ? Recipient.CONSENT : session ? Recipient.CAMERA
@@ -110,8 +106,8 @@ public final class ClientControl {
     }
 
     public static void reset() {
-        boolean controlled = session || consent != null || position != null;
-        session = false; consent = null; position = null; focus = null; cameraOwner = null;
+        boolean controlled = session || consent != null || rig.position() != null;
+        session = false; consent = null; rig.reset(); cameraOwner = null;
         ClientTacticalPlan.reset();
         recipient = Recipient.GAME; level = null; player = null;
         restoreGrab = false;
@@ -244,8 +240,7 @@ public final class ClientControl {
         reconcile();
         if (Minecraft.getInstance().screen != null) return consumed;
         if (!consumed && recipient == Recipient.CAMERA && !TacticalOverlay.hit(mousePosition())) {
-            distance = Mth.clamp(distance - delta, 3, 32);
-            updateRig();
+            rig.zoom(delta);
         }
         return consumed || session || modal();
     }
@@ -260,16 +255,15 @@ public final class ClientControl {
             && g.owner == Recipient.CAMERA && g.revision == revision) {
             var o = Minecraft.getInstance().options;
             double s = Math.pow(o.sensitivity().get() * .6 + .2, 3) * 8 * .15;
-            yaw += (float)((x - mouseX) * s * (o.invertMouseX().get() ? -1 : 1));
-            pitch = Mth.clamp(pitch + (float)((y - mouseY) * s * (o.invertMouseY().get() ? -1 : 1)), 25, 80);
-            updateRig();
+            rig.rotate((float)((x - mouseX) * s * (o.invertMouseX().get() ? -1 : 1)),
+                (float)((y - mouseY) * s * (o.invertMouseY().get() ? -1 : 1)));
         }
         mouseX = x; mouseY = y;
     }
     public static boolean camera(Camera camera) {
         reconcile();
         var mc = Minecraft.getInstance();
-        return session && position != null && camera == mc.gameRenderer.getMainCamera()
+        return session && rig.position() != null && camera == mc.gameRenderer.getMainCamera()
             && mc.getCameraEntity() == cameraOwner && cameraOwner == mc.player;
     }
     public static void frame() {
@@ -279,55 +273,20 @@ public final class ClientControl {
         if (recipient != Recipient.CAMERA) return;
         var o = Minecraft.getInstance().options;
         double f = axis(o.keyUp, o.keyDown), l = axis(o.keyLeft, o.keyRight);
-        yaw = Mth.wrapDegrees(yaw + (float)(axis(CombatControls.rotateRightKey(), CombatControls.rotateLeftKey()) * seconds * 90));
-        Vec3 forward = Vec3.directionFromRotation(0, yaw);
-        Vec3 left = new Vec3(forward.z, 0, -forward.x).normalize();
-        Vec3 delta = forward.scale(f).add(left.scale(l));
-        if (delta.lengthSqr() > 0) move(delta.normalize().scale(seconds * (cameraKeys.contains(o.keySprint) ? 12 : 6)));
-        updateRig();
+        rig.pan(f, l, seconds, cameraKeys.contains(o.keySprint),
+            axis(CombatControls.rotateRightKey(), CombatControls.rotateLeftKey()));
     }
     private static int axis(KeyMapping positive, KeyMapping negative) {
         return (cameraKeys.contains(positive) ? 1 : 0) - (cameraKeys.contains(negative) ? 1 : 0);
     }
-    private static Vec3 forward() { return Vec3.directionFromRotation(pitch, yaw); }
-    private static void move(Vec3 delta) {
-        if (focus == null) return;
-        var world = Minecraft.getInstance().level;
-        if (world == null) return;
-        int steps = Math.max(1, (int)Math.ceil(delta.length() * 2));
-        for (int i = 1; i <= steps; i++)
-            if (!world.hasChunkAt(BlockPos.containing(focus.add(delta.scale((double)i / steps))))) return;
-        focus = focus.add(delta);
-        updateRig();
-    }
-    private static void updateRig() {
-        if (focus == null) return;
-        var mc = Minecraft.getInstance();
-        Vec3 desired = focus.subtract(forward().scale(distance));
-        // Clip the visual boom without loading terrain or moving the camera entity.
-        if (mc.level != null && mc.player != null) {
-            Vec3 boom = desired.subtract(focus);
-            for (int i = 1, count = Math.max(1, (int)Math.ceil(distance * 2)); i <= count; i++) {
-                Vec3 point = focus.add(boom.scale((double)i / count));
-                if (!mc.level.hasChunkAt(BlockPos.containing(point))) {
-                    desired = focus.add(boom.scale((double)(i - 1) / count));
-                    break;
-                }
-            }
-            var hit = mc.level.clip(new ClipContext(focus, desired, ClipContext.Block.VISUAL,
-                ClipContext.Fluid.NONE, mc.player));
-            if (hit.getType() != HitResult.Type.MISS) {
-                Vec3 offset = hit.getLocation().subtract(focus);
-                desired = focus.add(offset.normalize().scale(Math.max(0, offset.length() - .2)));
-            }
-        }
-        position = desired;
-    }
+
+
+
     public static void home() {
         var mc = Minecraft.getInstance();
-        if (session && mc.player != null) { focus = mc.player.position().add(0,1,0); updateRig(); }
+        if (session && mc.player != null) { rig.focus(mc.player.position().add(0,1,0)); }
     }
-    public static void preset() { if (session) { pitch = pitch < 65 ? 78 : 55; updateRig(); } }
+    public static void preset() { if (session) { rig.preset(); } }
     private static boolean escapeHeld;
     public static boolean escape(int action, net.minecraft.client.input.KeyEvent event) {
         var mc = Minecraft.getInstance();
@@ -343,9 +302,9 @@ public final class ClientControl {
         if (TacticalOverlay.closePanel()) { escapeHeld = true; return true; }
         return false;
     }
-    public static Vec3 position() { return position; }
-    public static float yaw() { return yaw; }
-    public static float pitch() { return pitch; }
+    public static Vec3 position() { return rig.position(); }
+    public static float yaw() { return rig.yaw(); }
+    public static float pitch() { return rig.pitch(); }
 
     private static void select(boolean execute) {
         var pick = previewPick();
@@ -402,26 +361,26 @@ public final class ClientControl {
         double tan = Math.tan(Math.toRadians(mc.options.fov().get()) / 2);
         // Read both origin and orientation from this rig. Camera.rotation() is only
         // refreshed during render update and can still describe the previous frame.
-        Quaternionf rotation = new Quaternionf().rotationYXZ((float)Math.PI - yaw * Mth.DEG_TO_RAD,
-            -pitch * Mth.DEG_TO_RAD, 0);
+        Quaternionf rotation = new Quaternionf().rotationYXZ((float)Math.PI - rig.yaw() * Mth.DEG_TO_RAD,
+            -rig.pitch() * Mth.DEG_TO_RAD, 0);
         Vector3f ray = new Vector3f((float)(x * tan * mc.getWindow().getScreenWidth() / mc.getWindow().getScreenHeight()),
             (float)(y * tan), -1).rotate(rotation).normalize();
         Vec3 direction = new Vec3(ray.x, ray.y, ray.z);
         double range = 0;
-        while (range < 64 && mc.level.hasChunkAt(BlockPos.containing(position.add(direction.scale(range + 1))))) range++;
-        Vec3 end = position.add(direction.scale(range));
-        var block = mc.level.clip(new ClipContext(position, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
-        double nearest = block.getType() == HitResult.Type.MISS ? range * range : block.getLocation().distanceToSqr(position);
+        while (range < 64 && mc.level.hasChunkAt(BlockPos.containing(rig.position().add(direction.scale(range + 1))))) range++;
+        Vec3 end = rig.position().add(direction.scale(range));
+        var block = mc.level.clip(new ClipContext(rig.position(), end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+        double nearest = block.getType() == HitResult.Type.MISS ? range * range : block.getLocation().distanceToSqr(rig.position());
         java.util.UUID selected = null;
         Vec3 contact = block.getType() == HitResult.Type.MISS ? null : block.getLocation();
         for (Entity entity : mc.level.entitiesForRendering()) {
             if (entity == null || entity == mc.player || !entity.isAlive()) continue;
-            var hit = entity.getBoundingBox().inflate(.1).clip(position, end);
-            if (hit.isPresent() && hit.get().distanceToSqr(position) < nearest) {
-                nearest = hit.get().distanceToSqr(position); selected = entity.getUUID();
+            var hit = entity.getBoundingBox().inflate(.1).clip(rig.position(), end);
+            if (hit.isPresent() && hit.get().distanceToSqr(rig.position()) < nearest) {
+                nearest = hit.get().distanceToSqr(rig.position()); selected = entity.getUUID();
                 contact = hit.get();
             }
         }
-        return new WorldPick(position, end, selected, block, contact);
+        return new WorldPick(rig.position(), end, selected, block, contact);
     }
 }

@@ -1,9 +1,9 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.*;
@@ -21,15 +21,14 @@ final class FishingBehavior extends VanillaBehaviors.Interaction {
         if (!(actor.body() instanceof ServerPlayer p) || (p.fishing!=null)!=retrieve) return null;
         return super.source(actor,hand);
     }
-    public String unavailable(ServerPlayer p,ActionIntent i,EncounterAuthority.StateView s) {
-        if (!retrieve) return p.fishing==null?null:"retrieve existing hook before casting";
-        if (p.fishing==null || !p.fishing.getUUID().equals(i.target().entity()) || p.fishing.getOwner()!=p)
-            return "selected fishing hook replaced";
-        var service=ServerRuntime.encounters(p.level().getServer());
-        if (!service.actionHost().ownsItemProjectile(p,p.fishing)) return "fishing hook has no verified cast";
+    protected String unavailableFacts(LiveActorContext actor,ActionIntent i,StateView s) {
+        var p = actor.requirePlayer();
+        if (!retrieve) return null;
+        var facts = actor.requireFacts();
+        if (!facts.ownsProjectile(p,p.fishing)) return "fishing hook has no verified cast";
         var caught=p.fishing.getHookedIn();
         if (caught!=null && (caught instanceof net.minecraft.world.entity.player.Player
-            || !s.id().equals(service.encounterAtBlock(p.level(),caught.blockPosition())))) return "hooked entity outside retrieval permission";
+            || !s.id().equals(facts.encounterAtBlock(p.level(),caught.blockPosition())))) return "hooked entity outside retrieval permission";
         return null;
     }
     public boolean canExecute(ServerPlayer p,ActionIntent i,Vec3 feet) {
@@ -48,4 +47,11 @@ final class FishingBehavior extends VanillaBehaviors.Interaction {
             return p.gameMode.useItem(p,p.level(),stack(p,root.intent()),hand(root.intent()));
         }
     }
+    public String unavailable(ServerPlayer p, ActionIntent i, StateView s) {
+        if (!retrieve) return p.fishing==null?null:"retrieve existing hook before casting";
+        if (p.fishing==null || !p.fishing.getUUID().equals(i.target().entity()) || p.fishing.getOwner()!=p)
+            return "selected fishing hook replaced";
+        return null;
+    }
+
 }

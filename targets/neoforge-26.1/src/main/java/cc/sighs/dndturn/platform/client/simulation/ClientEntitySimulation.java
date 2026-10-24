@@ -40,8 +40,8 @@ public final class ClientEntitySimulation {
     public static void receive(EncounterProtocol.EntitySimulation state, IPayloadContext context) {
         var origin = context.connection();
         var world = Minecraft.getInstance().level;
-        context.enqueueWork(() -> {
-            ClientCombatState.refreshSession();
+        cc.sighs.dndturn.platform.client.ClientSession.enqueue(context, () -> {
+            cc.sighs.dndturn.platform.client.ClientSession.refreshSession();
             var mc = Minecraft.getInstance();
             if (mc.getConnection() == null || mc.getConnection().getConnection() != origin || world == null || mc.level != world
                 || !world.dimension().identifier().toString().equals(state.dimension())) return;

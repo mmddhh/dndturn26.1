@@ -1,4 +1,6 @@
 package cc.sighs.dndturn.platform.server.encounter;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.domain.encounter.MemberView;
 
 import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.EncounterPhase;
@@ -48,12 +50,12 @@ public final class ProjectionPublisher {
     public void retainOnline(Set<UUID> actors) { subscriptions.retainOnline(actors); }
     public void body(ServerPlayer player, boolean paused, boolean movement) { subscriptions.body(player, paused, movement); }
     public void close() { subscriptions.clear(); sessionSequences.clear(); projectionRevisions.clear(); }
-    public void publish(EncounterAuthority.StateView state, java.util.function.Function<UUID, UUID> movementOperation, boolean ready) {
+    public void publish(StateView state, java.util.function.Function<UUID, UUID> movementOperation, boolean ready) {
         long projectionRevision = Math.addExact(projectionRevisions.getOrDefault(state.id(), 0L), 1);
         List<EncounterProtocol.MemberNotice> roster = new ArrayList<>(state.members().values().stream()
-            .sorted(java.util.Comparator.comparingInt(EncounterAuthority.MemberView::initiative).reversed()
-                .thenComparingInt(EncounterAuthority.MemberView::tieBreak)
-                .thenComparing(EncounterAuthority.MemberView::id))
+            .sorted(java.util.Comparator.comparingInt(MemberView::initiative).reversed()
+                .thenComparingInt(MemberView::tieBreak)
+                .thenComparing(MemberView::id))
             .map(member -> {
                 Entity entity = resolve.apply(member.id());
                 return new EncounterProtocol.MemberNotice(member.id(),
@@ -67,7 +69,7 @@ public final class ProjectionPublisher {
         for (var entry : state.members().entrySet()) {
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
             if (player == null) continue;
-            EncounterAuthority.MemberView member = entry.getValue();
+            MemberView member = entry.getValue();
             subscriptions.publish(player, new EncounterProtocol.EncounterState(generation,
                 state.id(), sessionSequences.getOrDefault(state.id(), 0L), true,
                 state.version(), state.phase(), state.round(),

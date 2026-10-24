@@ -5,7 +5,7 @@ import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
 import cc.sighs.dndturn.platform.mixin.server.lifecycle.ActorEquipmentAccess;
 import cc.sighs.dndturn.platform.observation.ItemStackFingerprint;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;

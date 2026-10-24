@@ -1,9 +1,11 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.BuiltinAbilities;
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.platform.server.damage.DamageReceivers;
 import cc.sighs.dndturn.platform.server.damage.MeleeAdapters;
 import net.minecraft.core.BlockPos;
@@ -27,7 +29,7 @@ final class IntrinsicMelee extends AbilityAdapter {
         var provider = MeleeAdapters.server().attacker(actor.body());
         return provider == null ? null : GrantEvidence.intrinsic(provider.id(), provider.version(), actor.id(), actor.instance());
     }
-    public String unavailable(LiveActorContext actor, ActionIntent intent, EncounterAuthority.StateView state) {
+    public String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) {
         var found = actor.level().getEntity(intent.target().entity());
         if (!(found instanceof LivingEntity target)) return null; // Common target contract rejects non-living targets.
         return DamageReceivers.server().find(target) == null ? "target receiver unavailable" : null;

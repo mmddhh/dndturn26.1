@@ -1,8 +1,7 @@
 package cc.sighs.dndturn.platform.mixin.server.world;
 
 import cc.sighs.dndturn.platform.server.world.ConduitTimeAccess;
-import cc.sighs.dndturn.platform.server.world.EnvironmentProcesses;
-import cc.sighs.dndturn.platform.server.world.WorldSimulationHooks;
+import cc.sighs.dndturn.platform.server.runtime.WorldSimulationHooks;
 import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -31,7 +30,7 @@ public abstract class ConduitEnvironmentTimeMixin implements ConduitTimeAccess {
     }
     @Redirect(method = "serverTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getGameTime()J"))
     private static long dndturn$period(Level receiver, Level level, BlockPos pos, BlockState state, ConduitBlockEntity conduit) {
-        long projected = EnvironmentProcesses.time(level, pos);
+        long projected = cc.sighs.dndturn.platform.server.runtime.WorldSimulationHooks.environmentTimeAt(level, pos);
         UUID domain = WorldSimulationHooks.domainAt(level, pos);
         ((ConduitTimeAccess) conduit).dndturn$rebaseAmbient(level.getGameTime(), projected, domain);
         return projected;

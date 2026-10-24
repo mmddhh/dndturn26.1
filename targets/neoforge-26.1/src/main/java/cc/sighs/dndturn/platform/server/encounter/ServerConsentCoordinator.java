@@ -214,7 +214,7 @@ final class ServerConsentCoordinator {
         for (UUID id : group.recipients) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) continue;
-            EncounterProtocol.sendConsentState(player, new EncounterProtocol.ConsentState(generation, next,
+            cc.sighs.dndturn.platform.server.network.EncounterSender.sendConsentState(player, new EncounterProtocol.ConsentState(generation, next,
                 view.id(), view.revision(), view.deadline(), server.getTickCount(),
                 view.status() == ConsentWindow.Status.WAITING && view.members().contains(id),
                 view.members().contains(id) ? roster : List.of(), group.reason));

@@ -37,7 +37,7 @@ public final class EnvironmentProcessChecks {
         var service=ServerRuntime.encounters(level.getServer());
         BlockPos tntPos=base.east(2), hopperPos=base.south(2), delayed=base.north(3);
         helper.runAtTickTime(30,()-> {
-            service.requestStart(player,UUID.randomUUID()); UUID id=service.encounterOf(player.getUUID());
+            service.lifecycle().requestStart(player,UUID.randomUUID()); UUID id=service.encounterOf(player.getUUID());
             helper.assertTrue(id!=null,"normal player-only START failed");
             level.setBlockAndUpdate(tntPos,Blocks.TNT.defaultBlockState());
             level.setBlockAndUpdate(tntPos.east(),Blocks.REDSTONE_BLOCK.defaultBlockState());
@@ -61,7 +61,7 @@ public final class EnvironmentProcessChecks {
                 helper.assertTrue(tnt.getFuse()==fuse && hopper.isEmpty(),"thinking time advanced managed process");
                 helper.assertTrue(level.getBlockState(delayed).is(Blocks.TNT),"repeater delay advanced during thinking");
                 level.getServer().tickRateManager().setFrozen(true);
-                service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+                service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
                 int remaining=service.state(id).environmentRemaining();
                 afterServerTicks(level.getServer(), 3, ()-> {
                     boolean unchanged = service.state(id).environmentRemaining()==remaining && tnt.getFuse()==fuse;
@@ -72,7 +72,7 @@ public final class EnvironmentProcessChecks {
                         .thenExecute(()-> {
                             helper.assertTrue(service.state(id).participants().stream().filter(TurnParticipant::environment).count()==1,
                                 "managed processes duplicated environment seat");
-                            service.stop(id); tnt.discard(); item.discard();
+                            service.lifecycle().stop(id); tnt.discard(); item.discard();
                             level.getEntitiesOfClass(PrimedTnt.class,new net.minecraft.world.phys.AABB(delayed).inflate(3)).forEach(Entity::discard);
                             for(long key:forced) {var c=net.minecraft.world.level.ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);}
                             forced.clear();
@@ -83,7 +83,7 @@ public final class EnvironmentProcessChecks {
         helper.runAtTickTime(99,()-> {
             helper.assertTrue(level.getBlockState(delayed).isAir(), "delayed TNT not primed: "+level.getBlockState(delayed.west())+" queued="+level.getBlockTicks().hasScheduledTick(delayed.west(),Blocks.REPEATER)+" ticking="+level.getChunkSource().isPositionTicking(net.minecraft.world.level.ChunkPos.pack(delayed.west())));
             level.getServer().tickRateManager().setFrozen(false);
-            UUID id=service.encounterOf(player.getUUID()); if(id!=null)service.stop(id);
+            UUID id=service.encounterOf(player.getUUID()); if(id!=null)service.lifecycle().stop(id);
             for(long key:forced) {var c=net.minecraft.world.level.ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);}
             forced.clear();
         });

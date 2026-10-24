@@ -3,7 +3,7 @@ package cc.sighs.dndturn.platform.server.actor;
 import cc.sighs.dndturn.domain.ability.ActivationSpec;
 import cc.sighs.dndturn.domain.actor.ActorActivations;
 import cc.sighs.dndturn.gametest.TestPlayers;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.nio.file.*;
 import java.util.*;

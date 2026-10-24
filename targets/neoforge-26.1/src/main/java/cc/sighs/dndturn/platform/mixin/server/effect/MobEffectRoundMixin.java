@@ -1,7 +1,6 @@
 package cc.sighs.dndturn.platform.mixin.server.effect;
 
 import cc.sighs.dndturn.platform.server.effect.vanilla.EffectTimerAccess;
-import cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -22,6 +21,6 @@ public abstract class MobEffectRoundMixin implements EffectTimerAccess {
     @Invoker("downgradeToHiddenEffect") public abstract boolean dndturn$promoteHidden();
     @Inject(method="tickServer", at=@At("HEAD"), cancellable=true)
     private void dndturn$ownerClock(ServerLevel level, LivingEntity owner, Runnable update, CallbackInfoReturnable<Boolean> ci) {
-        if (VanillaEffectRoundController.holdEffect(owner, (MobEffectInstance)(Object)this)) ci.setReturnValue(true);
+        if (cc.sighs.dndturn.platform.server.runtime.VanillaEffectHooks.holdEffect(owner, (MobEffectInstance)(Object)this)) ci.setReturnValue(true);
     }
 }

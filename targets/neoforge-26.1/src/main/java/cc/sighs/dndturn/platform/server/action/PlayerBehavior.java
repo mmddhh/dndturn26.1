@@ -1,13 +1,15 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.AbilityDefinition;
 import cc.sighs.dndturn.domain.ability.BuiltinAbilities;
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import cc.sighs.dndturn.platform.projection.PresentationUseIdentity;
-import cc.sighs.dndturn.platform.server.ability.MinecraftAbilityAdapter;
+import cc.sighs.dndturn.platform.server.action.MinecraftAbilityAdapter;
 import cc.sighs.dndturn.platform.server.actor.ActorEquipment;
 import cc.sighs.dndturn.platform.server.damage.DamageReceivers;
 import cc.sighs.dndturn.platform.spatial.AimGeometry.Aim;
@@ -38,8 +40,9 @@ public abstract class PlayerBehavior extends MinecraftAbilityAdapter {
         var stack = player.getItemInHand(InteractionHand.valueOf(hand.name()));
         return supportsItem(stack) ? GrantEvidence.equipment(hand, ActorEquipment.reference(actor, hand)) : null;
     }
-    @Override public final String unavailable(LiveActorContext actor, ActionIntent intent, EncounterAuthority.StateView state) {
-        return unavailable(actor.requirePlayer(), intent, state);
+    @Override public final String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) {
+        var rejection = unavailable(actor.requirePlayer(), intent, state);
+        return rejection == null ? unavailableFacts(actor, intent, state) : rejection;
     }
     @Override public final boolean canExecute(LiveActorContext actor, ActionIntent intent, Vec3 feet) { return canExecute(actor.requirePlayer(), intent, feet); }
     @Override public final void prepare(ActionExecutionCoordinator a, LiveActorContext actor, ActionExecutionCoordinator.Execution e) { prepare(a, actor.requirePlayer(), e); }
@@ -49,7 +52,8 @@ public abstract class PlayerBehavior extends MinecraftAbilityAdapter {
     @Override public final void release(ActionExecutionCoordinator a, LiveActorContext actor, ActionExecutionCoordinator.Execution e) { release(a, actor.requirePlayer(), e); }
     public boolean supportsItem(ItemStack stack) { return true; }
     public int approachRadius() { return 4; }
-    public abstract String unavailable(ServerPlayer player, ActionIntent intent, EncounterAuthority.StateView state);
+    protected String unavailableFacts(LiveActorContext actor, ActionIntent intent, StateView state) { return null; }
+    public abstract String unavailable(ServerPlayer player, ActionIntent intent, StateView state);
     public void prepare(ActionExecutionCoordinator actions, ServerPlayer player, ActionExecutionCoordinator.Execution execution) {
         var intent = execution.root.intent();
         if (intent.target().cell() != null) {
@@ -105,7 +109,7 @@ public abstract class PlayerBehavior extends MinecraftAbilityAdapter {
         player.setYRot(aim.yaw()); player.setXRot(aim.pitch()); player.setYHeadRot(aim.yaw());
     }
     
-    protected static String attackTarget(ServerPlayer player, ActionIntent intent, EncounterAuthority.StateView state) {
+    protected static String attackTarget(ServerPlayer player, ActionIntent intent, StateView state) {
         var target = player.level().getEntity(intent.target().entity());
         if (!(target instanceof net.minecraft.world.entity.LivingEntity living)) return null;
         return DamageReceivers.server().find(living) != null ? null : "target combat adapter unavailable";

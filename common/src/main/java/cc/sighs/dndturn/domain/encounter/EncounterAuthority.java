@@ -57,26 +57,14 @@ public final class EncounterAuthority {
                 && cell.z() >= min.z() && cell.z() <= max.z();
         }
     }
-    public record MemberView(UUID id, int initiative, int tieBreak, int movementTicks, boolean action,
-                             boolean reaction, boolean dodging, boolean disengaged, long eligibleRound) {}
+
     public record View(UUID id, EncounterPhase phase, long version, Bounds bounds, List<UUID> order,
                        UUID current, Map<UUID, MemberView> members, List<OperationRecord.Result> results,
                        EncounterRegion region, long round) {
         public View { order = List.copyOf(order); members = Map.copyOf(members); results = List.copyOf(results); }
     }
     /** Turn state without copying the ever-growing result history. */
-    public record StateView(UUID id, EncounterPhase phase, long version, List<UUID> order, UUID current,
-                            Map<UUID, MemberView> members, long round, int environmentRemaining,
-                            EncounterRegion region) {
-        public StateView { order = List.copyOf(order); members = Map.copyOf(members); }
-        public TurnParticipant environment() { return TurnParticipant.environment(id); }
-        public List<TurnParticipant> participants() {
-            return order.stream().map(value -> value.equals(environment().id()) ? environment() : TurnParticipant.entity(value)).toList();
-        }
-        public TurnParticipant currentParticipant() {
-            return current == null ? null : current.equals(environment().id()) ? environment() : TurnParticipant.entity(current);
-        }
-    }
+
     public record ResultPage(int fromIndex, int nextIndex, int total, List<OperationRecord.Result> results) {
         public ResultPage { results = List.copyOf(results); }
     }
@@ -95,7 +83,7 @@ public final class EncounterAuthority {
                 throw new IllegalArgumentException("merge plan participants");
         }
     }
-    private static final class Member {
+    static final class Member {
         final UUID id;
         final ActionEconomy economy;
         int initiative;
@@ -108,7 +96,7 @@ public final class EncounterAuthority {
         MemberView view() { return new MemberView(id, initiative, tieBreak, economy.movementTicks(),
             economy.hasAction(), economy.hasReaction(), dodging, disengaged, eligibleRound); }
     }
-    private static final class Encounter {
+    static final class Encounter {
         final UUID id;
         final TurnParticipant environment;
         final int movementTicksPerTurn;
@@ -130,17 +118,12 @@ public final class EncounterAuthority {
         /** A projectile attack can connect sessions before their fixed regions overlap. */
         final Set<UUID> causalMergeNeighbors = new HashSet<>();
         final List<UUID> order = new ArrayList<>();
-        final Map<UUID, OperationRecord.Result> finalResults = new HashMap<>();
-        final Map<UUID, Map<Integer, OperationRecord.Result>> stepResults = new HashMap<>();
-        final Map<UUID, OperationRecord.Snapshot> pending = new HashMap<>();
+        final OperationLedger operations = new OperationLedger();
         /** Accepted identities survive completion so delayed effects keep their original cause. */
-        final Map<UUID, OperationRecord.Snapshot> causes = new HashMap<>();
         /** The first accepted attack consumes this Encounter-scoped entitlement, even on a miss. */
         final Set<UUID> attackersWithRegisteredAttempt = new HashSet<>();
         final Map<UUID, PermitState> permits = new HashMap<>();
-        final Map<UUID, Integer> childrenByRoot = new HashMap<>();
         final Set<UUID> completedEnvironmentSteps = new HashSet<>();
-        final List<OperationRecord.Result> history = new ArrayList<>();
         Encounter(UUID id, EncounterRegion region, int movementTicksPerTurn, int environmentTicks) {
             this.id = id; this.region = Objects.requireNonNull(region, "active encounter requires an exact region");
             this.environment = TurnParticipant.environment(id);
@@ -149,9 +132,9 @@ public final class EncounterAuthority {
             this.environmentTicks = environmentTicks;
         }
     }
-    private record Relation(UUID source, UUID target) {}
-    private record InitiativeRoll(int initiative, int tieBreak) {}
-    private static final class PermitState {
+    record Relation(UUID source, UUID target) {}
+    record InitiativeRoll(int initiative, int tieBreak) {}
+    static final class PermitState {
         final OutcomePermit permit;
         int used;
         long effectiveValidThroughRound;
@@ -187,7 +170,7 @@ public final class EncounterAuthority {
     private final Map<UUID, Encounter> encounters = new LinkedHashMap<>();
     private final Map<UUID, View> closedEncounters = new HashMap<>();
     private final Map<UUID, UUID> membership = new HashMap<>();
-    private record MergeReceipt(MergePlan plan, EncounterRegion region, long serverTick, UUID primary) {}
+    record MergeReceipt(MergePlan plan, EncounterRegion region, long serverTick, UUID primary) {}
     private final Map<UUID, MergeReceipt> committedMerges = new HashMap<>();
     private final Map<UUID, UUID> mergedInto = new HashMap<>();
     private final Random random;
@@ -246,174 +229,16 @@ public final class EncounterAuthority {
     }
 
     public EncounterStateSnapshot exportSnapshot() {
-        List<EncounterStateSnapshot.EncounterState> active = new ArrayList<>();
-        for (Encounter encounter : encounters.values()) {
-            List<EncounterStateSnapshot.MemberState> members = new ArrayList<>();
-            for (Member member : encounter.members.values()) members.add(new EncounterStateSnapshot.MemberState(
-                member.id, member.initiative, member.tieBreak, member.eligibleRound,
-                member.economy.movementTicks(), member.economy.hasAction(),
-                member.economy.hasReaction(), member.dodging, member.disengaged,
-                member.preserveSpentActionOnNextTurn));
-            List<EncounterStateSnapshot.Hostility> hostile = encounter.hostile.stream()
-                .map(relation -> new EncounterStateSnapshot.Hostility(relation.source(), relation.target()))
-                .toList();
-            List<EncounterStateSnapshot.PermitState> permits = encounter.permits.values().stream()
-                .map(permit -> new EncounterStateSnapshot.PermitState(permit.permit, permit.used,
-                    permit.effectiveValidThroughRound)).toList();
-            active.add(new EncounterStateSnapshot.EncounterState(encounter.id, null,
-                EncounterStateSnapshot.RegionState.capture(encounter.region), encounter.phase,
-                encounter.version, encounter.structuralRevision, encounter.round, encounter.cursor,
-                encounter.environmentRemaining, encounter.authorizedEnvironmentStep,
-                encounter.environmentStepAuthorized,
-                encounter.boundaryPriority == null ? null : encounter.boundaryPriority.initiative(),
-                encounter.boundaryPriority == null ? null : encounter.boundaryPriority.tieBreak(),
-                members, hostile, encounter.order, encounter.history, encounter.pending,
-                encounter.causes, encounter.attackersWithRegisteredAttempt, permits,
-                encounter.childrenByRoot, encounter.completedEnvironmentSteps,
-                encounter.causalMergeNeighbors, encounter.movementTicksPerTurn, encounter.environmentTicks, encounter.environmentTime));
-        }
-        List<EncounterStateSnapshot.ClosedState> closed = new ArrayList<>();
-        for (View view : closedEncounters.values()) closed.add(new EncounterStateSnapshot.ClosedState(
-            view.id(), view.bounds(), EncounterStateSnapshot.RegionState.capture(view.region()),
-            view.version(), view.round(), view.order(), view.members(), view.results()));
-        List<EncounterStateSnapshot.MergeReceiptState> receipts = new ArrayList<>();
-        for (var entry : committedMerges.entrySet()) {
-            MergeReceipt receipt = entry.getValue();
-            receipts.add(new EncounterStateSnapshot.MergeReceiptState(entry.getKey(),
-                EncounterStateSnapshot.MergePlanState.capture(receipt.plan()),
-                EncounterStateSnapshot.RegionState.capture(receipt.region()),
-                receipt.serverTick(), receipt.primary()));
-        }
-        return new EncounterStateSnapshot(movementTicksPerTurn, environmentTicks, active, closed, mergedInto, receipts);
+        return EncounterSnapshots.exportSnapshot(movementTicksPerTurn, environmentTicks, encounters, closedEncounters, committedMerges, mergedInto);
     }
 
     /** Rebuild indexes from detached values; no platform action or pending effect is replayed. */
     public static EncounterAuthority restoreSnapshot(EncounterStateSnapshot saved, Random random) {
-        Objects.requireNonNull(saved);
-        EncounterAuthority engine = new EncounterAuthority(random, saved.movementTicksPerTurn(), saved.environmentTicks());
-        engine.mergedInto.putAll(saved.mergedInto());
-        for (EncounterStateSnapshot.EncounterState state : saved.encounters()) {
-            if (state.phase() == EncounterPhase.ENDED || state.version() < 0 || state.round() < 0
-                || state.environmentRemaining() < 0 || state.structuralRevision() < 0
-                || (state.boundaryInitiative() == null) != (state.boundaryTieBreak() == null))
-                throw new IllegalArgumentException("invalid active encounter snapshot");
-            Encounter encounter = new Encounter(state.id(),
-                state.region() == null ? null : state.region().restore(),
-                state.movementTicksPerTurn(), state.environmentTicks());
-            if (engine.encounters.putIfAbsent(state.id(), encounter) != null)
-                throw new IllegalArgumentException("duplicate encounter snapshot");
-            encounter.phase = state.phase();
-            encounter.version = state.version();
-            encounter.structuralRevision = state.structuralRevision();
-            encounter.round = state.round();
-            encounter.cursor = state.cursor();
-            encounter.environmentRemaining = state.environmentRemaining();
-            encounter.environmentTime = state.environmentTime();
-            encounter.authorizedEnvironmentStep = state.authorizedEnvironmentStep();
-            encounter.environmentStepAuthorized = state.environmentStepAuthorized();
-            if (state.boundaryInitiative() != null)
-                encounter.boundaryPriority = new InitiativeRoll(state.boundaryInitiative(),
-                    state.boundaryTieBreak());
-            for (EncounterStateSnapshot.MemberState value : state.members()) {
-                if (value.id() == null || value.eligibleRound() < 0 || value.movementTicks() < 0
-                    || value.eligibleRound() > state.round() && value.eligibleRound() - state.round() != 1)
-                    throw new IllegalArgumentException("invalid member snapshot");
-                Member member = new Member(value.id(), value.movementTicks());
-                member.initiative = value.initiative();
-                member.tieBreak = value.tieBreak();
-                member.eligibleRound = value.eligibleRound();
-                if (!value.action()) member.economy.spendAction();
-                if (!value.reaction()) member.economy.spendReaction();
-                member.dodging = value.dodging();
-                member.disengaged = value.disengaged();
-                member.preserveSpentActionOnNextTurn = value.preserveSpentActionOnNextTurn();
-                if (encounter.members.putIfAbsent(member.id, member) != null
-                    || engine.membership.putIfAbsent(member.id, encounter.id) != null)
-                    throw new IllegalArgumentException("duplicate member snapshot");
-            }
-            Set<UUID> eligible = new HashSet<>();
-            for (Member member : encounter.members.values())
-                if (member.eligibleRound <= encounter.round) eligible.add(member.id);
-            boolean environment = encounter.phase == EncounterPhase.ENVIRONMENT;
-            eligible.add(encounter.environment.id());
-            if (encounter.members.isEmpty()
-                || state.order().isEmpty() || !state.order().get(state.order().size() - 1).equals(encounter.environment.id())
-                || encounter.members.containsKey(encounter.environment.id())
-                || (environment ? state.cursor() != state.order().size() - 1
-                    : state.cursor() < 0 || state.cursor() >= state.order().size() - 1)
-                || !eligible.equals(new HashSet<>(state.order()))
-                || new HashSet<>(state.order()).size() != state.order().size())
-                throw new IllegalArgumentException("invalid turn order snapshot");
-            encounter.order.addAll(state.order());
-            for (EncounterStateSnapshot.Hostility relation : state.hostile()) {
-                if (!encounter.members.containsKey(relation.source())
-                    || !encounter.members.containsKey(relation.target())
-                    || relation.source().equals(relation.target()))
-                    throw new IllegalArgumentException("invalid hostility snapshot");
-                encounter.hostile.add(new Relation(relation.source(), relation.target()));
-            }
-            encounter.history.addAll(state.history());
-            for (OperationRecord.Result result : state.history()) {
-                UUID operationId = result.snapshot().operationId();
-                if (encounter.stepResults.computeIfAbsent(operationId, ignored -> new HashMap<>())
-                    .putIfAbsent(result.step(), result) != null)
-                    throw new IllegalArgumentException("duplicate result step snapshot");
-                if (result.terminal() && encounter.finalResults.putIfAbsent(operationId, result) != null)
-                    throw new IllegalArgumentException("duplicate terminal result snapshot");
-            }
-            encounter.pending.putAll(state.pending());
-            encounter.causes.putAll(state.causes());
-            for (var entry : encounter.pending.entrySet())
-                if (!entry.getKey().equals(entry.getValue().operationId())
-                    || !entry.getValue().equals(encounter.causes.get(entry.getKey()))
-                    || encounter.finalResults.containsKey(entry.getKey()))
-                    throw new IllegalArgumentException("invalid pending operation snapshot");
-            encounter.attackersWithRegisteredAttempt.addAll(state.attackersWithRegisteredAttempt());
-            for (EncounterStateSnapshot.PermitState value : state.permits()) {
-                PermitState permit = new PermitState(value.permit());
-                permit.used = value.used();
-                permit.effectiveValidThroughRound = value.effectiveValidThroughRound();
-                if (encounter.permits.putIfAbsent(value.permit().id(), permit) != null)
-                    throw new IllegalArgumentException("duplicate permit snapshot");
-            }
-            encounter.childrenByRoot.putAll(state.childrenByRoot());
-            encounter.completedEnvironmentSteps.addAll(state.completedEnvironmentSteps());
-            encounter.causalMergeNeighbors.addAll(state.causalMergeNeighbors());
-        }
-        for (Encounter encounter : engine.encounters.values()) {
-            for (UUID neighborId : encounter.causalMergeNeighbors) {
-                Encounter neighbor = engine.encounters.get(neighborId);
-                if (neighbor == null || neighbor == encounter
-                    || !neighbor.causalMergeNeighbors.contains(encounter.id))
-                    throw new IllegalArgumentException("invalid causal merge link snapshot");
-            }
-        }
-        for (EncounterStateSnapshot.ClosedState state : saved.closed()) {
-            if (engine.encounters.containsKey(state.id()) || state.version() < 0 || state.round() < 0)
-                throw new IllegalArgumentException("invalid closed encounter snapshot");
-            View view = new View(state.id(), EncounterPhase.ENDED, state.version(), state.bounds(),
-                state.order(), null, state.members(), state.results(),
-                state.region() == null ? null : state.region().restore(), state.round());
-            if (engine.closedEncounters.putIfAbsent(state.id(), view) != null)
-                throw new IllegalArgumentException("duplicate closed encounter snapshot");
-        }
-        for (var entry : engine.mergedInto.entrySet()) {
-            Set<UUID> visited = new HashSet<>();
-            UUID destination = entry.getValue();
-            while (engine.mergedInto.containsKey(destination) && visited.add(destination))
-                destination = engine.mergedInto.get(destination);
-            if (!engine.closedEncounters.containsKey(entry.getKey())
-                || entry.getKey().equals(entry.getValue()) || !visited.add(destination)
-                || !engine.encounters.containsKey(destination)
-                    && !engine.closedEncounters.containsKey(destination))
-                throw new IllegalArgumentException("invalid encounter alias snapshot");
-        }
-        for (EncounterStateSnapshot.MergeReceiptState value : saved.mergeReceipts()) {
-            MergeReceipt receipt = new MergeReceipt(value.plan().restore(), value.region().restore(),
-                value.serverTick(), value.primary());
-            if (engine.committedMerges.putIfAbsent(value.operationId(), receipt) != null)
-                throw new IllegalArgumentException("duplicate merge receipt snapshot");
-        }
+        var restored = EncounterSnapshots.restoreSnapshot(saved);
+        var engine = new EncounterAuthority(random, saved.movementTicksPerTurn(), saved.environmentTicks());
+        engine.encounters.putAll(restored.encounters()); engine.closedEncounters.putAll(restored.closedEncounters());
+        engine.membership.putAll(restored.membership()); engine.committedMerges.putAll(restored.committedMerges());
+        engine.mergedInto.putAll(restored.mergedInto());
         return engine;
     }
 
@@ -421,7 +246,7 @@ public final class EncounterAuthority {
         Objects.requireNonNull(encounterId);
         Objects.requireNonNull(operationId);
         Encounter active = encounters.get(encounterId);
-        if (active != null) return active.finalResults.get(operationId);
+        if (active != null) return active.operations.finalResults.get(operationId);
         View closed = closedEncounters.get(encounterId);
         if (closed == null) return null;
         List<OperationRecord.Result> results = closed.results();
@@ -433,12 +258,12 @@ public final class EncounterAuthority {
     }
 
     /** Read-only status for an executing cross-tick operation; does not authorize a retry. */
-    public boolean hasPendingOperations(UUID encounterId) { return !require(encounterId).pending.isEmpty(); }
+    public boolean hasPendingOperations(UUID encounterId) { return !require(encounterId).operations.pending.isEmpty(); }
 
     public OperationRecord.Snapshot pendingOperation(UUID encounterId, UUID operationId) {
         Objects.requireNonNull(operationId);
         Encounter encounter = require(encounterId);
-        return encounter.pending.get(operationId);
+        return encounter.operations.pending.get(operationId);
     }
 
     public UUID operationRoot(UUID encounterId, UUID operationId) {
@@ -455,14 +280,14 @@ public final class EncounterAuthority {
             return current.operationId();
         }
         var encounter = require(encounterId);
-        return rootOf(encounter, Objects.requireNonNull(encounter.causes.get(operationId), "unknown cause"));
+        return rootOf(encounter, Objects.requireNonNull(encounter.operations.causes.get(operationId), "unknown cause"));
     }
     public ActionIntent operationIntent(UUID encounterId, UUID operationId) {
         var encounter = require(encounterId);
-        var operation = encounter.causes.get(operationId);
+        var operation = encounter.operations.causes.get(operationId);
         for (int depth = 0; operation != null && depth <= 64; depth++) {
             if (operation.intent() != null) return operation.intent();
-            operation = encounter.causes.get(operation.parentId());
+            operation = encounter.operations.causes.get(operation.parentId());
         }
         return null;
     }
@@ -484,7 +309,7 @@ public final class EncounterAuthority {
         Encounter encounter = require(encounterId);
         int count = 0;
         for (UUID operationId : pendingChildrenFirst(encounter).stream().map(OperationRecord.Snapshot::operationId).toList()) {
-            int step = encounter.stepResults.getOrDefault(operationId, Map.of()).size();
+            int step = encounter.operations.stepResults.getOrDefault(operationId, Map.of()).size();
             publish(encounterId, operationId, step, OperationRecord.Outcome.UNKNOWN,
                 reason, 0, 0, true);
             count++;
@@ -506,7 +331,7 @@ public final class EncounterAuthority {
         Objects.requireNonNull(sourceId);
         Objects.requireNonNull(reason);
         Encounter encounter = require(canonicalEncounterId(encounterId));
-        OperationRecord.Result previous = encounter.finalResults.get(operationId);
+        OperationRecord.Result previous = encounter.operations.finalResults.get(operationId);
         if (previous != null) {
             OperationRecord.Snapshot old = previous.snapshot();
             if (previous.outcome() != OperationRecord.Outcome.UNKNOWN
@@ -516,7 +341,7 @@ public final class EncounterAuthority {
                 throw new IllegalStateException("restored effect operation ID payload conflict");
             return previous;
         }
-        if (encounter.causes.containsKey(operationId)
+        if (encounter.operations.causes.containsKey(operationId)
             || targetId != null && !encounter.members.containsKey(targetId))
             throw new IllegalStateException("lost effect identity or target conflicts with save");
         long nextVersion = Math.addExact(encounter.version, 1);
@@ -525,10 +350,10 @@ public final class EncounterAuthority {
             null, null, OperationRecord.Kind.ATTACK, observationEpoch);
         OperationRecord.Result result = new OperationRecord.Result(snapshot, 0,
             OperationRecord.Outcome.UNKNOWN, reason, 0, 0, nextVersion, true);
-        encounter.causes.put(operationId, snapshot);
-        encounter.finalResults.put(operationId, result);
-        encounter.stepResults.put(operationId, Map.of(0, result));
-        encounter.history.add(result);
+        encounter.operations.causes.put(operationId, snapshot);
+        encounter.operations.finalResults.put(operationId, result);
+        encounter.operations.stepResults.put(operationId, Map.of(0, result));
+        encounter.operations.history.add(result);
         encounter.version = nextVersion;
         return result;
     }
@@ -583,15 +408,15 @@ public final class EncounterAuthority {
         Objects.requireNonNull(memberId);
         Encounter encounter = require(encounterId);
         if (!encounter.members.containsKey(memberId)) return false;
-        Math.addExact(encounter.version, (long) encounter.pending.size() + 1);
+        Math.addExact(encounter.version, (long) encounter.operations.pending.size() + 1);
         long nextStructuralRevision = Math.addExact(encounter.structuralRevision, 1);
         for (OperationRecord.Snapshot snapshot : pendingChildrenFirst(encounter)) {
-            OperationRecord.Snapshot root = encounter.causes.get(rootOf(encounter, snapshot));
+            OperationRecord.Snapshot root = encounter.operations.causes.get(rootOf(encounter, snapshot));
             if (!memberId.equals(snapshot.owner()) && !memberId.equals(snapshot.target())
                 && (root == null || !memberId.equals(root.target()))) continue;
-            int step = encounter.stepResults.getOrDefault(snapshot.operationId(), Map.of()).size();
+            int step = encounter.operations.stepResults.getOrDefault(snapshot.operationId(), Map.of()).size();
             boolean unstartedPlan = snapshot.kind() == OperationRecord.Kind.PLAN
-                && encounter.causes.values().stream().noneMatch(child -> snapshot.operationId().equals(child.parentId())
+                && encounter.operations.causes.values().stream().noneMatch(child -> snapshot.operationId().equals(child.parentId())
                     && child.kind() != OperationRecord.Kind.MOVE);
             publish(encounterId, snapshot.operationId(), step,
                 unstartedPlan ? OperationRecord.Outcome.INTERRUPTED : OperationRecord.Outcome.UNKNOWN,
@@ -668,7 +493,7 @@ public final class EncounterAuthority {
         Encounter encounter = require(encounterId);
         Map<UUID, MemberView> members = memberViews(encounter);
         return new View(encounter.id, encounter.phase, encounter.version, null,
-            encounter.order, currentId(encounter), members, encounter.history, encounter.region, encounter.round);
+            encounter.order, currentId(encounter), members, encounter.operations.history, encounter.region, encounter.round);
     }
 
     public StateView stateView(UUID encounterId) {
@@ -694,7 +519,7 @@ public final class EncounterAuthority {
         Encounter active = encounters.get(encounterId);
         List<OperationRecord.Result> history = active == null
             ? (closedEncounters.containsKey(encounterId) ? closedEncounters.get(encounterId).results() : null)
-            : active.history;
+            : active.operations.history;
         if (history == null) throw new IllegalArgumentException("unknown encounter " + encounterId);
         if (fromIndex > history.size()) throw new IllegalArgumentException("result cursor beyond history");
         int nextIndex = fromIndex + Math.min(limit, history.size() - fromIndex);
@@ -871,13 +696,13 @@ public final class EncounterAuthority {
         Map<UUID, Member> members = new LinkedHashMap<>(primary.members);
         Set<Relation> hostile = new HashSet<>(primary.hostile);
         Set<UUID> firstAttempts = new HashSet<>(primary.attackersWithRegisteredAttempt);
-        Map<UUID, OperationRecord.Result> finalResults = new HashMap<>(primary.finalResults);
-        Map<UUID, Map<Integer, OperationRecord.Result>> stepResults = new HashMap<>(primary.stepResults);
-        Map<UUID, OperationRecord.Snapshot> causes = new HashMap<>(primary.causes);
+        Map<UUID, OperationRecord.Result> finalResults = new HashMap<>(primary.operations.finalResults);
+        Map<UUID, Map<Integer, OperationRecord.Result>> stepResults = new HashMap<>(primary.operations.stepResults);
+        Map<UUID, OperationRecord.Snapshot> causes = new HashMap<>(primary.operations.causes);
         Map<UUID, PermitState> permits = new HashMap<>(primary.permits);
-        Map<UUID, Integer> childrenByRoot = new HashMap<>(primary.childrenByRoot);
+        Map<UUID, Integer> childrenByRoot = new HashMap<>(primary.operations.childrenByRoot);
         Set<UUID> completedSteps = new HashSet<>(primary.completedEnvironmentSteps);
-        List<OperationRecord.Result> history = new ArrayList<>(primary.history);
+        List<OperationRecord.Result> history = new ArrayList<>(primary.operations.history);
         List<Encounter> sources = plan.encounters().stream().filter(id -> !id.equals(primary.id))
             .sorted().map(this::require).toList();
         long greatestRegionVersion = primary.region.version();
@@ -885,7 +710,7 @@ public final class EncounterAuthority {
             Encounter participant = require(id);
             if (!Objects.equals(plan.structuralRevisions().get(id), participant.structuralRevision)
                 || participant.region == null || !participant.region.dimension().equals(primary.region.dimension())
-                || participant.authorizedEnvironmentStep != null || !participant.pending.isEmpty())
+                || participant.authorizedEnvironmentStep != null || !participant.operations.pending.isEmpty())
                 throw new IllegalStateException("merge participant changed or has executing work");
             greatestRegionVersion = Math.max(greatestRegionVersion, participant.region.version());
         }
@@ -903,9 +728,9 @@ public final class EncounterAuthority {
                     throw new IllegalStateException("member belongs to two merge participants");
             hostile.addAll(source.hostile);
             firstAttempts.addAll(source.attackersWithRegisteredAttempt);
-            mergeUnique(finalResults, source.finalResults);
-            mergeUnique(stepResults, source.stepResults);
-            mergeUnique(causes, source.causes);
+            mergeUnique(finalResults, source.operations.finalResults);
+            mergeUnique(stepResults, source.operations.stepResults);
+            mergeUnique(causes, source.operations.causes);
             Map<UUID, PermitState> translatedPermits = new HashMap<>();
             for (var entry : source.permits.entrySet()) {
                 PermitState original = entry.getValue();
@@ -916,10 +741,10 @@ public final class EncounterAuthority {
                 translatedPermits.put(entry.getKey(), translated);
             }
             mergeUnique(permits, translatedPermits);
-            mergeUnique(childrenByRoot, source.childrenByRoot);
+            mergeUnique(childrenByRoot, source.operations.childrenByRoot);
             for (UUID step : source.completedEnvironmentSteps)
                 if (!completedSteps.add(step)) throw new IllegalStateException("duplicate environment step ID");
-            history.addAll(source.history);
+            history.addAll(source.operations.history);
         }
         if (causes.containsKey(operationId) || finalResults.containsKey(operationId)
             || completedSteps.contains(operationId) || permits.containsKey(operationId))
@@ -932,7 +757,7 @@ public final class EncounterAuthority {
         for (Encounter source : sources) {
             View closed = new View(source.id, EncounterPhase.ENDED,
                 sourceVersions.get(source.id), null, source.order, null,
-                memberViews(source), source.history, source.region, source.round);
+                memberViews(source), source.operations.history, source.region, source.round);
             for (Member member : source.members.values()) member.eligibleRound = migratedEligibleRound;
             closedEncounters.put(source.id, closed);
             encounters.remove(source.id);
@@ -946,17 +771,17 @@ public final class EncounterAuthority {
         primary.hostile.clear(); primary.hostile.addAll(hostile);
         primary.attackersWithRegisteredAttempt.clear();
         primary.attackersWithRegisteredAttempt.addAll(firstAttempts);
-        primary.finalResults.clear(); primary.finalResults.putAll(finalResults);
-        primary.stepResults.clear(); primary.stepResults.putAll(stepResults);
-        primary.causes.clear(); primary.causes.putAll(causes);
+        primary.operations.finalResults.clear(); primary.operations.finalResults.putAll(finalResults);
+        primary.operations.stepResults.clear(); primary.operations.stepResults.putAll(stepResults);
+        primary.operations.causes.clear(); primary.operations.causes.putAll(causes);
         primary.permits.clear(); primary.permits.putAll(permits);
-        primary.childrenByRoot.clear(); primary.childrenByRoot.putAll(childrenByRoot);
+        primary.operations.childrenByRoot.clear(); primary.operations.childrenByRoot.putAll(childrenByRoot);
         primary.completedEnvironmentSteps.clear(); primary.completedEnvironmentSteps.addAll(completedSteps);
-        primary.history.clear(); primary.history.addAll(history);
-        primary.causes.put(operationId, snapshot);
-        primary.finalResults.put(operationId, result);
-        primary.stepResults.put(operationId, Map.of(0, result));
-        primary.history.add(result);
+        primary.operations.history.clear(); primary.operations.history.addAll(history);
+        primary.operations.causes.put(operationId, snapshot);
+        primary.operations.finalResults.put(operationId, result);
+        primary.operations.stepResults.put(operationId, Map.of(0, result));
+        primary.operations.history.add(result);
         primary.region = sampledRegion;
         primary.version = nextVersion;
         primary.structuralRevision = nextStructuralRevision;
@@ -1014,7 +839,7 @@ public final class EncounterAuthority {
         }
         if (!canonicalId.equals(permit.encounterId()))
             throw new IllegalStateException("merged source cannot issue a new permit");
-        OperationRecord.Snapshot parent = encounter.pending.get(permit.parentId());
+        OperationRecord.Snapshot parent = encounter.operations.pending.get(permit.parentId());
         if (parent == null || (parent.kind() != OperationRecord.Kind.ATTACK
             && parent.kind() != OperationRecord.Kind.DAMAGE
             && parent.kind() != OperationRecord.Kind.INTERRUPT && parent.kind() != OperationRecord.Kind.END_TURN
@@ -1054,12 +879,12 @@ public final class EncounterAuthority {
             return false;
         }
         var encounter = require(snapshot.encounterId());
-        var previous = encounter.causes.get(snapshot.operationId());
+        var previous = encounter.operations.causes.get(snapshot.operationId());
         if (previous != null) {
             if (!previous.equals(snapshot)) throw new IllegalArgumentException("trigger operation payload conflict");
             return false;
         }
-        var parent = encounter.pending.get(snapshot.parentId());
+        var parent = encounter.operations.pending.get(snapshot.parentId());
         var definition = abilities.require(snapshot.intent());
         boolean reaction = definition.cost().requiresReaction() || definition.cost().equals(ActionCost.FREE);
         if (snapshot.kind() != OperationRecord.Kind.TRIGGERED || parent == null
@@ -1075,7 +900,7 @@ public final class EncounterAuthority {
                 || reaction && !snapshot.owner().equals(parent.owner()) && !snapshot.owner().equals(parent.target())
                 || !snapshot.owner().equals(snapshot.source())
                 || childDepth(encounter, parent) >= 8
-                || encounter.childrenByRoot.getOrDefault(rootOf(encounter, parent), 0) >= 64) return false;
+                || encounter.operations.childrenByRoot.getOrDefault(rootOf(encounter, parent), 0) >= 64) return false;
         var member = encounter.members.get(snapshot.owner());
         if (member == null || definition.cost().requiresAction() && !member.economy.hasAction()
                 || definition.cost().requiresReaction() && !member.economy.hasReaction()
@@ -1085,8 +910,8 @@ public final class EncounterAuthority {
             if (definition.cost().requiresReaction()) member.economy.spendReaction();
             else if (definition.cost().requiresAction()) member.economy.spendAction();
         }
-        encounter.childrenByRoot.merge(rootOf(encounter, parent), 1, Integer::sum);
-        encounter.pending.put(snapshot.operationId(), snapshot); encounter.causes.put(snapshot.operationId(), snapshot);
+        encounter.operations.childrenByRoot.merge(rootOf(encounter, parent), 1, Integer::sum);
+        encounter.operations.pending.put(snapshot.operationId(), snapshot); encounter.operations.causes.put(snapshot.operationId(), snapshot);
         encounter.version = nextVersion;
         return true;
     }
@@ -1094,10 +919,10 @@ public final class EncounterAuthority {
     /** Pending accepted-effect operations retain their claim without maintaining a second balance. */
     private boolean resourcePending(Encounter encounter, UUID actor, ActionCost.Resource resource) {
         if (resource != ActionCost.Resource.ACTION && resource != ActionCost.Resource.REACTION) return false;
-        return encounter.pending.values().stream().anyMatch(operation -> operation.owner().equals(actor)
+        return encounter.operations.pending.values().stream().anyMatch(operation -> operation.owner().equals(actor)
                 && operationCost(encounter, operation).resource() == resource
                 && operationCost(encounter, operation).commitPoint() == ActionCost.CommitPoint.ACCEPTED_EFFECT
-                && encounter.stepResults.getOrDefault(operation.operationId(), Map.of()).isEmpty());
+                && encounter.operations.stepResults.getOrDefault(operation.operationId(), Map.of()).isEmpty());
     }
 
     /** Register a projectile's first causal attack during an authorized environment step. */
@@ -1105,7 +930,7 @@ public final class EncounterAuthority {
         Objects.requireNonNull(origin);
         Objects.requireNonNull(snapshot);
         Encounter encounter = require(snapshot.encounterId());
-        OperationRecord.Snapshot previous = encounter.causes.get(snapshot.operationId());
+        OperationRecord.Snapshot previous = encounter.operations.causes.get(snapshot.operationId());
         if (previous != null) {
             if (!previous.equals(snapshot)) throw new IllegalStateException("projectile operation payload conflict");
             return false;
@@ -1116,10 +941,10 @@ public final class EncounterAuthority {
             || snapshot.kind() != OperationRecord.Kind.ATTACK
             || !principal.equals(snapshot.owner()) || !origin.projectileId().equals(snapshot.source())
             || snapshot.target() == null || !encounter.members.containsKey(snapshot.target())
-            || snapshot.target().equals(principal) || !encounter.pending.isEmpty()) return false;
+            || snapshot.target().equals(principal) || !encounter.operations.pending.isEmpty()) return false;
         long nextVersion = Math.addExact(encounter.version, 1);
-        encounter.pending.put(snapshot.operationId(), snapshot);
-        encounter.causes.put(snapshot.operationId(), snapshot);
+        encounter.operations.pending.put(snapshot.operationId(), snapshot);
+        encounter.operations.causes.put(snapshot.operationId(), snapshot);
         if (encounter.members.containsKey(principal))
             encounter.attackersWithRegisteredAttempt.add(principal);
         encounter.version = nextVersion;
@@ -1135,7 +960,7 @@ public final class EncounterAuthority {
         Objects.requireNonNull(snapshot);
         if (closedEncounters.containsKey(snapshot.encounterId())) return false;
         Encounter encounter = require(snapshot.encounterId());
-        OperationRecord.Snapshot previous = encounter.causes.get(snapshot.operationId());
+        OperationRecord.Snapshot previous = encounter.operations.causes.get(snapshot.operationId());
         if (previous != null) {
             if (!previous.equals(snapshot)) throw new IllegalStateException("intrusion operation payload conflict");
             return false;
@@ -1147,12 +972,12 @@ public final class EncounterAuthority {
             || snapshot.target() == null || snapshot.target().equals(snapshot.owner())
             || !encounter.members.containsKey(snapshot.owner())
             || !encounter.members.containsKey(snapshot.target())
-            || !encounter.pending.isEmpty()
+            || !encounter.operations.pending.isEmpty()
             || (encounter.phase != EncounterPhase.ACTIVE && encounter.phase != EncounterPhase.CANDIDATE)) return false;
         Member member = encounter.members.get(snapshot.owner());
         long nextVersion = Math.addExact(encounter.version, 1);
-        encounter.pending.put(snapshot.operationId(), snapshot);
-        encounter.causes.put(snapshot.operationId(), snapshot);
+        encounter.operations.pending.put(snapshot.operationId(), snapshot);
+        encounter.operations.causes.put(snapshot.operationId(), snapshot);
         encounter.attackersWithRegisteredAttempt.add(snapshot.owner());
         member.preserveSpentActionOnNextTurn = true;
         encounter.version = nextVersion;
@@ -1170,12 +995,12 @@ public final class EncounterAuthority {
     public boolean beginCausalItemImpact(ProjectileOrigin origin, OperationRecord.Snapshot snapshot) {
         Objects.requireNonNull(origin); Objects.requireNonNull(snapshot);
         Encounter encounter = require(snapshot.encounterId());
-        var previous = encounter.causes.get(snapshot.operationId());
+        var previous = encounter.operations.causes.get(snapshot.operationId());
         if (previous != null) {
             if (!previous.equals(snapshot)) throw new IllegalStateException("item impact payload conflict");
             return false;
         }
-        var launch = encounter.finalResults.get(origin.rootOperationId());
+        var launch = encounter.operations.finalResults.get(origin.rootOperationId());
         if (!origin.launchVerified() || launch == null || launch.outcome() != OperationRecord.Outcome.COMPLETED
             || launch.snapshot().kind() != OperationRecord.Kind.USE_ITEM
             || !Objects.equals(origin.ownerId(),launch.snapshot().owner())
@@ -1185,13 +1010,13 @@ public final class EncounterAuthority {
             || snapshot.kind() != OperationRecord.Kind.ENVIRONMENT
             || snapshot.encounterVersion() != encounter.version
             || encounter.phase != EncounterPhase.ENVIRONMENT || encounter.authorizedEnvironmentStep == null
-            || !encounter.pending.isEmpty()) return false;
+            || !encounter.operations.pending.isEmpty()) return false;
         UUID root = rootOf(encounter,launch.snapshot());
-        if (root == null || encounter.childrenByRoot.getOrDefault(root,0)>=64) return false;
+        if (root == null || encounter.operations.childrenByRoot.getOrDefault(root,0)>=64) return false;
         long nextVersion = Math.addExact(encounter.version,1);
-        encounter.pending.put(snapshot.operationId(),snapshot);
-        encounter.causes.put(snapshot.operationId(),snapshot);
-        encounter.childrenByRoot.merge(root,1,Integer::sum);
+        encounter.operations.pending.put(snapshot.operationId(),snapshot);
+        encounter.operations.causes.put(snapshot.operationId(),snapshot);
+        encounter.operations.childrenByRoot.merge(root,1,Integer::sum);
         encounter.version=nextVersion;
         return true;
     }
@@ -1216,7 +1041,7 @@ public final class EncounterAuthority {
         Objects.requireNonNull(reason);
         if (reason.isBlank()) throw new IllegalArgumentException("empty rejection reason");
         Encounter encounter = require(encounterId);
-        OperationRecord.Result previous = encounter.finalResults.get(operationId);
+        OperationRecord.Result previous = encounter.operations.finalResults.get(operationId);
         if (previous != null) {
             OperationRecord.Snapshot prior = previous.snapshot();
             if (prior.kind() != OperationRecord.Kind.ENVIRONMENT
@@ -1228,7 +1053,7 @@ public final class EncounterAuthority {
             return previous;
         }
         if (encounter.phase != EncounterPhase.ENVIRONMENT || encounter.authorizedEnvironmentStep == null
-            || !encounter.pending.isEmpty() || encounter.causes.containsKey(operationId))
+            || !encounter.operations.pending.isEmpty() || encounter.operations.causes.containsKey(operationId))
             throw new IllegalStateException("projectile rejection requires an environment step");
         long nextVersion = Math.addExact(encounter.version, 1);
         OperationRecord.Snapshot snapshot = new OperationRecord.Snapshot(operationId, null,
@@ -1236,10 +1061,10 @@ public final class EncounterAuthority {
             null, null, OperationRecord.Kind.ENVIRONMENT, observationEpoch);
         OperationRecord.Result result = new OperationRecord.Result(snapshot, 0,
             outcome, reason, 0, 0, nextVersion, true);
-        encounter.causes.put(operationId, snapshot);
-        encounter.finalResults.put(operationId, result);
-        encounter.stepResults.put(operationId, Map.of(0, result));
-        encounter.history.add(result);
+        encounter.operations.causes.put(operationId, snapshot);
+        encounter.operations.finalResults.put(operationId, result);
+        encounter.operations.stepResults.put(operationId, Map.of(0, result));
+        encounter.operations.history.add(result);
         encounter.version = nextVersion;
         return result;
     }
@@ -1263,35 +1088,35 @@ public final class EncounterAuthority {
             return false;
         }
         Encounter encounter = require(snapshot.encounterId());
-        OperationRecord.Snapshot previous = encounter.causes.get(snapshot.operationId());
+        OperationRecord.Snapshot previous = encounter.operations.causes.get(snapshot.operationId());
         if (previous != null) {
             if (!previous.equals(snapshot)) throw new IllegalStateException("operation payload conflict");
             return false;
         }
         if (snapshot.encounterVersion() != encounter.version) return false;
-        OperationRecord.Snapshot plan = planStep ? encounter.pending.get(snapshot.parentId()) : null;
+        OperationRecord.Snapshot plan = planStep ? encounter.operations.pending.get(snapshot.parentId()) : null;
         if (planStep) {
             if (plan == null || plan.kind() != OperationRecord.Kind.PLAN || permitId != null
                 || !plan.owner().equals(snapshot.owner()) || !plan.source().equals(snapshot.source())
-                || encounter.pending.size() != 1
+                || encounter.operations.pending.size() != 1
                 || snapshot.kind() != OperationRecord.Kind.MOVE && snapshot.kind() != abilities.require(plan.intent()).executionKind()
                 || !Objects.equals(snapshot.target(), snapshot.kind() == OperationRecord.Kind.MOVE ? null : plan.target())
                 || snapshot.kind() != OperationRecord.Kind.MOVE && !Objects.equals(snapshot.targetCell(), plan.targetCell()))
                 return false;
-            for (OperationRecord.Snapshot cause : encounter.causes.values()) {
+            for (OperationRecord.Snapshot cause : encounter.operations.causes.values()) {
                 if (!plan.operationId().equals(cause.parentId())) continue;
                 if (cause.kind() != OperationRecord.Kind.MOVE || snapshot.kind() == OperationRecord.Kind.MOVE)
                     return false;
             }
         }
         if (snapshot.parentId() != null && !planStep) {
-            OperationRecord.Snapshot parent = encounter.causes.get(snapshot.parentId());
+            OperationRecord.Snapshot parent = encounter.operations.causes.get(snapshot.parentId());
             UUID rootId = parent == null ? null : rootOf(encounter, parent);
             PermitState permit = encounter.permits.get(permitId);
             boolean damage = parent != null && permit != null && snapshot.kind() == OperationRecord.Kind.DAMAGE
                 && (parent.kind() == OperationRecord.Kind.ATTACK || parent.kind() == OperationRecord.Kind.DAMAGE
                     || parent.kind() == OperationRecord.Kind.INTERRUPT || parent.kind() == OperationRecord.Kind.TRIGGERED
-                    || parent.kind() == OperationRecord.Kind.END_TURN && encounter.pending.containsKey(parent.operationId())
+                    || parent.kind() == OperationRecord.Kind.END_TURN && encounter.operations.pending.containsKey(parent.operationId())
                         && snapshot.owner().equals(snapshot.source()) && snapshot.owner().equals(snapshot.target()))
                 && snapshot.owner().equals(parent.owner())
                 && permit.permit.parentId().equals(snapshot.parentId())
@@ -1302,7 +1127,7 @@ public final class EncounterAuthority {
                 && permit.used < permit.permit.maxUses()
                 && encounter.members.containsKey(snapshot.target());
             boolean reaction = parent != null && snapshot.kind() == OperationRecord.Kind.INTERRUPT
-                && encounter.phase == EncounterPhase.ACTIVE && encounter.pending.containsKey(parent.operationId())
+                && encounter.phase == EncounterPhase.ACTIVE && encounter.operations.pending.containsKey(parent.operationId())
                 && (parent.kind() == OperationRecord.Kind.ATTACK || parent.kind() == OperationRecord.Kind.DAMAGE)
                 && snapshot.owner().equals(parent.target()) && Objects.equals(snapshot.target(), parent.owner())
                 && encounter.members.containsKey(snapshot.owner())
@@ -1311,13 +1136,13 @@ public final class EncounterAuthority {
                 && !resourcePending(encounter, snapshot.owner(), ActionCost.Resource.REACTION);
             if ((!damage && !reaction) || (reaction && permitId != null)
                 || childDepth(encounter, parent) >= 8 || rootId == null
-                || encounter.childrenByRoot.getOrDefault(rootId, 0) >= 64) return false;
+                || encounter.operations.childrenByRoot.getOrDefault(rootId, 0) >= 64) return false;
             long nextVersion = Math.addExact(encounter.version, 1);
             if (reaction) encounter.members.get(snapshot.owner()).economy.spendReaction();
             if (damage) permit.used++;
-            encounter.childrenByRoot.merge(rootId, 1, Integer::sum);
-            encounter.pending.put(snapshot.operationId(), snapshot);
-            encounter.causes.put(snapshot.operationId(), snapshot);
+            encounter.operations.childrenByRoot.merge(rootId, 1, Integer::sum);
+            encounter.operations.pending.put(snapshot.operationId(), snapshot);
+            encounter.operations.causes.put(snapshot.operationId(), snapshot);
             encounter.version = nextVersion;
             return true;
         }
@@ -1326,7 +1151,7 @@ public final class EncounterAuthority {
         if (encounter.phase == EncounterPhase.CANDIDATE && snapshot.kind() != OperationRecord.Kind.ATTACK
             && snapshot.kind() != OperationRecord.Kind.END_TURN && snapshot.kind() != OperationRecord.Kind.MOVE
             && snapshot.kind() != OperationRecord.Kind.PLAN && !planStep) return false;
-        if ((!planStep && !encounter.pending.isEmpty()) || snapshot.source() == null || !snapshot.source().equals(snapshot.owner())
+        if ((!planStep && !encounter.operations.pending.isEmpty()) || snapshot.source() == null || !snapshot.source().equals(snapshot.owner())
             || snapshot.kind() == OperationRecord.Kind.DAMAGE || snapshot.kind() == OperationRecord.Kind.INTERRUPT
             || snapshot.kind() == OperationRecord.Kind.ENVIRONMENT || snapshot.kind() == OperationRecord.Kind.MERGE
             || snapshot.kind() == OperationRecord.Kind.START || snapshot.kind() == OperationRecord.Kind.JOIN) return false;
@@ -1357,8 +1182,8 @@ public final class EncounterAuthority {
             if (!snapshot.owner().equals(currentId(encounter)))
                 member.preserveSpentActionOnNextTurn = true;
         }
-        encounter.pending.put(snapshot.operationId(), snapshot);
-        encounter.causes.put(snapshot.operationId(), snapshot);
+        encounter.operations.pending.put(snapshot.operationId(), snapshot);
+        encounter.operations.causes.put(snapshot.operationId(), snapshot);
         if (snapshot.kind() == OperationRecord.Kind.ATTACK)
             encounter.attackersWithRegisteredAttempt.add(snapshot.owner());
         encounter.version = nextVersion;
@@ -1376,18 +1201,18 @@ public final class EncounterAuthority {
         Encounter encounter = require(snapshot.encounterId());
         if (!encounter.members.containsKey(snapshot.owner()) || !snapshot.owner().equals(snapshot.source()))
             throw new IllegalArgumentException("member identity required");
-        var existing = encounter.finalResults.get(snapshot.operationId());
+        var existing = encounter.operations.finalResults.get(snapshot.operationId());
         if (existing != null) {
             if (!existing.snapshot().equals(snapshot)) throw new IllegalStateException("operation payload conflict");
             return existing;
         }
-        if (encounter.causes.containsKey(snapshot.operationId())) throw new IllegalStateException("operation already registered");
+        if (encounter.operations.causes.containsKey(snapshot.operationId())) throw new IllegalStateException("operation already registered");
         long version = Math.addExact(encounter.version, 1);
         var result = new OperationRecord.Result(snapshot, 0, OperationRecord.Outcome.REJECTED, reason, 0, 0, version, true, null, null, failure);
-        encounter.causes.put(snapshot.operationId(), snapshot);
-        encounter.history.add(result);
-        encounter.stepResults.put(snapshot.operationId(), new HashMap<>(Map.of(0, result)));
-        encounter.finalResults.put(snapshot.operationId(), result);
+        encounter.operations.causes.put(snapshot.operationId(), snapshot);
+        encounter.operations.history.add(result);
+        encounter.operations.stepResults.put(snapshot.operationId(), new HashMap<>(Map.of(0, result)));
+        encounter.operations.finalResults.put(snapshot.operationId(), result);
         encounter.version = version;
         return result;
     }
@@ -1430,12 +1255,12 @@ public final class EncounterAuthority {
             throw new IllegalStateException("closed encounter has no such step");
         }
         Encounter encounter = require(encounterId);
-        OperationRecord.Result existingStep = encounter.stepResults.getOrDefault(operationId, Map.of()).get(step);
+        OperationRecord.Result existingStep = encounter.operations.stepResults.getOrDefault(operationId, Map.of()).get(step);
         if (existingStep != null) return matchingResult(existingStep, outcome, reason, movementTicks, damage, terminal, trace, conclusion, failure);
-        if (encounter.finalResults.containsKey(operationId)) throw new IllegalStateException("operation already terminal");
-        if (step != encounter.stepResults.getOrDefault(operationId, Map.of()).size())
+        if (encounter.operations.finalResults.containsKey(operationId)) throw new IllegalStateException("operation already terminal");
+        if (step != encounter.operations.stepResults.getOrDefault(operationId, Map.of()).size())
             throw new IllegalStateException("out-of-order operation step");
-        OperationRecord.Snapshot snapshot = encounter.pending.get(operationId);
+        OperationRecord.Snapshot snapshot = encounter.operations.pending.get(operationId);
         if (snapshot == null) throw new IllegalStateException("unregistered operation");
         Member member = encounter.members.get(snapshot.owner());
         if (movementTicks < 0 || movementTicks > (member == null ? 0 : member.economy.movementTicks()))
@@ -1443,7 +1268,7 @@ public final class EncounterAuthority {
         boolean finishTurn = terminal && outcome == OperationRecord.Outcome.COMPLETED
             && snapshot.kind() == OperationRecord.Kind.END_TURN;
         if (finishTurn && (!snapshot.owner().equals(encounter.order.get(encounter.cursor))
-            || encounter.pending.size() != 1)) throw new IllegalStateException("turn changed during operation");
+            || encounter.operations.pending.size() != 1)) throw new IllegalStateException("turn changed during operation");
         long nextVersion = Math.addExact(encounter.version, 1);
         Map<UUID, InitiativeRoll> rolls = finishTurn && encounter.phase == EncounterPhase.CANDIDATE
             && !encounter.hostile.isEmpty() ? sampleInitiatives(encounter) : Map.of();
@@ -1457,7 +1282,7 @@ public final class EncounterAuthority {
         if (commitAction && (member == null || (reactionCost ? !member.economy.hasReaction() : !member.economy.hasAction())))
             throw new IllegalStateException("reserved action unavailable");
         if (terminal
-            && encounter.pending.values().stream().anyMatch(child -> operationId.equals(child.parentId())
+            && encounter.operations.pending.values().stream().anyMatch(child -> operationId.equals(child.parentId())
                 && (snapshot.kind() == OperationRecord.Kind.PLAN || child.kind() == OperationRecord.Kind.TRIGGERED)))
             throw new IllegalStateException("child operation still executing");
         if (commitAction) {
@@ -1466,11 +1291,11 @@ public final class EncounterAuthority {
         }
         if (member != null) member.economy.spendMovement(movementTicks);
         encounter.version = nextVersion;
-        encounter.history.add(result);
-        encounter.stepResults.computeIfAbsent(operationId, ignored -> new HashMap<>()).put(step, result);
+        encounter.operations.history.add(result);
+        encounter.operations.stepResults.computeIfAbsent(operationId, ignored -> new HashMap<>()).put(step, result);
         if (terminal) {
-            encounter.pending.remove(operationId);
-            encounter.finalResults.put(operationId, result);
+            encounter.operations.pending.remove(operationId);
+            encounter.operations.finalResults.put(operationId, result);
             if (finishTurn) finishMemberTurnState(encounter, rolls);
         }
         return result;
@@ -1495,7 +1320,7 @@ public final class EncounterAuthority {
         if (encounter.phase != EncounterPhase.CANDIDATE && encounter.phase != EncounterPhase.ACTIVE)
             throw new IllegalStateException("not a member turn");
         if (!owner.equals(encounter.order.get(encounter.cursor))) throw new IllegalStateException("not owner");
-        if (!encounter.pending.isEmpty()) throw new IllegalStateException("action still executing");
+        if (!encounter.operations.pending.isEmpty()) throw new IllegalStateException("action still executing");
         long nextVersion = Math.addExact(encounter.version, 1);
         Map<UUID, InitiativeRoll> rolls = encounter.phase == EncounterPhase.CANDIDATE
             && !encounter.hostile.isEmpty() ? sampleInitiatives(encounter) : Map.of();
@@ -1516,7 +1341,7 @@ public final class EncounterAuthority {
         Encounter encounter = require(encounterId);
         if (encounter.completedEnvironmentSteps.contains(stepId)) return false;
         if (encounter.phase != EncounterPhase.ENVIRONMENT || encounter.environmentRemaining < 1
-            || !encounter.pending.isEmpty()) throw new IllegalStateException("not ready for environment simulation");
+            || !encounter.operations.pending.isEmpty()) throw new IllegalStateException("not ready for environment simulation");
         if (encounter.authorizedEnvironmentStep != null) {
             if (encounter.authorizedEnvironmentStep.equals(stepId)) return false;
             throw new IllegalStateException("another environment step is executing");
@@ -1547,7 +1372,7 @@ public final class EncounterAuthority {
         Objects.requireNonNull(stepId);
         Objects.requireNonNull(reason);
         Encounter encounter = require(encounterId);
-        OperationRecord.Result previous = encounter.finalResults.get(stepId);
+        OperationRecord.Result previous = encounter.operations.finalResults.get(stepId);
         if (previous != null) {
             if (previous.outcome() != OperationRecord.Outcome.UNKNOWN || !previous.reason().equals(reason))
                 throw new IllegalStateException("environment step result conflict");
@@ -1565,10 +1390,10 @@ public final class EncounterAuthority {
             OperationRecord.Outcome.UNKNOWN, reason, 0, 0, nextVersion, true);
         encounter.authorizedEnvironmentStep = null;
         encounter.completedEnvironmentSteps.add(stepId);
-        encounter.causes.put(stepId, snapshot);
-        encounter.finalResults.put(stepId, result);
-        encounter.stepResults.computeIfAbsent(stepId, ignored -> new HashMap<>()).put(0, result);
-        encounter.history.add(result);
+        encounter.operations.causes.put(stepId, snapshot);
+        encounter.operations.finalResults.put(stepId, result);
+        encounter.operations.stepResults.computeIfAbsent(stepId, ignored -> new HashMap<>()).put(0, result);
+        encounter.operations.history.add(result);
         encounter.version = nextVersion;
         return result;
     }
@@ -1580,7 +1405,7 @@ public final class EncounterAuthority {
         if (encounter.completedEnvironmentSteps.contains(stepId)) return false;
         if (encounter.phase != EncounterPhase.ENVIRONMENT || encounter.environmentRemaining < 1)
             throw new IllegalStateException("not an environment turn");
-        if (!stepId.equals(encounter.authorizedEnvironmentStep) || !encounter.pending.isEmpty())
+        if (!stepId.equals(encounter.authorizedEnvironmentStep) || !encounter.operations.pending.isEmpty())
             throw new IllegalStateException("environment step was not authorized or is still executing");
         long nextVersion = Math.addExact(encounter.version, 1);
         long nextRound = encounter.environmentRemaining == 1 ? Math.addExact(encounter.round, 1) : encounter.round;
@@ -1616,9 +1441,9 @@ public final class EncounterAuthority {
     public Set<UUID> end(UUID encounterId) {
         Encounter encounter = encounters.get(encounterId);
         if (encounter == null) return Set.of();
-        Math.addExact(encounter.version, (long) encounter.pending.size() + 1);
+        Math.addExact(encounter.version, (long) encounter.operations.pending.size() + 1);
         for (UUID operationId : pendingChildrenFirst(encounter).stream().map(OperationRecord.Snapshot::operationId).toList()) {
-            int step = encounter.stepResults.getOrDefault(operationId, Map.of()).size();
+            int step = encounter.operations.stepResults.getOrDefault(operationId, Map.of()).size();
             publish(encounterId, operationId, step, OperationRecord.Outcome.UNKNOWN,
                 "encounter ended before world outcome was confirmed", 0, 0, true);
         }
@@ -1714,7 +1539,7 @@ public final class EncounterAuthority {
         actorTurnObserver.accept(new TurnBoundary(encounter.id, encounter.round, member.id));
     }
     private static List<OperationRecord.Snapshot> pendingChildrenFirst(Encounter encounter) {
-        return encounter.pending.values().stream()
+        return encounter.operations.pending.values().stream()
             .sorted(Comparator.comparingInt((OperationRecord.Snapshot value) -> childDepth(encounter, value)).reversed())
             .toList();
     }
@@ -1723,7 +1548,7 @@ public final class EncounterAuthority {
         if (snapshot.kind() == OperationRecord.Kind.TRIGGERED) return abilities.require(snapshot.intent()).cost();
         if (snapshot.kind() == OperationRecord.Kind.PLAN) return ActionCost.FREE;
         if (snapshot.parentId() != null) {
-            var parent = encounter.causes.get(snapshot.parentId());
+            var parent = encounter.operations.causes.get(snapshot.parentId());
             if (parent != null && parent.kind() == OperationRecord.Kind.PLAN) {
                 // Approach movement has its own measured cost, independent of the chosen ability.
                 if (snapshot.kind() == OperationRecord.Kind.MOVE) return ActionCost.MOVE;
@@ -1742,7 +1567,7 @@ public final class EncounterAuthority {
     private static int childDepth(Encounter encounter, OperationRecord.Snapshot parent) {
         int depth = 1;
         while (parent.parentId() != null) {
-            parent = encounter.causes.get(parent.parentId());
+            parent = encounter.operations.causes.get(parent.parentId());
             if (parent == null) return Integer.MAX_VALUE;
             depth++;
         }
@@ -1751,7 +1576,7 @@ public final class EncounterAuthority {
 
     private static UUID rootOf(Encounter encounter, OperationRecord.Snapshot parent) {
         while (parent.parentId() != null) {
-            parent = encounter.causes.get(parent.parentId());
+            parent = encounter.operations.causes.get(parent.parentId());
             if (parent == null) return null;
         }
         return parent.operationId();

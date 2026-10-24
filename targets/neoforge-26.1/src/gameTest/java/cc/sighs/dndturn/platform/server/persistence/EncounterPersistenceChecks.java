@@ -4,8 +4,7 @@ import cc.sighs.dndturn.domain.encounter.EncounterStateSnapshot;
 import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.spatial.GridCell;
-import cc.sighs.dndturn.platform.server.action.AbilityCheckpoint;
-import cc.sighs.dndturn.platform.server.ability.AbilityExecutor;
+import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
 import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
 import java.util.List;
 import java.util.Map;
@@ -96,12 +95,12 @@ public final class EncounterPersistenceChecks {
         UUID operation = UUID.randomUUID(), encounter = UUID.randomUUID();
         UUID actor = UUID.randomUUID(), instance = UUID.randomUUID();
         var terminal = new AbilityCheckpoint(operation, encounter, actor, instance, intent,
-            AbilityCheckpoint.Phase.TERMINAL, AbilityExecutor.ExecutionClock.AUTHORIZED_EXECUTION_STEP,
+            AbilityCheckpoint.Phase.TERMINAL, AbilityCheckpoint.ExecutionClock.AUTHORIZED_EXECUTION_STEP,
             1, 0, null, null, null, null, null, "", AbilityCheckpoint.Release.RELEASED, "finished", null);
         persistence.recordCheckpoint(terminal);
         var before = persistence.checkpoints();
         persistence.recordCheckpoint(new AbilityCheckpoint(operation, encounter, actor, instance, intent,
-            AbilityCheckpoint.Phase.EXECUTE, AbilityExecutor.ExecutionClock.AUTHORIZED_EXECUTION_STEP,
+            AbilityCheckpoint.Phase.EXECUTE, AbilityCheckpoint.ExecutionClock.AUTHORIZED_EXECUTION_STEP,
             2, 0, null, null, null, null, null, "", AbilityCheckpoint.Release.HELD, "late evidence", null));
         assertEquals(terminal, persistence.checkpoint(operation));
         persistence.appendAudit(new CombatPersistenceEnvelope.RecoveryAudit(operation, UUID.randomUUID(), 3,

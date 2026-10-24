@@ -2,8 +2,6 @@ package cc.sighs.dndturn.platform.server.inspection;
 
 import cc.sighs.dndturn.domain.encounter.EncounterPhase;
 import cc.sighs.dndturn.platform.network.InspectionProtocol;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
 import java.util.*;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -11,18 +9,23 @@ import net.minecraft.world.entity.LivingEntity;
 /** Server-lifetime read service; budgets contain values only, never connection or entity references. */
 public final class InspectionService {
     private record Budget(long start, int used) {}
-    private final EncounterRuntime service;
+    private final cc.sighs.dndturn.domain.encounter.EncounterAuthority engine;
+    private final cc.sighs.dndturn.platform.server.actor.ActorStateAuthority actors;
+    private final UUID generation;
+    private final java.util.function.LongSupplier clock;
     private final Map<UUID, Budget> budgets = new HashMap<>();
     private long tick = -1;
     private int captures;
-    public InspectionService(EncounterRuntime service) { this.service = service; }
+    public InspectionService(cc.sighs.dndturn.domain.encounter.EncounterAuthority engine,
+            cc.sighs.dndturn.platform.server.actor.ActorStateAuthority actors, UUID generation,
+            java.util.function.LongSupplier clock) { this.engine = engine; this.actors = actors; this.generation = generation; this.clock = clock; }
 
     public InspectionProtocol.Reply query(ServerPlayer observer, InspectionProtocol.Query query) {
         var server = observer.level().getServer();
         if (!server.isSameThread()) throw new IllegalStateException("inspection server thread required");
         if (server.getPlayerList().getPlayer(observer.getUUID()) != observer || observer.hasDisconnected()
                 || !observer.isAlive() || observer.isSpectator()) return reject(query, InspectionProtocol.Status.UNAVAILABLE);
-        long now = service.actionHost().planClock();
+        long now = clock.getAsLong();
         if (tick != now) {
             tick = now; captures = 0;
             budgets.entrySet().removeIf(e -> now - e.getValue().start() >= 20);
@@ -31,18 +34,18 @@ public final class InspectionService {
         if (budget.used() >= 4 || captures >= 32) return reject(query, InspectionProtocol.Status.RATE_LIMITED);
         budgets.put(observer.getUUID(), new Budget(budget.start(), budget.used() + 1));
         captures++;
-        if (!service.matchesGeneration(query.generation()) || !query.encounter().equals(service.encounterOf(observer.getUUID())))
+        if (!generation.equals(query.generation()) || !query.encounter().equals(engine.encounterOf(observer.getUUID())))
             return reject(query, InspectionProtocol.Status.STALE_SESSION);
-        if (!query.encounter().equals(service.encounterOf(query.target()))) return reject(query, InspectionProtocol.Status.UNAVAILABLE);
+        if (!query.encounter().equals(engine.encounterOf(query.target()))) return reject(query, InspectionProtocol.Status.UNAVAILABLE);
         try {
-            var state = service.state(query.encounter());
+            var state = engine.stateView(query.encounter());
             if (state.phase() == EncounterPhase.ENDED) return reject(query, InspectionProtocol.Status.STALE_SESSION);
             var target = observer.level().getEntity(query.target());
             if (!(target instanceof LivingEntity living) || !living.isAlive() || living.isRemoved()
                     || !state.members().containsKey(query.target())) return reject(query, InspectionProtocol.Status.UNAVAILABLE);
             if (living != observer && (living.isInvisibleTo(observer) || !loadedSight(observer, living)
                     || !observer.hasLineOfSight(living))) return reject(query, InspectionProtocol.Status.UNAVAILABLE);
-            var view = service.actorStates().inspect(new LiveActorContext(observer), new LiveActorContext(living), state);
+            var view = actors.inspect(actors.context(observer), actors.context(living), state);
             return new InspectionProtocol.Reply(query, InspectionProtocol.Status.OK, view);
         } catch (RuntimeException unavailable) {
             // Never forward provider exceptions, hidden fact names or rule quarantine details.

@@ -33,7 +33,7 @@ public final class EnvironmentTntChecks {
         var service=ServerRuntime.encounters(level.getServer());
         List<PrimedTnt> tnts=new ArrayList<>();
         Runnable cleanup=()-> {
-            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);
+            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);
             victim.discard();tnts.forEach(Entity::discard);
             for(long key:forced){var chunk=ChunkPos.unpack(key);level.setChunkForced(chunk.x(),chunk.z(),false);}forced.clear();
         };
@@ -41,7 +41,7 @@ public final class EnvironmentTntChecks {
             // Re-establish the hostile lock in the same tick as the start, so the field admission
             // sees an actual target rather than a tick-old AI decision.
             victim.setTarget(player);
-            service.requestStart(player,UUID.randomUUID()); UUID id=service.encounterOf(player.getUUID());
+            service.lifecycle().requestStart(player,UUID.randomUUID()); UUID id=service.encounterOf(player.getUUID());
             helper.assertTrue(id!=null && service.isMember(victim.getUUID()),
                 "TNT victim must be a real member; target=" + victim.getTarget()
                     + " members=" + (id == null ? null : service.state(id).members().keySet()));
@@ -59,7 +59,7 @@ public final class EnvironmentTntChecks {
                         helper.assertTrue(tnt.getFuse()==fuse && tnt.position().equals(position),"thinking advanced TNT fuse or body");
                         for(int i=0;i<service.state(id).members().size()
                             && service.state(id).phase()!=EncounterPhase.ENVIRONMENT;i++)
-                            service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+                            service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
                         helper.runAfterDelay(32,()-> {
                             completed++;
                             if(completed<3) {

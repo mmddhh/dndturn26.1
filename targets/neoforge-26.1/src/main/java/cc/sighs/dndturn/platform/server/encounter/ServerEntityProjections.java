@@ -83,7 +83,7 @@ public final class ServerEntityProjections {
         var values = viewer(player);
         var display = new Display(instance(entity), entity.getId(), dimension(entity), facts.apply(entity));
         if (active && movement == null && display.equals(values.get(entity.getUUID()))) return;
-        if (EncounterProtocol.sendEntitySimulation(player, new EncounterProtocol.EntitySimulation(generation, ++sequence,
+        if (cc.sighs.dndturn.platform.server.network.EncounterSender.sendEntitySimulation(player, new EncounterProtocol.EntitySimulation(generation, ++sequence,
             entity.getUUID(), entity.getId(), display.instance(), display.dimension(), active, display.facts(), movement))
             && active) values.put(entity.getUUID(), display);
     }

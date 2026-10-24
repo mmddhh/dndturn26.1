@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.server.world;
 
 import cc.sighs.dndturn.domain.fact.FactKey;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -10,10 +10,14 @@ import net.minecraft.world.entity.Entity;
 
 /** Causal evidence providers; matching does not grant a simulation or damage permit. */
 public final class CloudOrigins {
+    public interface Evidence {
+        cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord invocation(UUID operation);
+        UUID canonical(UUID encounter);
+    }
     public interface Provider {
         boolean tagged(Entity entity);
         UUID domain(Entity entity);
-        boolean confirmed(Entity entity, EncounterRuntime encounter);
+        boolean confirmed(Entity entity, Evidence encounter);
     }
     private static final Map<String, Provider> providers = new LinkedHashMap<>();
     private static boolean frozen;
@@ -35,7 +39,7 @@ public final class CloudOrigins {
     }
     public static boolean tagged(Entity entity) { return find(entity) != null; }
     public static UUID domain(Entity entity) { return Objects.requireNonNull(find(entity), "missing cloud origin").domain(entity); }
-    public static boolean confirmed(Entity entity, EncounterRuntime encounter) {
+    public static boolean confirmed(Entity entity, Evidence encounter) {
         var provider = find(entity);
         return provider != null && provider.confirmed(entity, encounter);
     }

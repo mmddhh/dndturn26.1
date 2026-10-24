@@ -29,13 +29,13 @@ public final class EnvironmentClassificationChecks {
             level.setBlockAndUpdate(pos, pos.getY() < base.getY() ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
         Runnable cleanup = () -> {
             UUID encounter = service.encounterOf(player.getUUID());
-            if (encounter != null) service.stop(encounter);
+            if (encounter != null) service.lifecycle().stop(encounter);
             spawned.forEach(Entity::discard);
             for (long key : forced) { var chunk = ChunkPos.unpack(key); level.setChunkForced(chunk.x(),chunk.z(),false); }
             forced.clear();
         };
         helper.runAtTickTime(30, () -> {
-            service.requestStart(player, UUID.randomUUID());
+            service.lifecycle().requestStart(player, UUID.randomUUID());
             UUID encounter = service.encounterOf(player.getUUID());
             helper.assertTrue(encounter != null, "classification START failed");
             var signPos = base.north(3);
@@ -65,7 +65,7 @@ public final class EnvironmentClassificationChecks {
                 helper.assertTrue(level.getBlockState(present).is(Blocks.LILY_PAD)
                     && level.getBlockState(departed).is(Blocks.LILY_PAD), "boat destroyed lily pad during thinking");
                 spawned.get(1).discard();
-                service.endCurrentTurn(encounter, UUID.randomUUID(), service.state(encounter).version());
+                service.combat().endCurrentTurn(encounter, UUID.randomUUID(), service.state(encounter).version());
                 helper.startSequence().thenWaitUntil(() -> helper.assertTrue(level.getBlockState(present).isAir(),
                         "current boat contact did not destroy lily pad in environment"))
                     .thenExecute(() -> helper.assertTrue(level.getBlockState(departed).is(Blocks.LILY_PAD),

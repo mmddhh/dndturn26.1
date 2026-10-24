@@ -1,4 +1,6 @@
 package cc.sighs.dndturn.platform.server.actor;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.server.fact.MinecraftFactProviders;
 
 import cc.sighs.dndturn.domain.encounter.operation.CausalEvent;
 import cc.sighs.dndturn.domain.encounter.operation.Intervention;
@@ -15,7 +17,6 @@ import cc.sighs.dndturn.domain.actor.TriggeredAbilityInvocation;
 import cc.sighs.dndturn.domain.effect.EffectDefinition;
 import cc.sighs.dndturn.domain.effect.EffectTransition;
 import cc.sighs.dndturn.domain.effect.EffectWave;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord;
 import cc.sighs.dndturn.domain.encounter.operation.WorldOutcomeObservation;
 import cc.sighs.dndturn.domain.fact.FactKey;
@@ -23,15 +24,33 @@ import cc.sighs.dndturn.domain.fact.FactSlice;
 import cc.sighs.dndturn.domain.fact.ReadContract;
 import cc.sighs.dndturn.domain.fact.RuleFacts;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.persistence.ActorSavedData;
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
+
 import java.util.*;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.LivingEntity;
 
 /** Bounded server-lifetime owner; no Entity, level or execution object is stored in actor state. */
 public final class ActorStateAuthority {
+
+    private java.util.function.Function<UUID, UUID> membership = id -> null;
+    private final cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget queryBudget = new cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget();
+    private final MinecraftSnapshotCapture snapshots = new MinecraftSnapshotCapture(new LiveActorContext.Facts() {
+        public ActorStates.State state(UUID actor) { return ActorStateAuthority.this.state(actor); }
+        public String fault(UUID actor) { return ActorStateAuthority.this.fault(actor); }
+        public void requireAbilityWork(UUID actor, UUID encounter, cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget.Work work) {
+            queryBudget.require(recordedTick, actor, encounter, work);
+        }
+        public UUID encounterAtBlock(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos) { return null; }
+        public boolean ownsProjectile(net.minecraft.server.level.ServerPlayer owner, net.minecraft.world.entity.projectile.Projectile projectile) { return false; }
+    });
+    public void bindEncounterMembership(java.util.function.Function<UUID, UUID> membership) {
+        thread(); this.membership = Objects.requireNonNull(membership);
+    }
+    public MinecraftSnapshotCapture snapshots() { thread(); return snapshots; }
+    public LiveActorContext context(LivingEntity actor) { thread(); return snapshots.context(actor); }
+
     private final MinecraftServer server;
     private final ActorSavedData saved;
     private final ActorStates owner;
@@ -90,17 +109,17 @@ public final class ActorStateAuthority {
         thread(); available(); owner.observeInvocation(operation, observation); dirty = true;
     }
     public ActorViews.CharacterSheet character(LiveActorContext actor, ReadContract visible) {
-        thread(); return ActorViews.character(MinecraftSnapshotCapture.captureActor(actor), state(actor.id()), visible);
+        thread(); return ActorViews.character(snapshots.captureActor(actor), state(actor.id()), visible);
     }
     public ActorViews.Spellbook spellbook(LiveActorContext actor) {
-        thread(); return ActorViews.spellbook(MinecraftSnapshotCapture.captureActor(actor), state(actor.id()), AbilityAdapterRegistry.definitions());
+        thread(); return ActorViews.spellbook(snapshots.captureActor(actor), state(actor.id()), AbilityAdapterRegistry.definitions());
     }
     /** No facts are public by default. A target integration must explicitly authorize a read set. */
     public ActorViews.Inspection inspect(LiveActorContext actor) {
-        thread(); return ActorViews.inspect(MinecraftSnapshotCapture.captureActor(actor), new ReadContract(Set.of()));
+        thread(); return ActorViews.inspect(snapshots.captureActor(actor), new ReadContract(Set.of()));
     }
     /** Called only after InspectionService authorizes the current observer and target. */
-    public ActorViews.InspectionView inspect(LiveActorContext observer, LiveActorContext actor, EncounterAuthority.StateView encounter) {
+    public ActorViews.InspectionView inspect(LiveActorContext observer, LiveActorContext actor, StateView encounter) {
         thread(); observer.verifyCurrent(); actor.verifyCurrent();
         var member = encounter.members().get(actor.id());
         if (member == null || !encounter.members().containsKey(observer.id()))
@@ -113,7 +132,7 @@ public final class ActorStateAuthority {
             if (MinecraftFactProviders.owns(key)) nativeKeys.add(key); else ruleKeys.add(key);
         }
         var facts = MinecraftFactProviders.capture(actor, new ReadContract(nativeKeys));
-        if (!ruleKeys.isEmpty()) facts = facts.merge(MinecraftSnapshotCapture.captureFacts(actor, new ReadContract(ruleKeys)));
+        if (!ruleKeys.isEmpty()) facts = facts.merge(snapshots.captureFacts(actor, new ReadContract(ruleKeys)));
         facts = facts.merge(new FactSlice(Map.of(InspectionPolicy.DODGING, member.dodging(),
                 InspectionPolicy.DISENGAGED, member.disengaged()), Map.of()));
         return policy.project(new InspectionPolicy.Observer(observer.id(), actor.id()), actor.instance(), UUID.randomUUID(), facts);
@@ -135,7 +154,7 @@ public final class ActorStateAuthority {
             }
         }
         if (owner.state(actor.id()).revision() != command.expectedRevision()) throw new IllegalStateException("stale actor command");
-        MinecraftSnapshotCapture.validateActorState(actor, ActorStates.reduce(owner.state(actor.id()), command.changes()));
+        snapshots.validateActorState(actor, ActorStates.reduce(owner.state(actor.id()), command.changes()));
         var result = owner.apply(command); dirty = true;
         if (!AbilityAdapterRegistry.activations().isEmpty()) {
             boolean root = !draining;
@@ -224,7 +243,7 @@ public final class ActorStateAuthority {
     private void reconcileCapacityFault(LiveActorContext actor) {
         if (!owner.capacityCandidates().containsKey(actor.id())) return;
         // Validate unchanged rule values against current native facts; never replay the missing event.
-        try { MinecraftSnapshotCapture.validateActorState(actor, owner.state(actor.id())); }
+        try { snapshots.validateActorState(actor, owner.state(actor.id())); }
         catch (RuntimeException invalid) {
             com.mojang.logging.LogUtils.getLogger().warn("Actor capacity reconciliation retained quarantine: actor={}", actor.id(), invalid);
             return;
@@ -317,7 +336,7 @@ public final class ActorStateAuthority {
         }
         draining = true;
         try {
-            var nativeSources = reactionQueue.isEmpty() ? List.<AbilityBinding>of() : MinecraftSnapshotCapture.captureReactionSources(actor);
+            var nativeSources = reactionQueue.isEmpty() ? List.<AbilityBinding>of() : snapshots.captureReactionSources(actor);
             while (!reactionQueue.isEmpty()) {
                 var wave = List.copyOf(reactionQueue); reactionQueue.clear();
                 reactionEvents += wave.size(); reactionDepth = wave.get(0).depth();
@@ -332,7 +351,7 @@ public final class ActorStateAuthority {
                     continue;
                 }
                 var state = owner.state(actor.id());
-                var snapshot = MinecraftSnapshotCapture.captureReactionWave(actor, nativeSources);
+                var snapshot = snapshots.captureReactionWave(actor, nativeSources);
                 var inputs = new ArrayList<Map.Entry<ActorActivations.Registration, ActorActivations.Input>>();
                 var orders = new ArrayList<Long>();
                 for (var queued : wave) for (var binding : ActorCompilation.reactionBindings(actor.id(), actor.instance(),
@@ -347,7 +366,7 @@ public final class ActorStateAuthority {
                     var facts = MinecraftFactProviders.capture(actor, new ReadContract(keys)).merge(new FactSlice(Map.of(RuleFacts.SOURCE_VALID, true), Map.of()));
                     var other = event.other() == null ? null : find(event.other());
                     var targetFacts = other == null ? new FactSlice(Map.of(), Map.of())
-                            : MinecraftSnapshotCapture.captureFacts(new LiveActorContext(other), registration.reads().target());
+                            : snapshots.captureFacts(context(other), registration.reads().target());
                     inputs.add(Map.entry(registration, new ActorActivations.Input(event, binding, facts, snapshot.facts(), targetFacts,
                             state.revision(), actor.level().dimension().identifier().toString(), snapshot.effects())));
                     orders.add(queued.order());
@@ -374,7 +393,7 @@ public final class ActorStateAuthority {
                                     .getBytes(java.nio.charset.StandardCharsets.UTF_8));
                             invocations.add(new TriggeredExecutionRecord(id, reactionRoot, input.getValue().event(), source,
                                     invocation, TriggeredExecutionRecord.Status.PENDING, "", null,
-                                    ServerRuntime.encounters(server).encounterOf(actor.id()), recordedTick));
+                                    membership.apply(actor.id()), recordedTick));
                         }
                     }
                     var grant = input.getValue().binding().source().grant();

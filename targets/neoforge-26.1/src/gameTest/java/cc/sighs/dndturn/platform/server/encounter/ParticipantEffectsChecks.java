@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.platform.server.encounter;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 
 import cc.sighs.dndturn.domain.encounter.EncounterPhase;
 import cc.sighs.dndturn.gametest.TestPlayers;
@@ -35,7 +36,7 @@ public final class ParticipantEffectsChecks {
         player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
         player.getFoodData().setFoodLevel(10);player.getFoodData().setSaturation(0);
         var service=ServerRuntime.encounters(level.getServer());
-        Runnable cleanup=()->{var id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);
+        Runnable cleanup=()->{var id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);
             for(long key:forced){var c=ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);}forced.clear();};
         return new Arena(player,service,base,cleanup);
     }
@@ -46,7 +47,7 @@ public final class ParticipantEffectsChecks {
     }
     private static void end(Arena a) {
         var id=a.service.encounterOf(a.player.getUUID());
-        a.service.endTurn(id,a.player,UUID.randomUUID(),a.service.state(id).version());
+        a.service.combat().endTurn(id,a.player,UUID.randomUUID(),a.service.state(id).version());
     }
     public static void effects(GameTestHelper h) {
         var a=arena(h,125001);var player=a.player;var service=a.service;
@@ -60,7 +61,7 @@ public final class ParticipantEffectsChecks {
         h.runAtTickTime(359,cleanup);
         int[] bodyTicks={0};
         h.startSequence().thenIdle(30).thenExecute(()->{
-            service.requestStart(player,UUID.randomUUID());ready(h,a);
+            service.lifecycle().requestStart(player,UUID.randomUUID());ready(h,a);
             player.setHealth(10);player.addEffect(new MobEffectInstance(MobEffects.REGENERATION,31));
             player.addEffect(new MobEffectInstance(MobEffects.SPEED,91,0));
             player.addEffect(new MobEffectInstance(MobEffects.SPEED,31,1));bodyTicks[0]=player.tickCount;
@@ -72,11 +73,11 @@ public final class ParticipantEffectsChecks {
             var duration=saved.participantEffects().get(player.getUUID()).effects().get("minecraft:regeneration").getFirst().duration();
             h.assertTrue(duration.rounds()==2 && duration.time().ticks()==30,"checkpoint lost captured effect rounds");
             var isolated=EncounterRuntime.restoreForGameTest(player.level().getServer(),PersistenceTestAccess.saved(player.level().getServer().getDataStorage().computeIfAbsent(CombatSavedData.TYPE).json()));
-            h.assertTrue(isolated.participantEffects().reconcile(player),"unchanged native effect failed restart reconciliation");
+            h.assertTrue(isolated.vanillaEffects().reconcile(player),"unchanged native effect failed restart reconciliation");
             var id=service.encounterOf(player.getUUID());long version=service.state(id).version();var operation=UUID.randomUUID();
-            var result=service.endTurn(id,player,operation,version);
+            var result=service.combat().endTurn(id,player,operation,version);
             h.assertTrue(Math.abs(player.getHealth()-10.6)<1e-5 && player.getEffect(MobEffects.REGENERATION).getDuration()==30,"first owner turn did not settle 0.6 and one round");
-            h.assertTrue(service.endTurn(id,player,operation,version).equals(result) && Math.abs(player.getHealth()-10.6)<1e-5,"end-turn retry repeated status effects");
+            h.assertTrue(service.combat().endTurn(id,player,operation,version).equals(result) && Math.abs(player.getHealth()-10.6)<1e-5,"end-turn retry repeated status effects");
         }).thenWaitUntil(()->ready(h,a)).thenIdle(7).thenExecute(()->{
             cancelExpiry[0]=true;end(a);
             h.assertTrue(Math.abs(player.getHealth()-11.2)<1e-5 && player.getEffect(MobEffects.REGENERATION).getDuration()==0,
@@ -106,9 +107,9 @@ public final class ParticipantEffectsChecks {
         }).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
             player.setHealth(.5f);player.addEffect(new MobEffectInstance(MobEffects.WITHER,1));
             var id=service.encounterOf(player.getUUID());var operation=UUID.randomUUID();long version=service.state(id).version();
-            var result=service.endTurn(id,player,operation,version);
+            var result=service.combat().endTurn(id,player,operation,version);
             h.assertTrue(!player.isAlive() && !service.isMember(player.getUUID()),"lethal end-turn effect did not clean membership");
-            h.assertTrue(service.endTurn(id,player,operation,version).equals(result),"dead participant's boundary retry did not return canonical result");
+            h.assertTrue(service.combat().endTurn(id,player,operation,version).equals(result),"dead participant's boundary retry did not return canonical result");
             cleanup.run();
         }).thenSucceed();
     }
@@ -124,16 +125,16 @@ public final class ParticipantEffectsChecks {
                 && level.getEntitiesOfClass(Mob.class,a.player.getBoundingBox().inflate(4)).contains(cow),
                 "fire fixture cow is not yet visible in native discovery: "+cow.position()+" player="+a.player.position());
         }).thenExecute(()->{
-            service.requestStart(a.player,UUID.randomUUID());var id=service.encounterOf(a.player.getUUID());
+            service.lifecycle().requestStart(a.player,UUID.randomUUID());var id=service.encounterOf(a.player.getUUID());
             h.assertTrue(id.equals(service.encounterOf(cow.getUUID())),"fire fixture cow missing");
             cow.setRemainingFireTicks(31);
-            if(!service.state(id).current().equals(cow.getUUID()))service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
-            service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+            if(!service.state(id).current().equals(cow.getUUID()))service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+            service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
             h.assertTrue(Math.abs(cow.getHealth()-(initialHealth-1.5))<1e-5 && cow.getRemainingFireTicks()==30,"Mob fire did not settle fractional 1.5 on first turn");
             ticks[0]=cow.tickCount;
         }).thenIdle(11).thenExecute(()->{
             h.assertTrue(Math.abs(cow.getHealth()-(initialHealth-1.5))<1e-5 && cow.getRemainingFireTicks()==30 && cow.tickCount>ticks[0],"thinking advanced fire or froze body");
-            var id=service.encounterOf(cow.getUUID());service.stop(id);
+            var id=service.encounterOf(cow.getUUID());service.lifecycle().stop(id);
             h.assertTrue(cow.getRemainingFireTicks()==30,"exit lost remaining round conversion");
         }).thenIdle(4).thenExecute(()->{
             h.assertTrue(cow.getRemainingFireTicks()<30 && cow.getRemainingFireTicks()>0,"exit did not resume native fire time");

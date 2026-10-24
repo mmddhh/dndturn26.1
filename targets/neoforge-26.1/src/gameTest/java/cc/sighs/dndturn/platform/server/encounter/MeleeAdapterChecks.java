@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.damage.DamageReceivers;
 import cc.sighs.dndturn.platform.server.damage.MeleeAdapters;
 import net.minecraft.gametest.framework.GameTestHelper;

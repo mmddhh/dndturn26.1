@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.mixin.server.damage;
 
-import cc.sighs.dndturn.platform.server.actor.ActorLifecycleHooks;
+import cc.sighs.dndturn.platform.server.runtime.ActorLifecycleHooks;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;

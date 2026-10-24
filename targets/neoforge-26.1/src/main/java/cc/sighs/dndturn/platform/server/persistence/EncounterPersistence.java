@@ -4,7 +4,7 @@ import cc.sighs.dndturn.domain.ability.ProcessState;
 
 import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.EncounterStateSnapshot;
-import cc.sighs.dndturn.platform.server.action.AbilityCheckpoint;
+import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
 import com.mojang.logging.LogUtils;
 import java.util.HashMap;
 import java.util.Map;

@@ -13,7 +13,7 @@ import cc.sighs.dndturn.domain.fact.ReadContract;
 import cc.sighs.dndturn.domain.fact.ResourceKey;
 import cc.sighs.dndturn.domain.fact.RuleFacts;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.nio.charset.StandardCharsets;
 import java.util.*;

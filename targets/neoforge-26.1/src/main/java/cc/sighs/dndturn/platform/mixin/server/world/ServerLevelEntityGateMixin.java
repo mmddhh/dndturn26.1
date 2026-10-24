@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.mixin.server.world;
 
-import cc.sighs.dndturn.platform.server.actor.ActorLifecycleHooks;
+import cc.sighs.dndturn.platform.server.runtime.ActorLifecycleHooks;
 import cc.sighs.dndturn.platform.server.runtime.MinecraftCombatRuntime;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.TickRateManager;

@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.domain.encounter;
+import cc.sighs.dndturn.domain.encounter.MemberView;
 
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import java.util.List;
@@ -87,7 +88,7 @@ public record EncounterStateSnapshot(int movementTicksPerTurn, int environmentTi
 
     public record ClosedState(UUID id, EncounterAuthority.Bounds bounds, RegionState region,
                               long version, long round, List<UUID> order,
-                              Map<UUID, EncounterAuthority.MemberView> members,
+                              Map<UUID, MemberView> members,
                               List<OperationRecord.Result> results) {
         public ClosedState {
             Objects.requireNonNull(id);

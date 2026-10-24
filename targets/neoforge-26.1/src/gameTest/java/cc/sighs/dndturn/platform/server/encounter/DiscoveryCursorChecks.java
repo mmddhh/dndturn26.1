@@ -4,8 +4,8 @@ import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.EncounterRegion;
 import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
 import cc.sighs.dndturn.domain.encounter.time.RoundTime;
-import cc.sighs.dndturn.platform.server.action.AbilityWorkBudget;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.ai.MobTurnStrategies;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
@@ -55,8 +55,8 @@ public final class DiscoveryCursorChecks {
                 new EncounterRegion.Discovery(base.getX()-24,140,-24,base.getX()+24,170,24),
                 List.of(new EncounterRegion.Anchor(actor.getUUID(),new EncounterRegion.Point(base.getX(),151,0))),24,1);
             engine.beginCandidate(id,region,entities.stream().map(Entity::getUUID).collect(java.util.stream.Collectors.toSet()),new RoundTime(30));
-            var decisions = new MobTurnStrategies.Decisions();
             var service = ServerRuntime.encounters(level.getServer());
+            var decisions = new MobTurnStrategies.Decisions(service.mobDecisionFacts());
             long before = service.abilityWorkCounts().get(AbilityWorkBudget.Work.CANDIDATE).consumed();
             // Source capture is now once per decision, so 80 targets no longer waste >1024 work.
             // Model earlier work by the same actor to retain the real cross-tick exhaustion test.
@@ -66,7 +66,7 @@ public final class DiscoveryCursorChecks {
                 int deferrals;
                 void resume() {
                     try {
-                        decisions.next(new LiveActorContext(actor),engine.stateView(id),engine);
+                        decisions.next(service.actorStates().context(actor),engine.stateView(id),engine);
                         long work = service.abilityWorkCounts().get(AbilityWorkBudget.Work.CANDIDATE).consumed()-before;
                         h.assertTrue(deferrals > 0 && work > 1024 && deferrals < 10,
                             "large discovery did not resume to completion: deferrals="+deferrals+" work="+work);

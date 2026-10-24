@@ -1,9 +1,9 @@
 package cc.sighs.dndturn.platform.mixin.server.world;
 
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 import cc.sighs.dndturn.platform.server.presentation.ChestPresentation;
-import cc.sighs.dndturn.platform.server.world.EnvironmentProcesses;
+import cc.sighs.dndturn.platform.server.control.EnvironmentProcesses;
 import it.unimi.dsi.fastutil.objects.ObjectLinkedOpenHashSet;
 import java.util.List;
 import net.minecraft.core.BlockPos;

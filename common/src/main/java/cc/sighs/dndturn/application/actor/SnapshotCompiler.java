@@ -14,6 +14,10 @@ public final class SnapshotCompiler {
     private SnapshotCompiler() {}
     public static ActorSnapshot compile(UUID actor, UUID instance, ActorDefinition definition,
                                         ActorSnapshot.Revision revision, FactSlice nativeFacts, List<AbilityBinding> bindings) {
+        return new ActorSnapshot(actor, instance, definition, revision, compileFacts(definition, nativeFacts), bindings);
+    }
+    /** Fact-only queries do not allocate grants, snapshot identities or effect projections. */
+    public static FactSlice compileFacts(ActorDefinition definition, FactSlice nativeFacts) {
         var derived = new HashMap<FactKey<?>, Object>();
         var missing = new HashMap<FactKey<?>, FactSlice.Missing>();
         try {
@@ -25,7 +29,6 @@ public final class SnapshotCompiler {
             derived.put(ActorFacts.DAMAGE_REDUCTION, (double) CombatRules.damageReduction(
                     nativeFacts.read(ActorFacts.DECISION, ActorFacts.TOUGHNESS_EFFECTIVE)));
         } catch (FactSlice.MissingFact unavailable) { missing.put(ActorFacts.DAMAGE_REDUCTION, unavailable.reason()); }
-        var facts = definition.defaults().merge(nativeFacts).merge(new FactSlice(derived, missing));
-        return new ActorSnapshot(actor, instance, definition, revision, facts, bindings);
+        return definition.defaults().merge(nativeFacts).merge(new FactSlice(derived, missing));
     }
 }

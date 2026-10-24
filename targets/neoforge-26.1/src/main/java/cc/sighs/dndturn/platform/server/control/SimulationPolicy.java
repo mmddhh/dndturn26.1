@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.server.control;
 
 import cc.sighs.dndturn.domain.control.GateDecision;
-import cc.sighs.dndturn.platform.server.world.EnvironmentProcesses;
+import cc.sighs.dndturn.platform.server.control.EnvironmentProcesses;
 
 /** No tick consumption, movement reservation, or lease revocation occurs in evaluation. */
 public final class SimulationPolicy {

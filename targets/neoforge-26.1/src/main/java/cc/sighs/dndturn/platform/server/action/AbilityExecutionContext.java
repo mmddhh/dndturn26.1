@@ -1,4 +1,6 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.ActionCost;
 import cc.sighs.dndturn.domain.action.ActionIntent;
@@ -29,13 +31,13 @@ public final class AbilityExecutionContext implements AutoCloseable {
     }
     public OperationRecord.Snapshot snapshot() { check(); return execution.snapshot(); }
     public long executionSteps() { check(); return execution.executionSteps; }
-    public Map<String, String> state() { check(); return actions.service.processes().require(execution.root.operationId()).values(); }
-    public long random() { check(); return actions.service.processes().random(execution.root.operationId()); }
+    public Map<String, String> state() { check(); return actions.processes.require(execution.root.operationId()).values(); }
+    public long random() { check(); return actions.processes.random(execution.root.operationId()); }
     public void put(String key, String value) {
         check(); Objects.requireNonNull(key); Objects.requireNonNull(value);
-        actions.service.processes().put(execution.root.operationId(), key, value);
+        actions.processes.put(execution.root.operationId(), key, value);
     }
-    public void remove(String key) { check(); actions.service.processes().put(execution.root.operationId(), Objects.requireNonNull(key), null); }
+    public void remove(String key) { check(); actions.processes.put(execution.root.operationId(), Objects.requireNonNull(key), null); }
 
     /** The audited shared melee family. Target, source, policy and cost come from the bound plan.
      * No caller-supplied damage, target, permit or operation can broaden its effect.
@@ -49,7 +51,7 @@ public final class AbilityExecutionContext implements AutoCloseable {
         if (execution.effectInvoked) throw new IllegalStateException("plan effect already invoked");
         // Mark before entering native code: an exception with uncertain effects must never replay.
         execution.effectInvoked = true;
-        actions.service.actionHost().attackPlan(actor, execution.root.target(), UUID.randomUUID(), execution.root.operationId(),
+        actions.combat.attackPlan(actor, execution.root.target(), UUID.randomUUID(), execution.root.operationId(),
             result -> actions.finish(actor.body(), execution, result.outcome(), result.reason()));
     }
     /** Executes only the registered driver of the bound equipment ability. No caller-supplied target or cost. */
@@ -74,7 +76,7 @@ public final class AbilityExecutionContext implements AutoCloseable {
         OperationRecord.Outcome outcome = OperationRecord.Outcome.COMPLETED;
         String reason = "native ranged launch observed";
         try {
-            execution.launchTrace = actions.service.actionHost().rangedTrace(actor.body(), root.target(), execution.action, false);
+            execution.launchTrace = actions.combat.rangedTrace(actor.body(), root.target(), execution.action, false);
             try (var launch = new TacticalLaunchContext(actor.id(), root.encounterId(), execution.action,
                     root.target(), execution.launchTrace, root.operationId(), root.intent())) {
                 try { driver.driver().shoot(actor, living); }

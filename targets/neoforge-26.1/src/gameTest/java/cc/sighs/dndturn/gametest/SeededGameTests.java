@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.gametest;
 
 import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.Random;
 import net.minecraft.world.entity.LivingEntity;

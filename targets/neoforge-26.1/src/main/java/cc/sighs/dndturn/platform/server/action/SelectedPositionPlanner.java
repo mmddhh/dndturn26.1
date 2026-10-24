@@ -1,7 +1,8 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget;
 
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
 import cc.sighs.dndturn.platform.network.ActionProtocol;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
@@ -17,15 +18,15 @@ final class SelectedPositionPlanner {
     static String posture(ServerPlayer p) {
         return PreviewPathfinder.posture(p);
     }
-    List<ActionProtocol.PreviewStep> accept(ServerPlayer player, ActionIntent intent, EncounterAuthority.StateView state) {
-        var budget = (Runnable)() -> actions.service.requireAbilityWork(player.getUUID(), state.id(), AbilityWorkBudget.Work.PROBE);
+    List<ActionProtocol.PreviewStep> accept(ServerPlayer player, ActionIntent intent, StateView state) {
+        var budget = (Runnable)() -> actions.admission.requireAbilityWork(player.getUUID(), state.id(), AbilityWorkBudget.Work.PROBE);
         var finder = new PreviewPathfinder(player,state.region(),budget);
         Vec3 feet = PreviewPathfinder.vector(intent.approach().feet());
         var cell = PreviewPathfinder.key(feet);
         Vec3 actual = finder.surfaceAt(feet);
         if (actual == null || actual.distanceToSqr(feet) > 1e-8) throw ActionFailure.source("selected surface changed");
         var behavior = AbilityAdapterRegistry.facts(intent);
-        if (!behavior.canExecute(new LiveActorContext(player),intent,feet)) throw ActionFailure.source("selected position cannot execute ability");
+        if (!behavior.canExecute(actions.actorStates.context(player),intent,feet)) throw ActionFailure.source("selected position cannot execute ability");
         if (intent.capability() == ActionIntent.Capability.MOVE && !cell.equals(intent.target().cell()))
             throw ActionFailure.source("selected position differs from movement target");
         if (intent.target().entity()!=null) {

@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.server.presentation;
 
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundBlockEventPacket;
 import net.minecraft.server.level.ServerLevel;

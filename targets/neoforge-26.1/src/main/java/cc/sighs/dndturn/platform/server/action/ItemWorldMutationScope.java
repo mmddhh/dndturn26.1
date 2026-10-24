@@ -1,7 +1,8 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 
 import cc.sighs.dndturn.platform.projection.PresentationIdentity;
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import cc.sighs.dndturn.platform.server.world.WorldOutcomeHooks;
 import java.util.*;
 import net.minecraft.core.BlockPos;
@@ -11,13 +12,14 @@ import net.minecraft.world.entity.Entity;
 /** Synchronous item invocation evidence. Never grants a later entity tick or another input. */
 public final class ItemWorldMutationScope implements AutoCloseable {
     private static final ThreadLocal<ItemWorldMutationScope> CURRENT = new ThreadLocal<>();
+    private final ActionEffects effects;
     private final ServerPlayer player;
     private final ActionExecutionCoordinator.Execution execution;
     private final ItemWorldMutationScope previous;
     private final Set<Entity> candidates = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Entity> accepted = Collections.newSetFromMap(new IdentityHashMap<>());
-    ItemWorldMutationScope(ServerPlayer player, ActionExecutionCoordinator.Execution execution) {
-        this.player=player; this.execution=execution; previous=CURRENT.get(); CURRENT.set(this);
+    ItemWorldMutationScope(ServerPlayer player, ActionExecutionCoordinator.Execution execution, ActionEffects effects) {
+        this.effects=effects; this.player=player; this.execution=execution; previous=CURRENT.get(); CURRENT.set(this);
     }
     /** Validate each actual synchronous native write; permission is not inferred from a class name. */
     public static void beforeBlockWrite(net.minecraft.world.level.Level level, BlockPos pos) {
@@ -66,7 +68,7 @@ public final class ItemWorldMutationScope implements AutoCloseable {
                     net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(),
                     entity.getX(),entity.getY(),entity.getZ()));
                 if (execution.behavior.id().equals("dndturn:spawn_item") && entity instanceof net.minecraft.world.entity.Mob mob)
-                    ServerRuntime.encounters(player.level().getServer()).actionHost().joinGeneratedMob(player, mob, execution.root.encounterId());
+                    effects.joinGeneratedMob(player, mob, execution.root.encounterId());
             }
         } finally { if (previous==null) CURRENT.remove(); else CURRENT.set(previous); }
     }

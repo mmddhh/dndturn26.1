@@ -36,7 +36,7 @@ public final class EnvironmentBoundaryTimeChecks {
         level.setBlockAndUpdate(base.below(), Blocks.OBSIDIAN.defaultBlockState());
         var service = ServerRuntime.encounters(level.getServer());
         Runnable cleanup = () -> {
-            var id = service.encounterOf(player.getUUID()); if (id != null) service.stop(id);
+            var id = service.encounterOf(player.getUUID()); if (id != null) service.lifecycle().stop(id);
             for (var key : forced) { var c = ChunkPos.unpack(key); level.setChunkForced(c.x(), c.z(), false); }
             forced.clear();
         };
@@ -57,14 +57,14 @@ public final class EnvironmentBoundaryTimeChecks {
             h.assertTrue(level.isPositionEntityTicking(base) && level.areEntitiesLoaded(ChunkPos.pack(base)),
                 "environment fixture actor chunk not natively ready");
         }).thenExecute(() -> {
-            service.requestStart(player, UUID.randomUUID());
+            service.lifecycle().requestStart(player, UUID.randomUUID());
             var id = service.encounterOf(player.getUUID());
             h.assertTrue(service.state(id).members().size() == 1 && player.getUUID().equals(service.state(id).current()),
                 "isolated boundary fixture has unexpected members/current: " + service.state(id));
             BlockPos inside = null, outside = null;
             for (int offset = 1; offset <= 45; offset++) {
                 var candidate = base.east(offset);
-                if (service.isBlockSimulationPaused(level, candidate.west()) && !service.isBlockSimulationPaused(level, candidate)) {
+                if (service.world().isBlockSimulationPaused(level, candidate.west()) && !service.world().isBlockSimulationPaused(level, candidate)) {
                     inside = candidate.west(); outside = candidate; break;
                 }
             }
@@ -83,11 +83,11 @@ public final class EnvironmentBoundaryTimeChecks {
                 h.assertTrue(chest.isEmpty() && hopper.getItem(0).getCount() == 1,
                     "outside hopper mutated paused destination: chest=" + chest.getItem(0) + " hopper=" + hopper.getItem(0)
                         + " phase=" + service.state(id).phase() + " player=" + player.position()
-                        + " chestPaused=" + service.isBlockSimulationPaused(level,chestPos)
+                        + " chestPaused=" + service.world().isBlockSimulationPaused(level,chestPos)
                         + " source=" + hopperPos + " destination=" + chestPos
-                        + " time=" + service.environmentTimeAt(level,chestPos));
+                        + " time=" + service.world().environmentTimeAt(level,chestPos));
                 h.assertTrue(level.getBlockState(detector).getValue(DaylightDetectorBlock.POWER) == wrongPower, "thinking advanced daylight sampling");
-                service.endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
+                service.combat().endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
                 int[] sampledPower = {-1};
                 // GameTestInfo iterates a FastUtil map while running these callbacks. Adding 31
                 // delayed callbacks here rehashes that live iterator and may rerun this end-turn.
@@ -104,11 +104,11 @@ public final class EnvironmentBoundaryTimeChecks {
                         h.assertTrue(level.getBlockState(detector).getValue(DaylightDetectorBlock.POWER) == sampledPower[0],
                             "daylight at effective step 20: actual=" + level.getBlockState(detector)
                                 + " expected=" + sampledPower[0] + " initial=" + wrongPower + " world=" + level.getGameTime()
-                                + " local=" + service.environmentTimeAt(level, detector)
+                                + " local=" + service.world().environmentTimeAt(level, detector)
                                 + " ticking=" + level.shouldTickBlocksAt(detector)
                                 + " entitiesLoaded=" + level.areEntitiesLoaded(ChunkPos.pack(detector))
                                 + " fullStatus=" + level.getChunkAt(detector).getFullStatus()
-                                + " paused=" + service.isBlockSimulationPaused(level, detector)
+                                + " paused=" + service.world().isBlockSimulationPaused(level, detector)
                                 + " blockEntity=" + level.getBlockEntity(detector)
                                 + " phase=" + service.state(id).phase());
                 }).thenIdle(12).thenExecute(() -> {

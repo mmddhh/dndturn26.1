@@ -5,8 +5,7 @@ import cc.sighs.dndturn.domain.encounter.StartDisposition;
 import cc.sighs.dndturn.domain.encounter.TurnParticipant;
 import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
-import cc.sighs.dndturn.platform.bootstrap.DNDTurnNeoForge;
-import cc.sighs.dndturn.platform.diagnostics.DebugDiagnostics;
+import cc.sighs.dndturn.platform.ModIdentity;
 import cc.sighs.dndturn.platform.projection.PresentationState;
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
@@ -16,43 +15,15 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 public final class EncounterProtocol {
     private EncounterProtocol() {}
 
-    public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("dndturn");
-        event.registrar("dndturn").playToClient(InspectionProtocol.Reply.TYPE, InspectionProtocol.Reply.CODEC);
-        registrar.playToClient(ActionProtocol.Options.TYPE, ActionProtocol.Options.CODEC);
-        registrar.playToClient(ActionProtocol.Projection.TYPE, ActionProtocol.Projection.CODEC);
-        registrar.playToClient(BodyState.TYPE, BodyState.STREAM_CODEC);
-        registrar.playToClient(EntitySimulation.TYPE, EntitySimulation.STREAM_CODEC);
-        registrar.playToClient(TacticalSwing.TYPE, TacticalSwing.STREAM_CODEC);
-        registrar.playToClient(EncounterState.TYPE, EncounterState.STREAM_CODEC);
-        registrar.playToClient(IntentStatus.TYPE, IntentStatus.STREAM_CODEC);
-        registrar.playToClient(ConsentState.TYPE, ConsentState.STREAM_CODEC);
-    }
 
-    public static boolean sendBodyState(ServerPlayer player, BodyState state) {
-        // GameTest players use an embedded connection without mod payload negotiation.
-        if (NetworkRegistry.hasChannel(player.connection, BodyState.TYPE.id())) {
-            PacketDistributor.sendToPlayer(player, state);
-            return true;
-        }
-        return false;
-    }
 
-    public static boolean sendEncounterState(ServerPlayer player, EncounterState state) {
-        if (NetworkRegistry.hasChannel(player.connection, EncounterState.TYPE.id())) {
-            PacketDistributor.sendToPlayer(player, state);
-            return true;
-        }
-        return false;
-    }
+
+
+
 
     public record EntitySimulation(UUID generation, long sequence, UUID entityId, int runtimeId,
                                    UUID instance, String dimension, boolean tracked,
@@ -64,7 +35,7 @@ public final class EncounterProtocol {
         }
         public boolean paused() { return facts.paused(); }
         public static final Type<EntitySimulation> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "entity_simulation"));
+            Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "entity_simulation"));
         public static final StreamCodec<ByteBuf, EntitySimulation> STREAM_CODEC = StreamCodec.of((buffer, state) -> {
             writeUuid(buffer, state.generation()); buffer.writeLong(state.sequence());
             writeUuid(buffer, state.entityId()); buffer.writeInt(state.runtimeId()); writeUuid(buffer, state.instance());
@@ -101,7 +72,7 @@ public final class EncounterProtocol {
         public TacticalSwing {
             if (sequence < 0 || animation.duration() <= 0) throw new IllegalArgumentException("invalid swing event");
         }
-        public static final Type<TacticalSwing> TYPE = new Type<>(Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "tactical_swing"));
+        public static final Type<TacticalSwing> TYPE = new Type<>(Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "tactical_swing"));
         public static final StreamCodec<ByteBuf, TacticalSwing> STREAM_CODEC = StreamCodec.of((b, s) -> {
             writeUuid(b, s.generation()); writeUuid(b, s.encounter()); writeUuid(b, s.entity()); b.writeInt(s.runtimeId());
             writeUuid(b, s.instance()); writeUuid(b, s.operation()); b.writeLong(s.sequence());
@@ -116,22 +87,11 @@ public final class EncounterProtocol {
     private static void writeOptionalId(ByteBuf b, UUID id) { b.writeBoolean(id != null); if (id != null) writeUuid(b, id); }
     private static UUID readOptionalId(ByteBuf b) { return b.readBoolean() ? readUuid(b) : null; }
 
-    public static boolean sendEntitySimulation(ServerPlayer player, EntitySimulation state) {
-        if (!NetworkRegistry.hasChannel(player.connection, EntitySimulation.TYPE.id())) return false;
-        PacketDistributor.sendToPlayer(player, state);
-        return true;
-    }
 
-    public static void sendConsentState(ServerPlayer player, ConsentState state) {
-        if (NetworkRegistry.hasChannel(player.connection, ConsentState.TYPE.id()))
-            PacketDistributor.sendToPlayer(player, state);
-    }
 
-    public static void sendIntentStatus(ServerPlayer player, IntentStatus status) {
-        DebugDiagnostics.log("CONTROL_RESULT", () -> "actor=" + player.getUUID() + " result=" + status);
-        if (NetworkRegistry.hasChannel(player.connection, IntentStatus.TYPE.id()))
-            PacketDistributor.sendToPlayer(player, status);
-    }
+
+
+
 
     private static void writeUuid(ByteBuf buffer, UUID id) {
         buffer.writeLong(id.getMostSignificantBits());
@@ -167,7 +127,7 @@ public final class EncounterProtocol {
             return new CombatIntent(operationId, null, null, 0, IntentKind.START, null);
         }
         public static final Type<CombatIntent> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "combat_intent"));
+            Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "combat_intent"));
         public static final StreamCodec<ByteBuf, CombatIntent> STREAM_CODEC = StreamCodec.of(
             (buffer, intent) -> {
                 writeUuid(buffer, intent.operationId());
@@ -236,7 +196,7 @@ public final class EncounterProtocol {
         }
 
         public static final Type<IntentStatus> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "intent_status"));
+            Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "intent_status"));
         public static final StreamCodec<ByteBuf, IntentStatus> STREAM_CODEC = StreamCodec.of(
             (buffer, status) -> {
                 writeUuid(buffer, status.generation());
@@ -326,7 +286,7 @@ public final class EncounterProtocol {
                 movementOperationId, members, resultCount, false);
         }
         public static final Type<EncounterState> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "encounter_state"));
+            Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "encounter_state"));
         public static final StreamCodec<ByteBuf, EncounterState> STREAM_CODEC = StreamCodec.of(
             (buffer, state) -> {
                 writeUuid(buffer, state.generation());
@@ -429,7 +389,7 @@ public final class EncounterProtocol {
                 throw new IllegalArgumentException("invalid consent clock");
         }
         public static final Type<ConsentState> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "consent_state"));
+            Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "consent_state"));
         public static final StreamCodec<ByteBuf, ConsentState> STREAM_CODEC = StreamCodec.of((buffer, value) -> {
             writeUuid(buffer, value.generation()); buffer.writeLong(value.sequence());
             writeUuid(buffer, value.requestId()); buffer.writeLong(value.revision());
@@ -457,7 +417,7 @@ public final class EncounterProtocol {
     public record ConsentReply(UUID generation, UUID requestId, UUID operationId, UUID playerId,
                                long revision, boolean agree) implements CustomPacketPayload {
         public static final Type<ConsentReply> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "consent_reply"));
+            Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "consent_reply"));
         public static final StreamCodec<ByteBuf, ConsentReply> STREAM_CODEC = StreamCodec.of((buffer, value) -> {
             writeUuid(buffer, value.generation()); writeUuid(buffer, value.requestId());
             writeUuid(buffer, value.operationId()); writeUuid(buffer, value.playerId());
@@ -472,7 +432,7 @@ public final class EncounterProtocol {
         public BodyState(UUID generation, long sequence, boolean bodyPaused, boolean movementAllowed) {
             this(generation, sequence, bodyPaused, movementAllowed, bodyPaused);
         }
-        public static final Type<BodyState> TYPE = new Type<>(Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "body_state"));
+        public static final Type<BodyState> TYPE = new Type<>(Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "body_state"));
         public static final StreamCodec<ByteBuf, BodyState> STREAM_CODEC = StreamCodec.of(
             (buffer, state) -> {
                 writeUuid(buffer, state.generation());

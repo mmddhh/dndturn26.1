@@ -43,7 +43,7 @@ public final class ActorHistoryChecks {
         mob.setPos(base.getX()+1.5,base.getY(),base.getZ()+.5); mob.setNoAi(true); mob.setPersistenceRequired(); level.addFreshEntity(mob);
         var service = ServerRuntime.encounters(server);
         Runnable cleanup = () -> {
-            UUID encounter = service.encounterOf(player.getUUID()); if (encounter != null) service.stop(encounter);
+            UUID encounter = service.encounterOf(player.getUUID()); if (encounter != null) service.lifecycle().stop(encounter);
             mob.discard();
             for (var chunk : forced) level.setChunkForced(chunk.x(),chunk.z(),false);
             forced.clear();
@@ -61,18 +61,18 @@ public final class ActorHistoryChecks {
                 player.getInventory().setItem(3, new ItemStack(Items.IRON_SWORD));
                 // The field only admits mobs with an actual directed lock; presence alone is not enough.
                 mob.setTarget(player);
-                service.requestStart(player, UUID.randomUUID());
+                service.lifecycle().requestStart(player, UUID.randomUUID());
                 UUID encounter = service.encounterOf(player.getUUID());
                 h.assertTrue(encounter != null && service.state(encounter).members().containsKey(mob.getUUID()), "target not discovered");
                 for (int n=0;n<service.state(encounter).members().size() && !player.getUUID().equals(service.state(encounter).current());n++)
-                    service.endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
+                    service.combat().endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
                 var self = new ActionIntent.Target(ActionIntent.TargetKind.SELF,level.dimension().identifier().toString(),null,null,-1,0,0,0);
-                var selected = service.tacticalActions().selectAndDiscover(player, new ActionProtocol.Query(
+                var selected = service.actions().selectAndDiscover(player, new ActionProtocol.Query(
                         service.generation(), encounter, UUID.randomUUID(), self, ActionIntent.Hand.MAIN_HAND,3,1,null));
                 h.assertTrue(selected.reason().isEmpty() && selected.abilities().stream().anyMatch(a -> a.id().equals("dndturn:melee")),
                         "action row missing after recovery: " + selected.reason());
                 var target = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,level.dimension().identifier().toString(),mob.getUUID(),null,-1,0,0,0);
-                var options = service.tacticalActions().selectAndDiscover(player,new ActionProtocol.Query(
+                var options = service.actions().selectAndDiscover(player,new ActionProtocol.Query(
                         service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND,3,2,selected.item()));
                 h.assertTrue(options.offers().stream().anyMatch(o -> o.intent().behaviorId().equals("dndturn:melee") && o.reason().isEmpty()),
                         "context menu missing after recovery: " + options.reason());

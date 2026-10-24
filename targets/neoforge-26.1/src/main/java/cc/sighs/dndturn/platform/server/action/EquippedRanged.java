@@ -1,11 +1,12 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.AbilityDefinition;
 import cc.sighs.dndturn.domain.ability.ActionCost;
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.effect.EquipmentEffects;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.fact.RuleFacts;
 import cc.sighs.dndturn.domain.resolution.CombatRules;
 import cc.sighs.dndturn.platform.observation.ItemStackFingerprint;
@@ -13,7 +14,6 @@ import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
 import cc.sighs.dndturn.platform.server.actor.ActorEquipment;
 import cc.sighs.dndturn.platform.server.damage.DamageReceivers;
 import cc.sighs.dndturn.platform.server.damage.RangedAdapters;
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.LivingEntity;
@@ -29,8 +29,7 @@ public final class EquippedRanged extends AbilityAdapter {
                 ActionCost.ATTACK, RuleFacts.AVAILABILITY, ID, AbilityDefinition.TargetPolicy.OPPOSITE_PLAYER_LIVING_MEMBER));
     }
     static EquipmentEffects.Contribution contribution(LiveActorContext actor) {
-        return AbilityAdapterRegistry.equipmentEffects().resolve(ServerRuntime.encounters(actor.level().getServer())
-                .actorStates().state(actor.id()).runtime().effects().values()).orElse(null);
+        return AbilityAdapterRegistry.equipmentEffects().resolve(actor.state().runtime().effects().values()).orElse(null);
     }
     private static boolean ordinary(ItemStack stack, Item item) {
         return stack.is(item) && stack.getComponentsPatch().isEmpty();
@@ -63,7 +62,7 @@ public final class EquippedRanged extends AbilityAdapter {
                         "mainGeneration", Long.toString(ActorEquipment.generation(actor, ActionIntent.Hand.MAIN_HAND)),
                         "offGeneration", Long.toString(ActorEquipment.generation(actor, ActionIntent.Hand.OFF_HAND))));
     }
-    public String unavailable(LiveActorContext actor, ActionIntent intent, EncounterAuthority.StateView state) {
+    public String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) {
         var source = source(actor, intent.hand());
         if (source == null || !source.equals(intent.source())) return "equipment effect or ammunition source changed";
         var bow = ActorEquipment.read(actor, source.item().slot());

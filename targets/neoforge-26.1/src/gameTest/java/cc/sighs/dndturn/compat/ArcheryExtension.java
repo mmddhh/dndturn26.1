@@ -7,7 +7,7 @@ import cc.sighs.dndturn.domain.effect.EquipmentEffects;
 import cc.sighs.dndturn.domain.fact.ActorFacts;
 import cc.sighs.dndturn.domain.fact.FactSlice;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.actor.ActorDefinitions;
 import cc.sighs.dndturn.platform.server.ai.AiDefinitions;
 import cc.sighs.dndturn.platform.server.damage.RangedAdapters;

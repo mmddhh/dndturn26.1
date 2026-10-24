@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.server.control;
 
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket;

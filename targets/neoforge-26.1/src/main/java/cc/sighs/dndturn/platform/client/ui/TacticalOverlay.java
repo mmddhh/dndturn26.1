@@ -181,9 +181,9 @@ public final class TacticalOverlay {
     private static void bind() {
         refreshGeneration = document.getRefreshGeneration();
         document.getElementById("investigate").addEventListener("click", event -> {
-            if ("true".equals(values.get("investigate:enabled"))) ClientInspection.request(selectedTarget());
+            if ("true".equals(values.get("investigate:enabled"))) ClientInspection.request(selectedTarget(), ClientControl.modal());
         });
-        document.getElementById("inspection-refresh").addEventListener("click", event -> ClientInspection.refresh());
+        document.getElementById("inspection-refresh").addEventListener("click", event -> ClientInspection.refresh(ClientControl.modal()));
         document.getElementById("inspection-close").addEventListener("click", event -> ClientInspection.close());
         renderedOffers = List.of(); renderedAbilities = List.of(); renderedPhase = null;
         behaviorButtons.clear(); offerButtons.clear();

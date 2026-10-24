@@ -21,11 +21,11 @@ public final class EnvironmentClockChecks {
         level.setBlockAndUpdate(base.below(),Blocks.OBSIDIAN.defaultBlockState());
         var service=ServerRuntime.encounters(level.getServer());
         Runnable cleanup=()->{
-            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.stop(id);
+            UUID id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);
             for(long key:forced){var chunk=ChunkPos.unpack(key);level.setChunkForced(chunk.x(),chunk.z(),false);}forced.clear();
         };
         helper.runAtTickTime(30,()->{
-            service.requestStart(player,UUID.randomUUID());UUID id=service.encounterOf(player.getUUID());
+            service.lifecycle().requestStart(player,UUID.randomUUID());UUID id=service.encounterOf(player.getUUID());
             var pos=base.east(4).above(2);
             for(int x=-2;x<=2;x++)for(int y=-2;y<=2;y++)for(int z=-2;z<=2;z++)
                 level.setBlockAndUpdate(pos.offset(x,y,z),Math.max(Math.abs(x),Math.max(Math.abs(y),Math.abs(z)))==2
@@ -34,15 +34,15 @@ public final class EnvironmentClockChecks {
                 .setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED,true));
             var conduit=(ConduitBlockEntity)level.getBlockEntity(pos);
             helper.runAfterDelay(13,()->{
-                helper.assertTrue(!conduit.isActive() && service.environmentTimeAt(level,pos)==0,"waiting consumed periodic phase");
-                service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+                helper.assertTrue(!conduit.isActive() && service.world().environmentTimeAt(level,pos)==0,"waiting consumed periodic phase");
+                service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
                 helper.runAfterDelay(32,()->{
-                    helper.assertTrue(!conduit.isActive() && service.environmentTimeAt(level,pos)==30,"conduit fired before forty effective steps");
+                    helper.assertTrue(!conduit.isActive() && service.world().environmentTimeAt(level,pos)==30,"conduit fired before forty effective steps");
                     helper.runAfterDelay(11,()->{
-                        helper.assertTrue(!conduit.isActive() && service.environmentTimeAt(level,pos)==30,"world time advanced conduit phase");
-                        service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+                        helper.assertTrue(!conduit.isActive() && service.world().environmentTimeAt(level,pos)==30,"world time advanced conduit phase");
+                        service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
                         helper.runAfterDelay(32,()->{
-                            helper.assertTrue(conduit.isActive() && service.environmentTimeAt(level,pos)==60,"conduit missed effective periodic deadline");
+                            helper.assertTrue(conduit.isActive() && service.world().environmentTimeAt(level,pos)==60,"conduit missed effective periodic deadline");
                             cleanup.run();helper.succeed();
                         });
                     });

@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.platform.server.builtin.creeper;
+import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.domain.ability.AbilityDefinition;
 import cc.sighs.dndturn.domain.ability.ActionCost;
@@ -15,7 +16,6 @@ import cc.sighs.dndturn.domain.effect.EffectDefinition;
 import cc.sighs.dndturn.domain.effect.EffectInstance;
 import cc.sighs.dndturn.domain.effect.EffectSnapshot;
 import cc.sighs.dndturn.domain.effect.EffectTransition;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord;
 import cc.sighs.dndturn.domain.fact.ActorFacts;
@@ -24,14 +24,13 @@ import cc.sighs.dndturn.domain.fact.ReadContract;
 import cc.sighs.dndturn.domain.fact.RuleFacts;
 import cc.sighs.dndturn.platform.mixin.server.effect.CreeperEffectAccess;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.ability.MinecraftAbilityAdapter;
+import cc.sighs.dndturn.platform.server.action.MinecraftAbilityAdapter;
 import cc.sighs.dndturn.platform.server.action.ActionExecutionCoordinator;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.actor.ActorDefinitions;
 import cc.sighs.dndturn.platform.server.actor.ActorLifecycleAdapters;
 import cc.sighs.dndturn.platform.server.ai.AiDefinitions;
-import cc.sighs.dndturn.platform.server.effect.TriggeredAbilities;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+import cc.sighs.dndturn.platform.server.action.TriggeredAbilities;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import cc.sighs.dndturn.platform.server.world.CloudOrigins;
 import cc.sighs.dndturn.platform.server.world.WorldOutcomeHooks;
@@ -60,39 +59,39 @@ public final class CreeperAbilities {
         CloudOrigins.register("dndturn:creeper", new CloudOrigins.Provider() {
             public boolean tagged(net.minecraft.world.entity.Entity entity) { return CreeperClouds.tagged(entity); }
             public UUID domain(net.minecraft.world.entity.Entity entity) { return CreeperClouds.domain(entity); }
-            public boolean confirmed(net.minecraft.world.entity.Entity entity, EncounterRuntime runtime) { return CreeperClouds.confirmed(entity, runtime); }
+            public boolean confirmed(net.minecraft.world.entity.Entity entity, CloudOrigins.Evidence runtime) { return CreeperClouds.confirmed(entity, runtime); }
         });
         ActorLifecycleAdapters.register(Creeper.class, new ActorLifecycleAdapters.Adapter() {
-            public void capture(EncounterRuntime service, net.minecraft.world.entity.LivingEntity body) {
+            public void capture(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, net.minecraft.world.entity.LivingEntity body) {
                 if (!body.isAlive() || body.isRemoved() || service.encounterOf(body.getUUID()) == null) return;
                 var access = (CreeperEffectAccess)body;
-                var state = service.actorStates().state(body.getUUID());
+                var state = service.state(body.getUUID());
                 if (fuse(state) != null || access.dndturn$swell() == 0) return;
                 int maximum = access.dndturn$maxSwell();
                 if (maximum < 1) throw new IllegalArgumentException("invalid native fuse");
                 int stacks = Math.min(3, (int)((long)access.dndturn$swell() * 3 / maximum));
                 if (stacks > 0) {
                     UUID operation = UUID.randomUUID();
-                    service.actorStates().command(new LiveActorContext(body), new ActorStates.Command(operation, body.getUUID(), state.revision(),
+                    service.command(new LiveActorContext(body), new ActorStates.Command(operation, body.getUUID(), state.revision(),
                             List.of(new ActorStates.Apply(new EffectInstance(operation, operation, DEFINITION, stacks, 0,
                                     state.revision() + 1, 1, body.getUUID(), CHARGE)))));
                 }
                 access.dndturn$swell(0); access.dndturn$oldSwell(0);
             }
-            public void release(EncounterRuntime service, net.minecraft.world.entity.LivingEntity body) {
+            public void release(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, net.minecraft.world.entity.LivingEntity body) {
                 if (!body.isAlive() || body.isRemoved()) return;
-                var state = service.actorStates().state(body.getUUID()); var fuse = fuse(state);
+                var state = service.state(body.getUUID()); var fuse = fuse(state);
                 if (fuse == null) return;
                 var access = (CreeperEffectAccess)body; int maximum = access.dndturn$maxSwell();
                 if (maximum < 1) throw new IllegalArgumentException("invalid native fuse");
                 int nativeTicks = fuse.stacks() == 3 ? maximum - 1 : (int)((long)maximum * fuse.stacks() / 3);
                 // Native ignited/swell direction retain their vanilla ownership.
-                service.actorStates().command(new LiveActorContext(body), new ActorStates.Command(UUID.randomUUID(), body.getUUID(), state.revision(),
+                service.command(new LiveActorContext(body), new ActorStates.Command(UUID.randomUUID(), body.getUUID(), state.revision(),
                         List.of(new ActorStates.Remove(fuse.id()))));
                 access.dndturn$swell(nativeTicks); access.dndturn$oldSwell(nativeTicks);
-                for (var invocation : service.actorStates().invocations(body.getUUID()))
+                for (var invocation : service.invocations(body.getUUID()))
                     if (invocation.status() == TriggeredExecutionRecord.Status.PENDING && invocation.invocation().ability().equals(EXPLODE))
-                        service.actorStates().invocationStatus(invocation.operation(), TriggeredExecutionRecord.Status.REJECTED, "fuse handed back to native lifetime");
+                        service.invocationStatus(invocation.operation(), TriggeredExecutionRecord.Status.REJECTED, "fuse handed back to native lifetime");
             }
         });
         AbilityAdapterRegistry.effects().register(DEFINITION);
@@ -109,8 +108,8 @@ public final class CreeperAbilities {
                             TriggeredAbilityInvocation.Timing.OWNER_TURN_END));
                 });
         var charge = new Charge(); var explode = new Explode();
-        AbilityAdapterRegistry.register(charge.definition(), charge, charge);
-        AbilityAdapterRegistry.register(explode.definition(), explode, explode);
+        cc.sighs.dndturn.platform.server.action.AbilityExecutors.register(charge.definition(), charge, charge);
+        cc.sighs.dndturn.platform.server.action.AbilityExecutors.register(explode.definition(), explode, explode);
         ActorDefinitions.register(new ActorDefinitions.Provider() {
             public String id() { return "dndturn:creeper"; }
             public int priority() { return 0; }
@@ -145,7 +144,7 @@ public final class CreeperAbilities {
     private abstract static class Adapter extends MinecraftAbilityAdapter {
         Adapter(AbilityDefinition definition) { super(definition); }
         public GrantEvidence source(LiveActorContext actor, ActionIntent.Hand hand) { return null; }
-        public String unavailable(LiveActorContext actor, ActionIntent intent, EncounterAuthority.StateView state) {
+        public String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) {
             return actor.body() instanceof Creeper ? null : "unsupported Creeper implementation";
         }
         public void tick(ActionExecutionCoordinator actions, LiveActorContext actor, ActionExecutionCoordinator.Execution execution) {
@@ -154,7 +153,7 @@ public final class CreeperAbilities {
     }
     private static final class Charge extends Adapter {
         Charge() { super(CreeperAbilities.definition(CHARGE, AbilityDefinition.Activation.MANUAL, ActionCost.USE, ActionIntent.TargetKind.ENTITY)); }
-        public String unavailable(LiveActorContext actor, ActionIntent intent, EncounterAuthority.StateView state) {
+        public String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) {
             var rejected = super.unavailable(actor, intent, state); if (rejected != null) return rejected;
             var target = actor.level().getEntity(intent.target().entity());
             if (!(target instanceof net.minecraft.world.entity.player.Player living) || !living.isAlive()

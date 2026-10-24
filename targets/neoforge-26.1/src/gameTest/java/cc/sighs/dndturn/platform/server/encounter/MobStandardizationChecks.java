@@ -11,7 +11,7 @@ import cc.sighs.dndturn.gametest.TestPlayers;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
 import cc.sighs.dndturn.platform.server.action.ActionTestAccess;
 import cc.sighs.dndturn.platform.server.action.EquippedRanged;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.ai.AiTestAccess;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
@@ -49,7 +49,7 @@ public final class MobStandardizationChecks {
         level.addFreshEntity(mob);
         var service=ServerRuntime.encounters(level.getServer());
         Runnable cleanup=()->{
-            UUID id=service.encounterOf(player.getUUID()); if(id!=null) service.stop(id);
+            UUID id=service.encounterOf(player.getUUID()); if(id!=null) service.lifecycle().stop(id);
             mob.discard(); player.discard();
             for(long key:forced){var c=ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);} forced.clear();
         };
@@ -58,11 +58,11 @@ public final class MobStandardizationChecks {
         h.startSequence().thenIdle(20).thenExecute(()->{
             // The field admits a mob with an actual directed lock; presence alone is not enough.
             mob.setTarget(player);
-            service.requestStart(player,UUID.randomUUID());
+            service.lifecycle().requestStart(player,UUID.randomUUID());
         }).thenWaitUntil(()->{
             UUID id=service.encounterOf(mob.getUUID());h.assertTrue(id!=null,"Skeleton not discovered");
             var state=service.state(id);
-            if(player.getUUID().equals(state.current())) service.endTurn(id,player,UUID.randomUUID(),state.version());
+            if(player.getUUID().equals(state.current())) service.combat().endTurn(id,player,UUID.randomUUID(),state.version());
             state=service.state(id);
             h.assertTrue(mob.getUUID().equals(state.current()) && state.members().get(mob.getUUID()).action(),"waiting for Skeleton turn");
         }).thenExecute(()->{
@@ -73,33 +73,33 @@ public final class MobStandardizationChecks {
             h.assertTrue(before.runtime().effects().values().stream().anyMatch(e->e.definition().equals(external
                     ? ArcheryExtension.EFFECT : AbilityAdapterRegistry.effects().require("dndturn:native_archery", 1))),"group effect not installed");
             if(automatic) { mob.setNoAi(false); return; }
-            var found=AbilityAdapterRegistry.discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
-            h.assertTrue(found.availability()==AbilityAdapterRegistry.Availability.EXECUTABLE,"bow unavailable: "+found);
+            var found=cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
+            h.assertTrue(found.availability()==cc.sighs.dndturn.platform.server.ability.AbilityQueries.Availability.EXECUTABLE,"bow unavailable: "+found);
             h.assertTrue(before.equals(service.actorStates().state(actor.id())),"discovery mutated effect state");
             mob.setItemSlot(EquipmentSlot.OFFHAND,new ItemStack(Items.TIPPED_ARROW));
-            var unsupported=AbilityAdapterRegistry.discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
-            h.assertTrue(unsupported.availability()==AbilityAdapterRegistry.Availability.RULE_BLOCKED,"special ammunition silently authorized");
+            var unsupported=cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
+            h.assertTrue(unsupported.availability()==cc.sighs.dndturn.platform.server.ability.AbilityQueries.Availability.RULE_BLOCKED,"special ammunition silently authorized");
             mob.setItemSlot(EquipmentSlot.OFFHAND,held?new ItemStack(Items.ARROW,7):ItemStack.EMPTY);
-            found=AbilityAdapterRegistry.discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
+            found=cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
             var intent=found.binding().invocation(target);
             h.assertTrue(intent.source().kind()==GrantEvidence.Kind.EQUIPMENT && intent.source().grant()!=null,"bow lost equipment/effect evidence");
             h.assertTrue(intent.source().dependencies().get("ammunition").startsWith(held?"OFF_HAND:":"native:"),"incorrect ammunition source");
-            var ai=AiTestAccess.capture(actor,state,null,ActionTestAccess.authority(service.tacticalActions()));
+            var ai=AiTestAccess.capture(actor,state,null,ActionTestAccess.authority(service.actions()), service.mobDecisionFacts());
             h.assertTrue(AiPlanner.decide(ai) instanceof AiPlanner.Propose p && p.intent().behaviorId().equals(EquippedRanged.ID),"shared planner did not choose ranged binding");
             // Source replacement is rejected before any action or native side effect.
             mob.setItemSlot(EquipmentSlot.MAINHAND,new ItemStack(Items.STICK));
-            try {ActionTestAccess.validate(service.tacticalActions(), mob,intent,state);throw new AssertionError("stale bow accepted");}
+            try {ActionTestAccess.validate(service.actions(), mob,intent,state);throw new AssertionError("stale bow accepted");}
             catch(IllegalStateException expected) {}
             h.assertTrue(service.state(id).members().get(actor.id()).action(),"source rejection consumed action");
             mob.setItemSlot(EquipmentSlot.MAINHAND,new ItemStack(Items.BOW));
-            try {ActionTestAccess.validate(service.tacticalActions(), mob,intent,state);throw new AssertionError("equal replacement reused old equipment generation");}
+            try {ActionTestAccess.validate(service.actions(), mob,intent,state);throw new AssertionError("equal replacement reused old equipment generation");}
             catch(IllegalStateException expected) {}
-            intent=AbilityAdapterRegistry.discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID))
+            intent=cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID))
                     .findFirst().orElseThrow().binding().invocation(target);
             operation[0]=UUID.randomUUID();
             if(miss) service.useAttackRandomForGameTest(id,new Random(1){@Override public int nextInt(int bound){return 0;}});
-            service.tacticalActions().submit(actor,service.generation(),id,operation[0],state.version(),intent,false);
-            var results=service.results(id,0,128).results();
+            service.actions().submit(actor,service.generation(),id,operation[0],state.version(),intent,false);
+            var results=service.lifecycle().results(id,0,128).results();
             var result=results.stream().filter(r->r.snapshot().operationId().equals(operation[0])).findFirst().orElseThrow();
             h.assertTrue(result.outcome()==OperationRecord.Outcome.COMPLETED,"native launch failed: "+results);
             var checkpoint=service.abilityCheckpoint(operation[0]);
@@ -111,33 +111,33 @@ public final class MobStandardizationChecks {
             var arrows=level.getEntitiesOfClass(net.minecraft.world.entity.projectile.arrow.AbstractArrow.class,mob.getBoundingBox().inflate(8));
             h.assertTrue(arrows.size()==1,"native launch did not create one arrow");
             int count=results.size();
-            service.tacticalActions().submit(actor,service.generation(),id,operation[0],state.version(),intent,false);
-            h.assertTrue(service.results(id,0,128).results().size()==count,"duplicate launch repeated");
+            service.actions().submit(actor,service.generation(),id,operation[0],state.version(),intent,false);
+            h.assertTrue(service.lifecycle().results(id,0,128).results().size()==count,"duplicate launch repeated");
             var effects=service.actorStates().state(actor.id());
             service.actorStates().command(actor,new ActorStates.Command(UUID.randomUUID(),actor.id(),effects.revision(),
                     List.of(new ActorStates.Remove(intent.source().grant()))));
             h.assertTrue(AbilityAdapterRegistry.facts(EquippedRanged.ID).checkedSources(actor).isEmpty(),"revoked effect still grants bow");
-            service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
+            service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
         }).thenWaitUntil(()->{
             var id=encounter[0];var state=service.state(id);
             if(automatic && operation[0]==null) {
-                var root=service.results(id,0,128).results().stream().filter(r->r.snapshot().intent()!=null
+                var root=service.lifecycle().results(id,0,128).results().stream().filter(r->r.snapshot().intent()!=null
                         && r.snapshot().intent().behaviorId().equals(EquippedRanged.ID) && r.terminal()).findFirst();
                 h.assertTrue(root.isPresent(),"waiting for automatic registered AI shot");
                 h.assertTrue(root.get().outcome()==OperationRecord.Outcome.COMPLETED,"automatic AI shot failed: "+root);
                 operation[0]=root.get().snapshot().operationId();
                 h.assertTrue(!state.members().get(mob.getUUID()).action(),"automatic shot did not consume action");
             }
-            var projectile=service.results(id,0,128).results().stream().filter(r->r.damageTrace()!=null
+            var projectile=service.lifecycle().results(id,0,128).results().stream().filter(r->r.damageTrace()!=null
                     && r.snapshot().source()!=null && !r.snapshot().source().equals(mob.getUUID())).findFirst();
             if(projectile.isEmpty() && state.current()!=null && state.phase()!=EncounterPhase.ENVIRONMENT
                     && (!automatic || player.getUUID().equals(state.current())))
-                service.endCurrentTurn(id,UUID.randomUUID(),state.version());
+                service.combat().endCurrentTurn(id,UUID.randomUUID(),state.version());
             h.assertTrue(projectile.isPresent(),"waiting for native arrow contact and tactical result");
             if(miss) h.assertTrue(!projectile.get().damageTrace().hit() && projectile.get().actualDamage()==0,"natural one did not preserve miss");
             System.out.println("MOB_STANDARDIZATION held="+held+" outcome="+projectile.get().outcome()+" trace="+projectile.get().damageTrace());
         }).thenExecute(()->{
-            service.stop(encounter[0]);
+            service.lifecycle().stop(encounter[0]);
             h.assertTrue(service.actorStates().state(mob.getUUID()).runtime().effects().values().stream()
                     .noneMatch(e->e.definition().equals(external?ArcheryExtension.EFFECT:AbilityAdapterRegistry.effects().require("dndturn:native_archery", 1))),
                     "encounter exit retained group-owned archery effect");

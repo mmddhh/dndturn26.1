@@ -11,8 +11,6 @@ import cc.sighs.dndturn.platform.mixin.server.control.MobGoalEvidenceAccess;
 import cc.sighs.dndturn.platform.server.action.EquippedRanged;
 import java.util.*;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.PathfinderMob;
-import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 
 /** First-use definition bake. Cache keys contain cold compatibility identity, never equipment/perception.
  * Native classes remain here, never in the planner or AI runtime state. */

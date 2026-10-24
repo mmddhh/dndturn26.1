@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
 
 import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.encounter.operation.DamageTrace;

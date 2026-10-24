@@ -152,8 +152,8 @@ public final class ClientPresentation {
 
     public static void receiveSwing(EncounterProtocol.TacticalSwing event, IPayloadContext context) {
         var connection = context.connection(); var level = Minecraft.getInstance().level;
-        context.enqueueWork(() -> {
-            ClientCombatState.refreshSession();
+        cc.sighs.dndturn.platform.client.ClientSession.enqueue(context, () -> {
+            cc.sighs.dndturn.platform.client.ClientSession.refreshSession();
             var mc = Minecraft.getInstance();
             if (mc.getConnection() != null && mc.getConnection().getConnection() == connection && level != null && level == mc.level)
                 swing(event);

@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.platform.server.encounter;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 
 import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
@@ -39,7 +40,7 @@ public final class GateMeleeChecks {
         mob.setNoAi(true); mob.setPersistenceRequired(); level.addFreshEntity(mob);
         var service = ServerRuntime.encounters(level.getServer());
         Runnable cleanup = () -> {
-            UUID id = service.encounterOf(player.getUUID()); if (id != null) service.stop(id);
+            UUID id = service.encounterOf(player.getUUID()); if (id != null) service.lifecycle().stop(id);
             mob.discard();
             for (long key : forced) { var c = net.minecraft.world.level.ChunkPos.unpack(key); level.setChunkForced(c.x(),c.z(),false); }
             forced.clear();
@@ -55,7 +56,7 @@ public final class GateMeleeChecks {
                 if (cow) {
                     // A passive cow no longer joins the player-centered field by presence alone.
                     mob.getRandom().setSeed(731);
-                    service.requestStart(player, UUID.randomUUID());
+                    service.lifecycle().requestStart(player, UUID.randomUUID());
                     UUID encounter = service.encounterOf(player.getUUID());
                     h.assertTrue(encounter != null && !service.state(encounter).members().containsKey(mob.getUUID()),
                         "passive cow must not join the player-centered field");
@@ -70,28 +71,28 @@ public final class GateMeleeChecks {
                     player.getInventory().setSelectedSlot(0);
                     player.getInventory().setItem(0, ItemStack.EMPTY);
                     player.getInventory().setItem(3, new ItemStack(item));
-                    service.requestStart(player,UUID.randomUUID());
+                    service.lifecycle().requestStart(player,UUID.randomUUID());
                     UUID encounter = service.encounterOf(player.getUUID());
                     h.assertTrue(encounter != null && service.state(encounter).members().containsKey(mob.getUUID()), "fixture target not discovered");
                     for (int n=0;n<service.state(encounter).members().size() && !player.getUUID().equals(service.state(encounter).current());n++)
-                        service.endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
+                        service.combat().endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
                     // The GUI first discovers on SELF when selecting a slot, before it has an attack target.
                     var self = new ActionIntent.Target(ActionIntent.TargetKind.SELF,level.dimension().identifier().toString(),null,null,-1,0,0,0);
-                    var selection = service.tacticalActions().selectAndDiscover(player,new ActionProtocol.Query(
+                    var selection = service.actions().selectAndDiscover(player,new ActionProtocol.Query(
                         service.generation(),encounter,UUID.randomUUID(),self,ActionIntent.Hand.MAIN_HAND,3,1,null));
                     h.assertTrue(selection.item() != null && selection.reason().isEmpty(), "slot confirmation failed: " + selection.reason());
                     h.assertTrue(player.getInventory().getSelectedSlot() == 3 && selection.item().slot() == 3, "selection confirmed the wrong slot");
                     h.assertTrue(selection.abilities().stream().anyMatch(a -> a.id().equals("dndturn:melee")), "SELF discovery omitted weapon action row");
                     h.assertTrue(service.state(encounter).members().get(player.getUUID()).action(), "selection spent action");
                     var target = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,level.dimension().identifier().toString(),mob.getUUID(),null,-1,0,0,0);
-                    var options = service.tacticalActions().selectAndDiscover(player,new ActionProtocol.Query(
+                    var options = service.actions().selectAndDiscover(player,new ActionProtocol.Query(
                         service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND,3,2,selection.item()));
                     var offer = options.offers().stream().filter(o -> o.intent().behaviorId().equals("dndturn:melee")).findFirst().orElseThrow();
                     h.assertTrue(offer.reason().isEmpty(),item + " discovery rejected: " + offer.reason());
                     UUID op = UUID.randomUUID();
                     var request = new ActionProtocol.Request(service.generation(),encounter,op,options.version(),offer.intent(),false);
-                    service.tacticalActions().request(player,request);
-                    var results = service.results(encounter,0,128).results();
+                    service.actions().request(player,request);
+                    var results = service.lifecycle().results(encounter,0,128).results();
                     var result = results.stream().filter(r -> r.snapshot().operationId().equals(op)).findFirst().orElseThrow();
                     h.assertTrue(result.outcome()==OperationRecord.Outcome.COMPLETED,item+" attack failed: "+results);
                     var trace = results.stream().filter(r -> r.snapshot().kind()==OperationRecord.Kind.ATTACK)
@@ -102,9 +103,9 @@ public final class GateMeleeChecks {
                     System.out.println("GATE_MELEE item="+item+" hit="+trace.hit()+" healthLoss="+trace.healthLoss());
                     h.assertTrue(!service.state(encounter).members().get(player.getUUID()).action(),"attack did not spend action");
                     int count = results.size();
-                    service.tacticalActions().request(player,request);
-                    h.assertTrue(service.results(encounter,0,128).results().size()==count,"retry duplicated attack");
-                    service.stop(encounter);
+                    service.actions().request(player,request);
+                    h.assertTrue(service.lifecycle().results(encounter,0,128).results().size()==count,"retry duplicated attack");
+                    service.lifecycle().stop(encounter);
                 }
                 h.succeed();
             } finally { cleanup.run(); }
@@ -115,27 +116,27 @@ public final class GateMeleeChecks {
             BlockPos base, Runnable cleanup) {
         player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.IRON_AXE));
         player.connection.resetPosition();
-        service.requestStart(player,UUID.randomUUID());
+        service.lifecycle().requestStart(player,UUID.randomUUID());
         UUID encounter=service.encounterOf(player.getUUID());
         h.assertTrue(service.state(encounter).members().containsKey(target.getUUID()),"approach target not discovered");
         for (int n=0;n<service.state(encounter).members().size() && !player.getUUID().equals(service.state(encounter).current());n++)
-            service.endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
+            service.combat().endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
         var targetValue=new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,player.level().dimension().identifier().toString(),target.getUUID(),null,-1,0,0,0);
-        var options=service.tacticalActions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),targetValue,ActionIntent.Hand.MAIN_HAND));
-        var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:melee")).findFirst().orElseThrow();
+        var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),targetValue,ActionIntent.Hand.MAIN_HAND));
+        var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:melee")).findFirst().orElseThrow(() -> new IllegalStateException("melee discovery: " + options));
         var endpoint=new ActionIntent.Point(base.getX()+3.5,base.getY(),base.getZ()+.5);
         var intent=offer.intent().withApproach(new ActionIntent.Approach(UUID.randomUUID(),0,endpoint));
         UUID operation=UUID.randomUUID();
         int movement=service.state(encounter).members().get(player.getUUID()).movementTicks();
-        service.tacticalActions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),intent,false));
-        h.assertTrue(service.hasPlayerMoveLease(player.getUUID()),"approach did not acquire movement: "+service.results(encounter,0,128).results());
+        service.actions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),intent,false));
+        h.assertTrue(service.movement().hasPlayerMoveLease(player.getUUID()),"approach did not acquire movement: "+service.lifecycle().results(encounter,0,128).results());
         h.assertTrue(service.state(encounter).members().get(player.getUUID()).action(),"approach charged attack before execution");
         var start=player.position();
         class Driver {
             int ticks;
             boolean observedCharge;
             void step() {
-                if (service.hasPlayerMoveLease(player.getUUID())) {
+                if (service.movement().hasPlayerMoveLease(player.getUUID())) {
                     observedCharge |= service.state(encounter).members().get(player.getUUID()).movementTicks()<movement;
                     player.connection.handlePlayerInput(new net.minecraft.network.protocol.game.ServerboundPlayerInputPacket(
                         new net.minecraft.world.entity.player.Input(true,false,false,false,false,false,false)));
@@ -149,14 +150,14 @@ public final class GateMeleeChecks {
         h.runAfterDelay(1,driver::step);
         h.runAtTickTime(80,()-> {
             try {
-                var results=service.results(encounter,0,128).results();
+                var results=service.lifecycle().results(encounter,0,128).results();
                 var result=results.stream().filter(r->r.snapshot().operationId().equals(operation)).findFirst().orElseThrow();
                 h.assertTrue(result.outcome()==OperationRecord.Outcome.COMPLETED,"approach attack failed: "+results);
                 h.assertTrue(player.position().distanceToSqr(start)>4,"movement packets did not move player");
                 h.assertTrue(driver.observedCharge,"approach did not charge movement while its lease was active");
                 h.assertTrue(results.stream().anyMatch(r -> r.snapshot().kind()==OperationRecord.Kind.MOVE
                     && r.actualMovementTicks()>0),"approach has no charged movement receipt: "+results);
-                h.assertTrue(!service.hasPlayerMoveLease(player.getUUID()) && !service.tacticalActions().running(player.getUUID()),"completed attack retained control");
+                h.assertTrue(!service.movement().hasPlayerMoveLease(player.getUUID()) && !service.actions().running(player.getUUID()),"completed attack retained control");
                 h.succeed();
             } finally { cleanup.run(); }
         });

@@ -1,9 +1,10 @@
 package cc.sighs.dndturn.platform.server.actor;
+import cc.sighs.dndturn.platform.server.fact.MinecraftFactProviders;
 
 import cc.sighs.dndturn.domain.actor.ActorDefinition;
 import cc.sighs.dndturn.domain.fact.FactKey;
 import cc.sighs.dndturn.domain.fact.FactSlice;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import java.util.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 

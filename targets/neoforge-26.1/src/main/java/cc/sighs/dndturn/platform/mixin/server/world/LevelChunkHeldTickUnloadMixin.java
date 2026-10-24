@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.mixin.server.world;
 
-import cc.sighs.dndturn.platform.server.world.WorldSimulationHooks;
+import cc.sighs.dndturn.platform.server.runtime.WorldSimulationHooks;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.LevelChunk;
 import org.spongepowered.asm.mixin.Mixin;

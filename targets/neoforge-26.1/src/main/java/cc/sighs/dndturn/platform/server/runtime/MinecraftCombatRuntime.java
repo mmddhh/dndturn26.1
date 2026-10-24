@@ -1,10 +1,10 @@
 package cc.sighs.dndturn.platform.server.runtime;
 
 import cc.sighs.dndturn.platform.server.action.ItemWorldMutationScope;
-import cc.sighs.dndturn.platform.server.action.MinecraftProjectiles;
+import cc.sighs.dndturn.platform.server.entity.MinecraftProjectiles;
 import cc.sighs.dndturn.platform.server.control.InputPolicy;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import cc.sighs.dndturn.platform.server.world.WorldOutcomeHooks;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -30,7 +30,7 @@ public final class MinecraftCombatRuntime {
 
     public static boolean isBodyPaused(ServerPlayer player) {
         EncounterRuntime formal = ServerRuntime.existingEncounter(player.level().getServer());
-        return formal != null && formal.isEntitySimulationPaused(player);
+        return formal != null && formal.world().isEntitySimulationPaused(player);
     }
 
     /** A movement lease opens movement input and client prediction, not the server body tick. */
@@ -42,7 +42,7 @@ public final class MinecraftCombatRuntime {
         Entity entity = event.getEntity();
         if (entity.level() instanceof ServerLevel level) {
             EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-            if (formal != null) formal.noteMobTick(entity.getUUID());
+            if (formal != null) formal.movement().noteMobTick(entity.getUUID());
             if (formal != null && entity instanceof net.minecraft.world.entity.LivingEntity living
                     && !(living instanceof ServerPlayer)) formal.actorStates().simulated(living);
         }
@@ -51,12 +51,12 @@ public final class MinecraftCombatRuntime {
     public static void onServerTick(ServerTickEvent.Post event) {
         EncounterRuntime formal = ServerRuntime.existingEncounter(event.getServer());
         if (formal != null) {
-            formal.tickConsent();
-            formal.confirmPendingDeaths();
+            formal.lifecycle().tickConsent();
+            formal.lifecycle().confirmPendingDeaths();
             formal.finishMovementTicks();
-            formal.reconcileMemberLocations();
-            formal.tickDeadlines();
-            formal.drainIntrusionAttacks();
+            formal.lifecycle().reconcileMemberLocations();
+            formal.lifecycle().tickDeadlines();
+            formal.combat().drainIntrusionAttacks();
             formal.advanceMobTurns();
             formal.flushResultPages();
             formal.syncBodyStateTransitions();
@@ -68,13 +68,13 @@ public final class MinecraftCombatRuntime {
     public static boolean isFormalEntitySimulationPaused(Entity entity) {
         if (!(entity.level() instanceof ServerLevel level)) return false;
         EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-        return formal != null && formal.isEntitySimulationPaused(entity);
+        return formal != null && formal.world().isEntitySimulationPaused(entity);
     }
 
     public static boolean prepareFormalEntitySimulation(Entity entity) {
         if (!(entity.level() instanceof ServerLevel level)) return false;
         EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-        return formal != null && formal.prepareEntitySimulation(entity).skipsNativeTick();
+        return formal != null && formal.world().prepareEntitySimulation(entity).skipsNativeTick();
     }
 
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
@@ -83,8 +83,8 @@ public final class MinecraftCombatRuntime {
             EncounterRuntime formal = ServerRuntime.existingEncounter(server);
             if (formal != null) {
                 formal.entityProjections().removeViewer(player.getUUID());
-                formal.consentDisconnected(player.getUUID());
-                formal.leave(player.getUUID());
+                formal.lifecycle().consentDisconnected(player.getUUID());
+                formal.lifecycle().leave(player.getUUID());
             }
         }
     }
@@ -95,13 +95,13 @@ public final class MinecraftCombatRuntime {
         if (!(event.getNewAboutToBeSetTarget() instanceof ServerPlayer player)) return;
         if (mob.level().getServer() == null) return;
         EncounterRuntime formal = ServerRuntime.existingEncounter(mob.level().getServer());
-        if (formal != null) formal.pullHostile(mob, player.getUUID());
+        if (formal != null) formal.lifecycle().pullHostile(mob, player.getUUID());
     }
 
     public static void onDeath(LivingDeathEvent event) {
         if (event.getEntity().level() instanceof ServerLevel level) {
             EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-            if (formal != null) formal.noteDeath(event.getEntity().getUUID());
+            if (formal != null) formal.lifecycle().noteDeath(event.getEntity().getUUID());
         }
     }
 
@@ -110,11 +110,11 @@ public final class MinecraftCombatRuntime {
             EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
             if (formal != null && (event.getEntity() instanceof AbstractArrow
                 || event.getEntity() instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball || MinecraftProjectiles.supported(event.getEntity())))
-                formal.noteArrowLeave(event.getEntity());
+                formal.projectiles().noteArrowLeave(event.getEntity());
             if (formal != null) {
                 formal.actorStates().detach(event.getEntity().getUUID());
-                formal.vanillaEffects().releaseParticipantEffects(event.getEntity());
-                formal.leave(event.getEntity().getUUID());
+                formal.releaseVanillaEffects(event.getEntity());
+                formal.lifecycle().leave(event.getEntity().getUUID());
             }
         }
     }
@@ -126,28 +126,28 @@ public final class MinecraftCombatRuntime {
         if (!event.loadedFromDisk() && event.getLevel() instanceof ServerLevel) ItemWorldMutationScope.joining(event.getEntity());
         if (event.getLevel() instanceof ServerLevel level && event.getEntity() instanceof net.minecraft.world.entity.projectile.Projectile projectile) {
             var service=ServerRuntime.existingEncounter(level.getServer());
-            if (service!=null) service.captureItemProjectile(projectile,event.loadedFromDisk());
+            if (service!=null) service.projectiles().captureItemProjectile(projectile,event.loadedFromDisk());
         }
         if (event.getLevel() instanceof ServerLevel level && event.getEntity() instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball ball) {
             EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-            if (formal != null) formal.captureSnowballOrigin(ball, event.loadedFromDisk());
+            if (formal != null) formal.projectiles().captureSnowballOrigin(ball, event.loadedFromDisk());
         }
         if (event.getLevel() instanceof ServerLevel level
             && event.getEntity() instanceof AbstractArrow arrow) {
             EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-            if (formal != null) formal.captureArrowOrigin(arrow, event.loadedFromDisk());
+            if (formal != null) formal.projectiles().captureArrowOrigin(arrow, event.loadedFromDisk());
         }
     }
 
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         if (event.getProjectile() instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball ball && ball.level() instanceof ServerLevel level) {
             EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-            if (formal != null && formal.handleSnowballImpact(ball, event.getRayTraceResult())) event.setCanceled(true);
+            if (formal != null && formal.projectiles().handleSnowballImpact(ball, event.getRayTraceResult())) event.setCanceled(true);
         }
         if (event.getProjectile() instanceof AbstractArrow arrow
             && arrow.level() instanceof ServerLevel level) {
             EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-            if (formal != null && formal.handleArrowImpact(arrow, event.getRayTraceResult()))
+            if (formal != null && formal.projectiles().handleArrowImpact(arrow, event.getRayTraceResult()))
                 event.setCanceled(true);
         }
     }
@@ -156,7 +156,7 @@ public final class MinecraftCombatRuntime {
                                                   net.minecraft.world.phys.Vec3 to) {
         if (!(arrow.level() instanceof ServerLevel level)) return true;
         EncounterRuntime formal = ServerRuntime.existingEncounter(level.getServer());
-        return formal == null || formal.allowArrowBlockEffects(arrow, from, to);
+        return formal == null || formal.projectiles().allowArrowBlockEffects(arrow, from, to);
     }
 
     public static void onDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {
@@ -164,14 +164,14 @@ public final class MinecraftCombatRuntime {
             EncounterRuntime formal = ServerRuntime.existingEncounter(player.level().getServer());
             if (formal != null) {
                 formal.entityProjections().removeViewer(player.getUUID());
-                formal.consentDisconnected(player.getUUID());
-                formal.leave(player.getUUID());
+                formal.lifecycle().consentDisconnected(player.getUUID());
+                formal.lifecycle().leave(player.getUUID());
             }
         }
     }
 
     public static void onServerStarted(ServerStartedEvent event) {
-        EncounterRuntime service = ServerRuntime.encounters(event.getServer());
+        ServerRuntime.start(event.getServer());
     }
 
     public static void onStartTracking(PlayerEvent.StartTracking event) {

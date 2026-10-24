@@ -1,7 +1,8 @@
 package cc.sighs.dndturn.platform.server.action;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import java.util.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -21,7 +22,7 @@ final class PlacedEntityBehavior extends VanillaBehaviors.Interaction {
         return item instanceof SpawnEggItem || item instanceof ArmorStandItem || item instanceof HangingEntityItem
             || item instanceof MinecartItem || item instanceof BoatItem || item instanceof EndCrystalItem;
     }
-    public String unavailable(ServerPlayer p,ActionIntent i,EncounterAuthority.StateView s) {
+    public String unavailable(ServerPlayer p,ActionIntent i,StateView s) {
         var stack=stack(p,i);
         if (!supportsItem(stack)) return "entity placement adapter unavailable";
         // Default spawn-egg entity data selects the species; user-supplied entity NBT is separate.

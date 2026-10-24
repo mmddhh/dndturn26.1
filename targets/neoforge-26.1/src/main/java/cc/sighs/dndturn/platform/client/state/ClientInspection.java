@@ -1,6 +1,5 @@
 package cc.sighs.dndturn.platform.client.state;
 
-import cc.sighs.dndturn.platform.client.input.ClientControl;
 import cc.sighs.dndturn.platform.network.InspectionProtocol;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
@@ -22,10 +21,10 @@ public final class ClientInspection {
         pending = null; reply = null; targetInstance = null; waiting = 0; timedOut = false;
         return wasOpen;
     }
-    public static void request(UUID target) {
+    public static void request(UUID target, boolean blocked) {
         var game = Minecraft.getInstance(); var state = ClientCombatState.encounter();
         if (target == null || state == null || game.player == null || !game.player.isAlive()
-                || game.level == null || game.screen != null || ClientControl.modal()) return;
+                || game.level == null || game.screen != null || blocked) return;
         close();
         int examined = 0;
         for (var entity : game.level.entitiesForRendering()) {
@@ -35,7 +34,7 @@ public final class ClientInspection {
         pending = new InspectionProtocol.Query(state.generation(), state.encounterId(), UUID.randomUUID(), target);
         ClientPacketDistributor.sendToServer(pending);
     }
-    public static void refresh() { if (pending != null) request(pending.target()); }
+    public static void refresh(boolean blocked) { if (pending != null) request(pending.target(), blocked); }
     public static void tick() {
         if (pending == null) return;
         var game = Minecraft.getInstance(); var state = ClientCombatState.encounter();
@@ -49,7 +48,7 @@ public final class ClientInspection {
     public static void receive(InspectionProtocol.Reply value, IPayloadContext context) {
         var connection = context.connection();
         var level = Minecraft.getInstance().level; var player = Minecraft.getInstance().player;
-        context.enqueueWork(() -> {
+        cc.sighs.dndturn.platform.client.ClientSession.enqueue(context, () -> {
             var game = Minecraft.getInstance(); var state = ClientCombatState.encounter();
             if (pending == null || timedOut || !pending.equals(value.query()) || state == null
                     || game.level != level || game.player != player || player == null || !player.isAlive()

@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.mixin.server.lifecycle;
 
-import cc.sighs.dndturn.platform.server.actor.ActorLifecycleHooks;
+import cc.sighs.dndturn.platform.server.runtime.ActorLifecycleHooks;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import org.spongepowered.asm.mixin.Mixin;

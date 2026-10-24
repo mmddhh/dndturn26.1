@@ -1,14 +1,13 @@
 package cc.sighs.dndturn.platform.server.actor;
 
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
 import java.util.*;
 import net.minecraft.world.entity.LivingEntity;
 
 /** Explicit native/state handoff ports, separate from pure actor definition discovery. */
 public final class ActorLifecycleAdapters {
     public interface Adapter {
-        void capture(EncounterRuntime service, LivingEntity actor);
-        void release(EncounterRuntime service, LivingEntity actor);
+        void capture(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, LivingEntity actor);
+        void release(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, LivingEntity actor);
     }
     private static final Map<Class<? extends LivingEntity>, Adapter> adapters = new HashMap<>();
     private static boolean frozen;
@@ -25,10 +24,10 @@ public final class ActorLifecycleAdapters {
                 && (selected == null || selected.isAssignableFrom(type))) selected = type;
         return adapters.get(selected);
     }
-    public static void capture(EncounterRuntime service, LivingEntity actor) {
+    public static void capture(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, LivingEntity actor) {
         var adapter = find(actor); if (adapter != null) adapter.capture(service, actor);
     }
-    public static void release(EncounterRuntime service, LivingEntity actor) {
+    public static void release(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, LivingEntity actor) {
         var adapter = find(actor); if (adapter != null) adapter.release(service, actor);
     }
 }

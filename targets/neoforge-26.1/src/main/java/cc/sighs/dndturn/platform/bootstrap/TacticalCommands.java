@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.bootstrap;
 
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
+import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import cc.sighs.dndturn.platform.server.network.CombatIntentHandler;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.UUID;

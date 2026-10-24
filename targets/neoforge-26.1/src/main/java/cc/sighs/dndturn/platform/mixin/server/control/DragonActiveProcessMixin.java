@@ -1,7 +1,7 @@
 package cc.sighs.dndturn.platform.mixin.server.control;
 
 import cc.sighs.dndturn.platform.server.control.ActorControlPolicy;
-import cc.sighs.dndturn.platform.server.encounter.AuthorityProjection;
+import cc.sighs.dndturn.platform.server.runtime.AuthorityProjection;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.boss.enderdragon.phases.DragonPhaseInstance;

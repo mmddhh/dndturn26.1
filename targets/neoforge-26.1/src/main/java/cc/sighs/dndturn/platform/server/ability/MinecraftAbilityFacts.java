@@ -1,12 +1,12 @@
 package cc.sighs.dndturn.platform.server.ability;
+import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.fact.FactSlice;
 import cc.sighs.dndturn.domain.fact.ReadContract;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
-import cc.sighs.dndturn.platform.server.actor.MinecraftFactProviders;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
+import cc.sighs.dndturn.platform.server.fact.MinecraftFactProviders;
 import java.util.*;
 import net.minecraft.world.phys.Vec3;
 
@@ -32,14 +32,14 @@ public interface MinecraftAbilityFacts {
             throw new IllegalStateException("grant enumeration exceeds contract");
         return values;
     }
-    String unavailable(LiveActorContext actor, ActionIntent intent, EncounterAuthority.StateView state);
+    String unavailable(LiveActorContext actor, ActionIntent intent, StateView state);
     boolean canExecute(LiveActorContext actor, ActionIntent intent, Vec3 feet);
     /** Planning may choose an interior position to accommodate native arrival tolerance; execution keeps the rule range. */
     default boolean canPlanExecutionFrom(LiveActorContext actor, ActionIntent intent, Vec3 feet) { return canExecute(actor, intent, feet); }
     default int approachRadius() { return 4; }
     /** Additional declared native/world reads; uninstalled providers remain explicitly unsupported. */
     default FactSlice captureAdditional(LiveActorContext actor, ActionIntent intent,
-            EncounterAuthority.StateView state, ReadContract reads) {
+            StateView state, ReadContract reads) {
         return MinecraftFactProviders.capture(actor, reads);
     }
 }

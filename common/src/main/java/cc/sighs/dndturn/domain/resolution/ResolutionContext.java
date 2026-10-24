@@ -2,7 +2,6 @@ package cc.sighs.dndturn.domain.resolution;
 
 import cc.sighs.dndturn.domain.ability.AbilityInvocation;
 import cc.sighs.dndturn.domain.actor.ActorSnapshot;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord;
 import cc.sighs.dndturn.domain.fact.FactSlice;
 import java.util.Objects;
@@ -14,10 +13,6 @@ public record ResolutionContext(CombatantSnapshot actor, EncounterInput encounte
     public ResolutionContext(CombatantSnapshot actor, EncounterInput encounter, AbilityInvocation invocation,
                              FactSlice world, FactSlice targetFacts, Stage stage) {
         this(actor, encounter, invocation, world, targetFacts, stage, null);
-    }
-    public ResolutionContext(CombatantSnapshot actor, EncounterAuthority.StateView encounter, AbilityInvocation invocation,
-                             FactSlice world, FactSlice targetFacts, Stage stage) {
-        this(actor, EncounterInput.capture(encounter, invocation), invocation, world, targetFacts, stage);
     }
     public enum Stage { PROPOSAL, CONTINUATION }
     public ResolutionContext {

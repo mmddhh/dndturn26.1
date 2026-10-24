@@ -9,8 +9,7 @@ import cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord;
 import cc.sighs.dndturn.domain.encounter.operation.WorldOutcomeObservation;
 import cc.sighs.dndturn.gametest.TestPlayers;
 import cc.sighs.dndturn.platform.server.action.ActionTestAccess;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
-import cc.sighs.dndturn.platform.server.actor.MinecraftSnapshotCapture;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.ai.AiTestAccess;
 import cc.sighs.dndturn.platform.server.persistence.ActorSavedData;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
@@ -46,7 +45,7 @@ public final class CreeperEffectChecks {
         creeper.setPos(base.getX()+2.5,base.getY(),base.getZ()+.5); creeper.setNoAi(true); creeper.setPersistenceRequired(); level.addFreshEntity(creeper);
         var service = ServerRuntime.encounters(level.getServer());
         Runnable cleanup = () -> {
-            var id = service.encounterOf(player.getUUID()); if (id != null) service.stop(id);
+            var id = service.encounterOf(player.getUUID()); if (id != null) service.lifecycle().stop(id);
             creeper.discard(); player.discard();
             for (long key : forced) { var c = ChunkPos.unpack(key); level.setChunkForced(c.x(),c.z(),false); } forced.clear();
         };
@@ -54,11 +53,11 @@ public final class CreeperEffectChecks {
         h.startSequence().thenIdle(20).thenExecute(() -> {
             // The field admits a mob with an actual directed lock; a passive creeper no longer joins.
             creeper.setTarget(player);
-            service.requestStart(player,UUID.randomUUID());
+            service.lifecycle().requestStart(player,UUID.randomUUID());
         }).thenWaitUntil(() -> {
             var id = service.encounterOf(creeper.getUUID()); h.assertTrue(id != null,"Creeper membership missing");
             var state = service.state(id);
-            if (player.getUUID().equals(state.current())) service.endTurn(id,player,UUID.randomUUID(),state.version());
+            if (player.getUUID().equals(state.current())) service.combat().endTurn(id,player,UUID.randomUUID(),state.version());
             state = service.state(id);
             h.assertTrue(creeper.getUUID().equals(state.current()) && state.members().get(creeper.getUUID()).action(),"waiting for Creeper turn");
         }).thenExecute(() -> {
@@ -69,30 +68,30 @@ public final class CreeperEffectChecks {
             if (old == null) states.command(actor,new ActorStates.Command(UUID.randomUUID(),actor.id(),state.revision(),List.of(
                     new ActorStates.Apply(new EffectInstance(UUID.randomUUID(),UUID.randomUUID(),CreeperAbilities.DEFINITION,2,0,state.revision()+1,1,actor.id(),CreeperAbilities.CHARGE)))));
             else if (old.stacks() < 2) states.command(actor,new ActorStates.Command(UUID.randomUUID(),actor.id(),state.revision(),List.of(new ActorStates.AddStacks(old.id(),2-old.stacks()))));
-            var binding = MinecraftSnapshotCapture.capture(actor,service.state(id)).abilities().stream().filter(b -> b.id().equals(CreeperAbilities.CHARGE)).findFirst().orElseThrow();
-            var ai = AiTestAccess.capture(actor,service.state(id),null,ActionTestAccess.authority(service.tacticalActions()));
+            var binding = service.actorStates().snapshots().capture(actor,service.state(id)).abilities().stream().filter(b -> b.id().equals(CreeperAbilities.CHARGE)).findFirst().orElseThrow();
+            var ai = AiTestAccess.capture(actor,service.state(id),null,ActionTestAccess.authority(service.actions()), service.mobDecisionFacts());
             h.assertTrue(AiPlanner.decide(ai) instanceof AiPlanner.Propose proposal && proposal.intent().behaviorId().equals(CreeperAbilities.CHARGE),
                     "production AI did not propose charge from the effect snapshot");
             var intent = binding.invocation(new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,level.dimension().identifier().toString(),player.getUUID(),null,-1,0,0,0));
             UUID operation = UUID.randomUUID(); long version = service.state(id).version();
-            service.tacticalActions().submit(actor,service.generation(),id,operation,version,intent,false);
+            service.actions().submit(actor,service.generation(),id,operation,version,intent,false);
             h.assertTrue(CreeperAbilities.fuse(states.state(actor.id())).stacks() == 3,"third charge did not commit");
             h.assertTrue(!service.state(id).members().get(actor.id()).action(),"charge did not consume one action");
             h.assertTrue(creeper.isAlive() && !creeper.isRemoved(),"threshold exploded before TURN_END");
-            var fullSnapshot = MinecraftSnapshotCapture.capture(actor,service.state(id));
+            var fullSnapshot = service.actorStates().snapshots().capture(actor,service.state(id));
             var fullAi = new AiDecisionContext(fullSnapshot,ai.definition(),ai.phase(),false,ai.dimension(),ai.perception(),ai.hostile(),ai.options(),ai.movementOpportunity(),ai.runtime());
             h.assertTrue(AiPlanner.decide(fullAi) instanceof AiPlanner.EndTurn,"full Fuse did not request settlement");
             var invocation = states.invocations(actor.id()).stream().filter(i -> i.invocation().ability().equals(CreeperAbilities.EXPLODE)).toList();
             h.assertTrue(invocation.size() == 1 && invocation.getFirst().status() == TriggeredExecutionRecord.Status.PENDING,"threshold emission missing/duplicated: " + invocation);
-            service.tacticalActions().submit(actor,service.generation(),id,operation,version,intent,false);
+            service.actions().submit(actor,service.generation(),id,operation,version,intent,false);
             h.assertTrue(states.invocations(actor.id()).size() == 1,"charge replay duplicated emission");
             float absorption = player.getAbsorptionAmount();
             var immune = EntityType.COW.create(level,EntitySpawnReason.COMMAND);
             immune.setPos(base.getX()+2.5,base.getY(),base.getZ()+2.5); immune.setNoAi(true); immune.setInvulnerable(true); level.addFreshEntity(immune);
-            service.actionHost().joinGeneratedMob(player,immune,id);
+            service.lifecycle().joinGeneratedMob(player,immune,id);
             var cancelled = EntityType.COW.create(level,EntitySpawnReason.COMMAND);
             cancelled.setPos(base.getX()+3.5,base.getY(),base.getZ()+1.5); cancelled.setNoAi(true); level.addFreshEntity(cancelled);
-            service.actionHost().joinGeneratedMob(player,cancelled,id);
+            service.lifecycle().joinGeneratedMob(player,cancelled,id);
             var outside = EntityType.COW.create(level,EntitySpawnReason.COMMAND);
             outside.setPos(base.getX()+2.5,base.getY(),base.getZ()-1.5); outside.setNoAi(true); level.addFreshEntity(outside);
             float outsideHealth = outside.getHealth(); var outsideMotion = outside.getDeltaMovement();
@@ -101,7 +100,7 @@ public final class CreeperEffectChecks {
             };
             net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(cancel);
             creeper.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.SPEED,120));
-            try { service.endCurrentTurn(id,UUID.randomUUID(),service.state(id).version()); }
+            try { service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version()); }
             finally { net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(cancel); }
             h.assertTrue(creeper.isRemoved(),"Creeper native explosion did not remove source: " + states.invocations(actor.id()));
             h.assertTrue(player.getAbsorptionAmount() < absorption,"native explosion damage/absorption not observed");
@@ -116,12 +115,12 @@ public final class CreeperEffectChecks {
             immune.discard(); cancelled.discard(); outside.discard();
             var cloudId = observation.spawns().stream().filter(s -> s.type().equals("minecraft:area_effect_cloud")).map(WorldOutcomeObservation.Spawn::entity).findFirst().orElseThrow();
             var cloud = level.getEntity(cloudId);
-            h.assertTrue(cloud != null && CreeperClouds.confirmed(cloud,service),"cloud causal evidence missing");
+            h.assertTrue(cloud != null && CreeperClouds.confirmed(cloud,service.cloudEvidence()),"cloud causal evidence missing");
             String sourceDomain = cloud.getPersistentData().getStringOr("dndturn:creeper_domain", "");
             try {
                 for (String invalidDomain : List.of("malformed", UUID.randomUUID().toString())) {
                     cloud.getPersistentData().putString("dndturn:creeper_domain", invalidDomain);
-                    h.assertTrue(!CreeperClouds.confirmed(cloud,service) && service.isEntitySimulationPaused(cloud),
+                    h.assertTrue(!CreeperClouds.confirmed(cloud,service.cloudEvidence()) && service.world().isEntitySimulationPaused(cloud),
                         "cloud acquired simulation from invalid causal domain");
                     h.assertTrue(CreeperClouds.targets((net.minecraft.world.entity.AreaEffectCloud)cloud,List.of(player)).isEmpty(),
                         "cloud acquired targets from invalid causal domain");
@@ -182,7 +181,7 @@ public final class CreeperEffectChecks {
                         if (window.equals("completed")) h.assertTrue(emission.observation() != null && emission.observation().sourceRemoved(),"native completion observation lost");
                     }
                     var cloud = level.getEntity(UUID.fromString(properties.getProperty("cloud")));
-                    h.assertTrue(CreeperClouds.confirmed(cloud,service),"saved cloud lost its confirmed source");
+                    h.assertTrue(CreeperClouds.confirmed(cloud,service.cloudEvidence()),"saved cloud lost its confirmed source");
                     h.assertTrue(level.getEntity(UUID.fromString(properties.getProperty("actor"))) == null,"exploded source returned after restart");
                     System.out.println("DNDTURN_TRIGGER_RESTART_VERIFY_PASS pending=PENDING started=UNKNOWN completed=COMPLETED");
                     loader.discard(); level.setChunkForced(chunk.x(),chunk.z(),false);

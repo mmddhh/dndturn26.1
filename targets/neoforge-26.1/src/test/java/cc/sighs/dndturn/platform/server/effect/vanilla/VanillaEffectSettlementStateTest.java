@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.platform.server.effect.vanilla;
+import cc.sighs.dndturn.platform.server.checkpoint.VanillaEffectSettlementState;
 
 import cc.sighs.dndturn.domain.encounter.time.RoundDuration;
 import cc.sighs.dndturn.domain.encounter.time.RoundTime;

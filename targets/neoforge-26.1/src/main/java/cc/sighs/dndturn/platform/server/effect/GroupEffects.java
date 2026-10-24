@@ -5,9 +5,8 @@ import cc.sighs.dndturn.domain.effect.EffectDefinition;
 import cc.sighs.dndturn.domain.effect.EffectInstance;
 import cc.sighs.dndturn.domain.fact.FactKey;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.actor.ActorDefinitions;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
 import java.util.*;
 
 /** Group-owned effect installation is a lifecycle command, never part of discovery. */
@@ -30,14 +29,14 @@ public final class GroupEffects {
         }
         frozen = true;
     }
-    public void capture(EncounterRuntime service, net.minecraft.world.entity.LivingEntity body) {
+    public void capture(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, net.minecraft.world.entity.LivingEntity body) {
         if (!body.isAlive() || body.isRemoved()) return;
         UUID encounter = service.encounterOf(body.getUUID());
         if (encounter == null) return;
         var actor = new LiveActorContext(body);
         var binding = new Binding(actor.instance(), encounter, ActorDefinitions.capture(actor).groups());
         if (binding.equals(attached.get(actor.id()))) return;
-        var state = service.actorStates().state(actor.id());
+        var state = service.state(actor.id());
         var changes = new ArrayList<ActorStates.Change>();
         for (var registration : registrations.values()) {
             var owned = state.runtime().effects().values().stream().filter(e ->
@@ -53,21 +52,21 @@ public final class GroupEffects {
                 throw new IllegalStateException("group effect definition changed during recovery");
             }
         }
-        if (!changes.isEmpty()) service.actorStates().command(actor,
+        if (!changes.isEmpty()) service.command(actor,
                 new ActorStates.Command(UUID.randomUUID(), actor.id(), state.revision(), changes));
         attached.put(actor.id(), binding);
     }
-    public void release(EncounterRuntime service, net.minecraft.world.entity.LivingEntity body) {
+    public void release(cc.sighs.dndturn.platform.server.actor.ActorLifecycleHost service, net.minecraft.world.entity.LivingEntity body) {
         if (!body.isRemoved() && body.isAlive()) {
             var actor = new LiveActorContext(body);
-            var state = service.actorStates().state(actor.id());
+            var state = service.state(actor.id());
             var changes = new ArrayList<ActorStates.Change>();
             for (var effect : state.runtime().effects().values()) {
                 var registration = registrations.get(effect.sourceAbility());
                 if (registration != null && actor.id().equals(effect.sourceActor())
                         && registration.effect().id().equals(effect.definition().id())) changes.add(new ActorStates.Remove(effect.id()));
             }
-            if (!changes.isEmpty()) service.actorStates().command(actor,
+            if (!changes.isEmpty()) service.command(actor,
                     new ActorStates.Command(UUID.randomUUID(), actor.id(), state.revision(), changes));
         }
         forget(body.getUUID());

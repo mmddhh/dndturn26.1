@@ -10,9 +10,7 @@ import cc.sighs.dndturn.platform.observation.VanillaEffectTypes;
 import cc.sighs.dndturn.platform.projection.PresentationIdentity;
 import cc.sighs.dndturn.platform.server.actor.ActorLifecycleAdapters;
 import cc.sighs.dndturn.platform.server.effect.GroupEffects;
-import cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectSettlementState.Timer;
-import cc.sighs.dndturn.platform.server.encounter.EncounterRuntime;
-import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
+import cc.sighs.dndturn.platform.server.checkpoint.VanillaEffectSettlementState.Timer;
 import java.util.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -23,11 +21,11 @@ import net.minecraft.world.entity.*;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
-import static cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectSettlementState.*;
+import static cc.sighs.dndturn.platform.server.checkpoint.VanillaEffectSettlementState.*;
 
 /** One service owns duration values and evidence. Native objects exist only within a callback. */
 public final class VanillaEffectRoundController {
-    private final EncounterRuntime service;
+    private final VanillaEffectHost service;
     private final EncounterAuthority engine;
     private final GroupEffects groupEffects = new GroupEffects();
     private final Map<UUID, Owner> owners = new HashMap<>();
@@ -52,30 +50,25 @@ public final class VanillaEffectRoundController {
             this.amplifier=amplifier; this.time=time; this.period=period;
         }
     }
-    public VanillaEffectRoundController(EncounterRuntime service, EncounterAuthority engine) { this.service=service; this.engine=engine; }
+    public VanillaEffectRoundController(VanillaEffectHost service, EncounterAuthority engine) { this.service=service; this.engine=engine; }
     public Map<UUID, Owner> owners() { return Map.copyOf(owners); }
     public Map<UUID, Settlement> settlements() { return Map.copyOf(settlements); }
     public void restore(Map<UUID, Owner> saved, Map<UUID, Settlement> evidence) {
         owners.putAll(saved); restored.addAll(saved.keySet()); settlements.putAll(evidence);
     }
-    private static VanillaEffectRoundController runtime(Entity entity) {
-        if (!(entity.level() instanceof ServerLevel level)) return null;
-        var service=ServerRuntime.existingEncounter(level.getServer());
-        return service!=null && service.isMember(entity.getUUID()) ? service.vanillaEffects().participantEffects() : null;
-    }
+
     /** Exact .84 implementations only; instant effects, raids and unknown overrides are not translated. */
     
-    public static boolean holdEffect(LivingEntity actor, MobEffectInstance effect) {
-        var runtime=runtime(actor);
-        if(runtime==null || !VanillaEffectTypes.supported(effect)) return false;
+    public boolean holdEffect(LivingEntity actor, MobEffectInstance effect) {
+        var runtime=this;
+        if(!VanillaEffectTypes.supported(effect)) return false;
         if(runtime.restored.contains(actor.getUUID())) return true;
         runtime.captureEffect(actor,effect);
         return true;
     }
-    public static boolean holdFire(Entity entity) {
+    public boolean holdFire(Entity entity) {
         if (!(entity instanceof Mob actor) || actor.getRemainingFireTicks()<=0) return false;
-        var runtime=runtime(actor);
-        if(runtime==null) return false;
+        var runtime=this;
         if(runtime.restored.contains(actor.getUUID())) return true;
         runtime.captureFire(actor);
         return true;
@@ -94,7 +87,7 @@ public final class VanillaEffectRoundController {
     private Owner owner(UUID id) { return owners.getOrDefault(id,new Owner(Map.of(),null)); }
     private void save(UUID id, Map<String,List<Timer>> effects, Timer fire) {
         var value=new Owner(effects,fire);
-        if(!value.equals(owners.put(id,value))) service.vanillaEffects().participantEffectsChanged();
+        if(!value.equals(owners.put(id,value))) service.changed();
     }
     private List<Timer> captureEffect(LivingEntity actor,MobEffectInstance effect) {
         var previous=owner(actor.getUUID()); var old=previous.effects().getOrDefault(key(effect),List.of());
@@ -172,10 +165,10 @@ public final class VanillaEffectRoundController {
         groupEffects.release(service, actor);
         forget(actor.getUUID()); // native timers already represent remaining rounds * captured base
     }
-    public void forget(UUID owner) { groupEffects.forget(owner); if(owners.remove(owner)!=null) service.vanillaEffects().participantEffectsChanged(); restored.remove(owner); }
+    public void forget(UUID owner) { groupEffects.forget(owner); if(owners.remove(owner)!=null) service.changed(); restored.remove(owner); }
     private void evidence(OperationRecord.Snapshot root,Phase phase,List<Observation> observations) {
         settlements.put(root.operationId(),new Settlement(root.operationId(),root.encounterId(),root.owner(),POLICY,VERSION,phase,observations));
-        service.vanillaEffects().participantEffectsChanged();
+        service.changed();
     }
     public void settle(LivingEntity actor,OperationRecord.Snapshot root) {
         if(CURRENT.get()!=null || settlements.containsKey(root.operationId())
@@ -296,7 +289,7 @@ public final class VanillaEffectRoundController {
         engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit,root.encounterId(),root.operationId(),root.owner(),
             Set.of(root.owner()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE),1,engine.stateView(root.encounterId()).round()));
         var child=new OperationRecord.Snapshot(operation,root.operationId(),root.encounterId(),root.owner(),root.owner(),root.owner(),
-            frame.runtime.service.actionHost().planClock(),engine.stateView(root.encounterId()).version(),root.sourceCell(),root.sourceCell(),
+            frame.runtime.service.clock(),engine.stateView(root.encounterId()).version(),root.sourceCell(),root.sourceCell(),
             OperationRecord.Kind.DAMAGE,frame.runtime.service.generation());
         float health=target.getHealth(); boolean admitted=false;
         try {

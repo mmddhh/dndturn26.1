@@ -1,11 +1,11 @@
 package cc.sighs.dndturn.platform.server.ai;
+import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
-import cc.sighs.dndturn.domain.encounter.EncounterAuthority;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
-import cc.sighs.dndturn.platform.server.action.MinecraftCoordinates;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
+import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.util.GoalUtils;
@@ -14,7 +14,7 @@ import net.minecraft.world.entity.ai.util.RandomPos;
 /** Audited .84 geometry sampler; emits proposals, never starts Navigation. */
 final class MinecraftMovementOpportunities {
     private MinecraftMovementOpportunities() {}
-        static ActionIntent movement(LiveActorContext actor, EncounterAuthority.StateView state, OperationRecord.Result previous) {
+        static ActionIntent movement(LiveActorContext actor, StateView state, OperationRecord.Result previous) {
             if (previous != null) return null;
             var mob = (PathfinderMob)actor.body();
             if (mob.isNoAi() || mob.isPassenger() || mob.hasControllingPassenger() || state.members().get(actor.id()).movementTicks() < 1) return null;
@@ -30,7 +30,7 @@ final class MinecraftMovementOpportunities {
         }
         /** Same bounded ten-candidate sampler as .84 DefaultRandomPos, with decision-owned entropy.
          * Re-evaluation cannot advance the entity's combat/vanilla random stream. */
-        private static net.minecraft.world.phys.Vec3 stroll(LiveActorContext actor, EncounterAuthority.StateView state, PathfinderMob mob) {
+        private static net.minecraft.world.phys.Vec3 stroll(LiveActorContext actor, StateView state, PathfinderMob mob) {
             long seed = actor.id().getMostSignificantBits() ^ actor.id().getLeastSignificantBits()
                 ^ state.id().getMostSignificantBits() ^ Long.rotateLeft(state.round(), 23);
             RandomSource random = RandomSource.create(seed);

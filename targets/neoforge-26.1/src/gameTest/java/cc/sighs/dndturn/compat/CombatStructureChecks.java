@@ -1,4 +1,7 @@
 package cc.sighs.dndturn.compat;
+import cc.sighs.dndturn.domain.encounter.StateView;
+import cc.sighs.dndturn.platform.server.action.MinecraftAbilityAdapter;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 
 import cc.sighs.dndturn.domain.ability.*;
 import cc.sighs.dndturn.domain.action.ActionIntent;
@@ -11,7 +14,7 @@ import cc.sighs.dndturn.gametest.TestPlayers;
 import cc.sighs.dndturn.platform.server.ability.*;
 import cc.sighs.dndturn.platform.server.action.*;
 import cc.sighs.dndturn.platform.server.damage.*;
-import cc.sighs.dndturn.platform.server.effect.TriggeredAbilities;
+import cc.sighs.dndturn.platform.server.action.TriggeredAbilities;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.BlockPos;
@@ -46,7 +49,7 @@ public final class CombatStructureChecks {
                     "test:defense_" + name, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION);
             var adapter = new MinecraftAbilityAdapter(definition) {
                 public GrantEvidence source(LiveActorContext actor, ActionIntent.Hand hand) { return null; }
-                public String unavailable(LiveActorContext actor, ActionIntent intent, EncounterAuthority.StateView state) { return null; }
+                public String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) { return null; }
                 public boolean canExecute(LiveActorContext actor, ActionIntent intent, Vec3 feet) { return true; }
                 public ProcessDefinition processDefinition() { return process(id()); }
                 public void start(ActionExecutionCoordinator actions, LiveActorContext actor, ActionExecutionCoordinator.Execution execution) {
@@ -64,7 +67,7 @@ public final class CombatStructureChecks {
                     return new Intervention(context.emission().event().id(), Intervention.Disposition.CANCEL, "test defense");
                 }
             };
-            AbilityAdapterRegistry.register(definition, adapter, adapter);
+            cc.sighs.dndturn.platform.server.action.AbilityExecutors.register(definition, adapter, adapter);
             AbilityAdapterRegistry.registerActorEffect(definition, new ActivationSpec(AbilityDefinition.Activation.TRIGGERED,
                     ActivationSpec.Event.DAMAGE_ATTEMPT, null, 0), new cc.sighs.dndturn.domain.fact.ReadContract(Set.of(RuleFacts.SOURCE_VALID)),
                     input -> List.of(new TriggeredAbilityInvocation(
@@ -89,7 +92,7 @@ public final class CombatStructureChecks {
         cow.setPos(base.getX()+1.5, base.getY(), base.getZ()+.5); cow.setNoAi(true); cow.setPersistenceRequired(); level.addFreshEntity(cow);
         var runtime = ServerRuntime.encounters(level.getServer());
         Runnable cleanup = () -> {
-            var encounter = runtime.encounterOf(player.getUUID()); if (encounter != null) runtime.stop(encounter);
+            var encounter = runtime.encounterOf(player.getUUID()); if (encounter != null) runtime.lifecycle().stop(encounter);
             ROOTS.clear(); PARTS.clear(); CALLS.clear(); cow.discard(); player.discard();
             for (long key : forced) { var pos = ChunkPos.unpack(key); level.setChunkForced(pos.x(), pos.z(), false); }
             forced.clear();
@@ -99,12 +102,12 @@ public final class CombatStructureChecks {
             try {
                 // The field admits mobs with an actual directed lock; presence alone is not enough.
                 cow.setTarget(player);
-                runtime.requestStart(player, UUID.randomUUID());
+                runtime.lifecycle().requestStart(player, UUID.randomUUID());
                 var encounter = runtime.encounterOf(player.getUUID());
                 h.assertTrue(encounter != null && runtime.state(encounter).members().containsKey(cow.getUUID()), "fixture membership missing");
-                var engine = ActionTestAccess.authority(runtime.tacticalActions());
+                var engine = ActionTestAccess.authority(runtime.actions());
                 engine.setHostile(encounter, player.getUUID(), cow.getUUID(), true);
-                runtime.endCurrentTurn(encounter, UUID.randomUUID(), engine.view(encounter).version());
+                runtime.combat().endCurrentTurn(encounter, UUID.randomUUID(), engine.view(encounter).version());
                 LivingEntity attacker = engine.view(encounter).current().equals(player.getUUID()) ? player : cow;
                 LivingEntity defender = attacker == player ? cow : player;
                 var actor = new LiveActorContext(defender); var states = runtime.actorStates();
@@ -133,12 +136,12 @@ public final class CombatStructureChecks {
                                 0, engine.view(encounter).version(), null, null, OperationRecord.Kind.DAMAGE, runtime.generation());
                         h.assertTrue(engine.beginOperation(damage, permit), "damage admission failed");
                         if (attempt == 0) {
-                            h.assertTrue(!runtime.cancelDamageAttempt(defender, source, 1, operation), "blocked defense executed");
+                            h.assertTrue(!runtime.combat().cancelDamageAttempt(defender, source, 1, operation), "blocked defense executed");
                             h.assertTrue(CALLS.isEmpty() && engine.stateView(encounter).members().get(actor.id()).reaction(), "process conflict spent reaction");
                             runtime.processes().observe(blocker, "TERMINAL", 0, false, ProcessState.Release.RELEASED, OperationRecord.Outcome.COMPLETED, "released");
                         } else {
                             float before = defender.getHealth(); int previousCalls = CALLS.size();
-                            var observation = TacticalDamageContext.hurtObserved(level, defender, source, 1, false, operation);
+                            var observation = cc.sighs.dndturn.platform.server.runtime.DamageHooks.hurtObserved(level, defender, source, 1, false, operation);
                             h.assertTrue(!observation.accepted() && defender.getHealth() == before && incoming[0] == 0,
                                     "canceled attempt entered native hurtServer");
                             h.assertTrue(CALLS.size() == previousCalls + (attempt == 1 ? 2 : 1), "free/paid reaction admission mismatch");

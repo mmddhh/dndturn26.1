@@ -1,4 +1,5 @@
 package cc.sighs.dndturn.platform.server.world;
+import cc.sighs.dndturn.platform.server.control.EnvironmentProcesses;
 
 import cc.sighs.dndturn.domain.encounter.EncounterRegion;
 import cc.sighs.dndturn.platform.mixin.server.control.LevelTicksAccessor;

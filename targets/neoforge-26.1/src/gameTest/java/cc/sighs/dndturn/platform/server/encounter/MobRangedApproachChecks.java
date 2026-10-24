@@ -4,9 +4,8 @@ import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.actor.ActorStates;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.gametest.TestPlayers;
-import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
 import cc.sighs.dndturn.platform.server.action.EquippedRanged;
-import cc.sighs.dndturn.platform.server.action.LiveActorContext;
+import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.BlockPos;
@@ -35,23 +34,23 @@ public final class MobRangedApproachChecks {
         var service=ServerRuntime.encounters(level.getServer());
         UUID[] id={null},operation={null};int[] movement={0};var start=mob.position();
         Runnable cleanup=()->{
-            if(id[0]!=null && service.encounterOf(player.getUUID())!=null)service.stop(id[0]);
+            if(id[0]!=null && service.encounterOf(player.getUUID())!=null)service.lifecycle().stop(id[0]);
             mob.discard();player.discard();
             for(long key:forced){var c=ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);}forced.clear();
         };
         h.runAtTickTime(299,cleanup);
-        h.startSequence().thenIdle(20).thenExecute(()->service.requestStart(player,UUID.randomUUID())).thenWaitUntil(()->{
+        h.startSequence().thenIdle(20).thenExecute(()->service.lifecycle().requestStart(player,UUID.randomUUID())).thenWaitUntil(()->{
             id[0]=service.encounterOf(mob.getUUID());h.assertTrue(id[0]!=null,"approach actor not discovered");
-            var state=service.state(id[0]);if(player.getUUID().equals(state.current()))service.endTurn(id[0],player,UUID.randomUUID(),state.version());
+            var state=service.state(id[0]);if(player.getUUID().equals(state.current()))service.combat().endTurn(id[0],player,UUID.randomUUID(),state.version());
             state=service.state(id[0]);h.assertTrue(mob.getUUID().equals(state.current())&&state.members().get(mob.getUUID()).action(),"waiting for approach turn");
         }).thenExecute(()->{
             var actor=new LiveActorContext(mob);var state=service.state(id[0]);
             var target=new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,level.dimension().identifier().toString(),player.getUUID(),null,-1,0,0,0);
-            var found=AbilityAdapterRegistry.discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
-            h.assertTrue(found.availability()==AbilityAdapterRegistry.Availability.APPROACH_REQUIRED,"out of range bow did not request approach");
+            var found=cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
+            h.assertTrue(found.availability()==cc.sighs.dndturn.platform.server.ability.AbilityQueries.Availability.APPROACH_REQUIRED,"out of range bow did not request approach");
             movement[0]=state.members().get(actor.id()).movementTicks();operation[0]=UUID.randomUUID();mob.setNoAi(false);mob.setOnGround(true);
-            service.tacticalActions().submit(actor,service.generation(),id[0],operation[0],state.version(),found.binding().invocation(target),false);
-            h.assertTrue(service.hasMobMoveLease(actor.id()),"ranged approach did not acquire native navigation: "+service.results(id[0],0,128).results());
+            service.actions().submit(actor,service.generation(),id[0],operation[0],state.version(),found.binding().invocation(target),false);
+            h.assertTrue(service.movement().hasMobMoveLease(actor.id()),"ranged approach did not acquire native navigation: "+service.lifecycle().results(id[0],0,128).results());
             h.assertTrue(service.state(id[0]).members().get(actor.id()).action(),"approach spent attack action early");
             if(revoke) {
                 var effects=service.actorStates().state(actor.id());
@@ -60,9 +59,9 @@ public final class MobRangedApproachChecks {
             }
         }).thenWaitUntil(()->{
             h.assertTrue(service.encounterOf(mob.getUUID())!=null,"approach encounter ended before terminal verification");
-            h.assertTrue(service.results(id[0],0,128).results().stream().anyMatch(r->r.snapshot().operationId().equals(operation[0])),"waiting for approach terminal");
+            h.assertTrue(service.lifecycle().results(id[0],0,128).results().stream().anyMatch(r->r.snapshot().operationId().equals(operation[0])),"waiting for approach terminal");
         }).thenExecute(()->{
-            var result=service.results(id[0],0,128).results().stream().filter(r->r.snapshot().operationId().equals(operation[0])).findFirst();
+            var result=service.lifecycle().results(id[0],0,128).results().stream().filter(r->r.snapshot().operationId().equals(operation[0])).findFirst();
             h.assertTrue(result.isPresent(),"waiting for ranged approach outcome");
             var state=service.state(id[0]);
             if(revoke) {
@@ -76,7 +75,7 @@ public final class MobRangedApproachChecks {
                 h.assertTrue(!state.members().get(mob.getUUID()).action(),"arrived shot did not spend action");
             }
             var leasedOperation=service.controlFacts().controlEvidence(mob).operation();
-            var completedChildren=service.results(id[0],0,128).results().stream()
+            var completedChildren=service.lifecycle().results(id[0],0,128).results().stream()
                     .filter(r->operation[0].equals(r.snapshot().parentId())).map(r->r.snapshot().operationId()).toList();
             h.assertTrue(leasedOperation==null || !operation[0].equals(leasedOperation) && !completedChildren.contains(leasedOperation),
                     "terminal approach retained its navigation lease");
