@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.server.level.ServerLevel;
@@ -253,8 +252,30 @@ public final class RegionalScheduledTicks {
     }
 
     public void releaseEncounter(UUID encounterId) {
-        for (QueueState<?> state : List.copyOf(queues.values()))
-            releaseMatching(state, entry -> entry.encounterId.equals(encounterId));
+        RuntimeException failure = null;
+        for (QueueState<?> state : List.copyOf(queues.values())) {
+            for (Held<?> entry : List.copyOf(state.byKey.values())) {
+                if (!entry.encounterId.equals(encounterId)) continue;
+                try { transferUnknown(state, entry, entry.level.getGameTime() + entry.remaining); }
+                catch (RuntimeException error) {
+                    if (failure == null) failure = new IllegalStateException("held tick release incomplete");
+                    failure.addSuppressed(error);
+                }
+            }
+        }
+        if (failure != null) throw failure;
+    }
+
+    /** After a field change, transfer held work without advancing its effective clock. */
+    public void rebindRegion(UUID encounterId) {
+        for (QueueState<?> state : List.copyOf(queues.values())) {
+            for (Held<?> entry : List.copyOf(state.byKey.values())) {
+                if (!entry.encounterId.equals(encounterId)) continue;
+                UUID next = owner.encounterAtBlock(entry.level, entry.original.pos());
+                if (next == null) transferUnknown(state, entry, entry.level.getGameTime() + entry.remaining);
+                else if (!next.equals(entry.encounterId)) rebindUnknown(state, entry, next);
+            }
+        }
     }
 
     /** Validate all transfers before the rule owner commits the corresponding merge. */
@@ -326,13 +347,6 @@ public final class RegionalScheduledTicks {
             queues.clear();
         }
         if (releaseFailure != null) throw releaseFailure;
-    }
-
-    private void releaseMatching(QueueState<?> state, Predicate<Held<?>> predicate) {
-        for (Held<?> entry : List.copyOf(state.byKey.values())) {
-            if (!predicate.test(entry)) continue;
-            transferUnknown(state, entry, entry.level.getGameTime() + entry.remaining);
-        }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

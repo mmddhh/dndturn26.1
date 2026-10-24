@@ -107,6 +107,42 @@ public final class GateMeleeChecks {
                     h.assertTrue(service.lifecycle().results(encounter,0,128).results().size()==count,"retry duplicated attack");
                     service.lifecycle().stop(encounter);
                 }
+                // Native damage interception must settle before the callback returns, not at tick end.
+                mob.setTarget(null);
+                player.setHealth(player.getMaxHealth());
+                player.invulnerableTime = 0;
+                service.lifecycle().requestStart(player, UUID.randomUUID());
+                UUID intrusionEncounter = service.encounterOf(player.getUUID());
+                h.assertTrue(service.encounterOf(mob.getUUID()) == null, "intruder already enrolled");
+                service.useAttackRandomForGameTest(intrusionEncounter, new Random(1) {
+                    @Override public int nextInt(int bound) { return 14; }
+                });
+                float health = player.getHealth();
+                player.hurtServer(level, level.damageSources().mobAttack(mob), 100);
+                var intrusion = service.lifecycle().results(intrusionEncounter, 0, 128).results().stream()
+                    .filter(r -> r.snapshot().kind() == OperationRecord.Kind.ATTACK
+                        && r.snapshot().owner().equals(mob.getUUID())).findFirst().orElseThrow();
+                h.assertTrue(intrusion.terminal() && intrusion.actualDamage() > 0
+                    && Math.abs(health - player.getHealth() - intrusion.actualDamage()) < .001,
+                    "intrusion was deferred or repeated native damage: result=" + intrusion
+                        + " healthBefore=" + health + " healthAfter=" + player.getHealth());
+                h.assertTrue(service.state(intrusionEncounter).phase() == cc.sighs.dndturn.domain.encounter.EncounterPhase.ACTIVE,
+                    "legal intrusion left encounter in candidate phase");
+                var intruderState = cc.sighs.dndturn.platform.server.action.ActionTestAccess.authority(service.actions())
+                    .exportSnapshot().encounters().stream().filter(e -> e.id().equals(intrusionEncounter))
+                    .findFirst().orElseThrow().members().stream().filter(m -> m.id().equals(mob.getUUID()))
+                    .findFirst().orElseThrow();
+                h.assertTrue(mob.getUUID().equals(service.state(intrusionEncounter).current())
+                    ? !intruderState.action() && !intruderState.preserveSpentActionOnNextTurn()
+                    : intruderState.preserveSpentActionOnNextTurn(),
+                    "intrusion did not reserve next-turn action charge");
+                int count = service.lifecycle().results(intrusionEncounter, 0, 128).results().size();
+                float after = player.getHealth();
+                player.invulnerableTime = 0;
+                player.hurtServer(level, level.damageSources().mobAttack(mob), 100);
+                h.assertTrue(player.getHealth() == after
+                    && service.lifecycle().results(intrusionEncounter, 0, 128).results().size() == count,
+                    "repeated native callback settled a second intrusion");
                 h.succeed();
             } finally { cleanup.run(); }
         });
@@ -116,6 +152,9 @@ public final class GateMeleeChecks {
             BlockPos base, Runnable cleanup) {
         player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.IRON_AXE));
         player.connection.resetPosition();
+        service.lifecycle().requestStart(player, UUID.randomUUID());
+        UUID previousEncounter = service.encounterOf(player.getUUID());
+        service.lifecycle().stop(previousEncounter);
         service.lifecycle().requestStart(player,UUID.randomUUID());
         UUID encounter=service.encounterOf(player.getUUID());
         h.assertTrue(service.state(encounter).members().containsKey(target.getUUID()),"approach target not discovered");
@@ -130,6 +169,9 @@ public final class GateMeleeChecks {
         int movement=service.state(encounter).members().get(player.getUUID()).movementTicks();
         service.actions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),intent,false));
         h.assertTrue(service.movement().hasPlayerMoveLease(player.getUUID()),"approach did not acquire movement: "+service.lifecycle().results(encounter,0,128).results());
+        service.lifecycle().stop(previousEncounter);
+        h.assertTrue(service.movement().hasPlayerMoveLease(player.getUUID()) && service.actions().running(player.getUUID()),
+            "old encounter cleanup canceled movement/action in a newer encounter");
         h.assertTrue(service.state(encounter).members().get(player.getUUID()).action(),"approach charged attack before execution");
         var start=player.position();
         class Driver {

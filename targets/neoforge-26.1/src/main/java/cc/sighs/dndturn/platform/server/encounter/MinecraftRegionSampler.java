@@ -16,6 +16,11 @@ import net.minecraft.world.phys.Vec3;
 public final class MinecraftRegionSampler {
     private MinecraftRegionSampler() {}
 
+    /** Expected inability to sample within the captured loading/capacity limits. */
+    public static final class SamplingDeferred extends IllegalStateException {
+        SamplingDeferred(String reason) { super(reason); }
+    }
+
     public static EncounterRegion capture(ServerLevel level, Entity initiator,
                                           EncounterRegion.Discovery discovery,
                                           double radius, long regionVersion, int maxSampledChunks,
@@ -32,13 +37,13 @@ public final class MinecraftRegionSampler {
             EncounterRegion.Anchor anchor = centerOf(entity);
             if (discovery.contains(anchor.center())) {
                 anchors.putIfAbsent(anchor.entityId(), anchor);
-                if (anchors.size() > maxAnchors) throw new IllegalStateException("discovery exceeds anchor limit");
+                if (anchors.size() > maxAnchors) throw new SamplingDeferred("discovery exceeds anchor limit");
             }
         }
         EncounterRegion.Anchor first = centerOf(initiator);
         if (!discovery.contains(first.center())) throw new IllegalArgumentException("initiator outside discovery");
         anchors.put(first.entityId(), first);
-        if (anchors.size() > maxAnchors) throw new IllegalStateException("discovery exceeds anchor limit");
+        if (anchors.size() > maxAnchors) throw new SamplingDeferred("discovery exceeds anchor limit");
         List<EncounterRegion.Anchor> ordered = new ArrayList<>(anchors.values());
         ordered.sort((left, right) -> left.entityId().compareTo(right.entityId()));
         return EncounterRegion.generate(level.dimension().identifier().toString(), discovery,
@@ -68,7 +73,7 @@ public final class MinecraftRegionSampler {
         EncounterRegion.Anchor first = centerOf(initiator);
         if (!discovery.contains(first.center())) throw new IllegalArgumentException("initiator outside discovery");
         anchors.put(first.entityId(), first);
-        if (anchors.size() > maxAnchors) throw new IllegalStateException("discovery exceeds anchor limit");
+        if (anchors.size() > maxAnchors) throw new SamplingDeferred("discovery exceeds anchor limit");
         List<EncounterRegion.Anchor> ordered = new ArrayList<>(anchors.values());
         ordered.sort((left, right) -> left.entityId().compareTo(right.entityId()));
         return EncounterRegion.generate(level.dimension().identifier().toString(), discovery,
@@ -81,11 +86,11 @@ public final class MinecraftRegionSampler {
         int minChunkZ = chunkOf(discovery.minZ());
         int maxChunkZ = chunkOf(discovery.maxZ());
         long chunkCount = ((long) maxChunkX - minChunkX + 1) * ((long) maxChunkZ - minChunkZ + 1);
-        if (chunkCount > maxSampledChunks) throw new IllegalArgumentException("discovery exceeds chunk limit");
+        if (chunkCount > maxSampledChunks) throw new SamplingDeferred("discovery exceeds chunk limit");
         for (int x = minChunkX; x <= maxChunkX; x++) {
             for (int z = minChunkZ; z <= maxChunkZ; z++) {
                 if (!level.hasChunkAt(new BlockPos(x << 4, 0, z << 4)))
-                    throw new IllegalStateException("discovery includes unloaded chunk");
+                    throw new SamplingDeferred("discovery includes unloaded chunk");
             }
         }
     }

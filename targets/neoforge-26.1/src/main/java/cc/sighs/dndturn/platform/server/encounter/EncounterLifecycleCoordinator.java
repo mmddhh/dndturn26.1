@@ -101,7 +101,7 @@ public final class EncounterLifecycleCoordinator {
         // New encounters become visible atomically before scheduling platform work.
         for (UUID id : engine.encounterIds()) {
             EncounterRegion region = world.regions().get(id);
-            if (region == null || !region.dimension().equals(level.dimension().identifier().toString())
+            if (recovering(id) || region == null || !region.dimension().equals(level.dimension().identifier().toString())
                 || pendingMerges.values().stream().anyMatch(plan -> plan.encounters().contains(id))) continue;
             if (engine.encounterIds().stream().anyMatch(other -> !other.equals(id)
                 && region.overlaps(engine.stateView(other).region()))) scheduleMerge(id);
@@ -119,6 +119,8 @@ public final class EncounterLifecycleCoordinator {
     private final ServerConsentCoordinator consent;
     private final Map<UUID, CombatPersistenceEnvelope.MergeBinding> mergeBindings = new HashMap<>();
     private final Set<UUID> recoveryPending = new HashSet<>();
+    private final Set<UUID> stopping = new HashSet<>();
+    private final Set<UUID> pendingStops = new HashSet<>();
     private final Map<UUID, CombatPersistenceEnvelope.CapturedSettings> capturedSettings = new HashMap<>();
     private final Set<UUID> departuresDuringWorldOutcome = new HashSet<>();
     private final Set<UUID> pendingDeaths = new HashSet<>();
@@ -246,6 +248,15 @@ public final class EncounterLifecycleCoordinator {
             boolean regionLoaded = regionChunksLoaded(level, world.chunks(encounterId));
             boolean allMembersPresent = state.members().keySet().stream()
                 .allMatch(id -> level.getEntity(id) instanceof LivingEntity member && member.isAlive());
+            // Availability is not evidence of a failed effect. Wait for natural loading/login;
+            // recoveryPending keeps every execution path closed without advancing simulation.
+            if (!regionLoaded || !allMembersPresent) continue;
+            var binding = mergeBindings.get(encounterId);
+            if (binding != null && binding.phase() != CombatPersistenceEnvelope.MergePhase.BOUND
+                && binding.sources().stream().allMatch(id -> engine.canonicalEncounterId(id).equals(encounterId))) {
+                if (!world.scheduledTicks().canRebindMerge(binding.sources(), state.region())) continue;
+                bindMergedOwners(level, binding, state.region());
+            }
             String behaviorRecovery = engine.exportSnapshot().encounters().stream().filter(e -> e.id().equals(encounterId))
                 .flatMap(e -> e.pending().values().stream()).filter(e -> e.intent() != null)
                 .map(e -> AbilityExecutors.recoveryReason(e.intent())).distinct().collect(java.util.stream.Collectors.joining("; "));
@@ -259,14 +270,8 @@ public final class EncounterLifecycleCoordinator {
                     "participant effect/native save order mismatch; prior settlement is not replayed");
                 unknown++;
             }
-            if (!regionLoaded || !allMembersPresent) {
-                UUID owner = state.members().keySet().iterator().next();
-                engine.recordRestoredUnknown(encounterId, UUID.randomUUID(), owner, owner, null,
-                    host.clock(), "restart cannot confirm loaded region and living members; control released without loading chunks");
-                unknown++;
-            }
             unknown += projectiles.reconcilePending(encounterId);
-            if (!allMembersPresent || unknown > 0) {
+            if (unknown > 0) {
                 LOGGER.warn("Restored encounter {} released: membersPresent={} unknownOperations={}",
                     encounterId, allMembersPresent, unknown);
                 stop(encounterId);
@@ -274,6 +279,7 @@ public final class EncounterLifecycleCoordinator {
                 projections.nextRevision(encounterId);
                 if (host.active()) world.scheduledTicks().captureAll(level);
                 recoveryPending.remove(encounterId);
+                turnStartedAt.put(encounterId, host.clock());
                 sync(engine.stateView(encounterId));
             }
             recoveryPending.remove(encounterId);
@@ -304,6 +310,8 @@ public final class EncounterLifecycleCoordinator {
 
     private void repairMergeBindings(ServerLevel level) {
         for (var binding : List.copyOf(mergeBindings.values())) {
+            // The recovery audit binds committed merges only after all participants are ready.
+            if (recoveryPending.contains(binding.primary())) continue;
             if (binding.phase() == CombatPersistenceEnvelope.MergePhase.BOUND || !engine.encounterIds().contains(binding.primary())) continue;
             // PREPARED is not proof that the rules committed. Only aliases/result evidence can establish that.
             boolean committed = binding.sources().stream().allMatch(id -> engine.canonicalEncounterId(id).equals(binding.primary()));
@@ -337,6 +345,7 @@ public final class EncounterLifecycleCoordinator {
     private void attemptPendingMerges(ServerLevel level) {
         repairMergeBindings(level);
         for (EncounterAuthority.MergePlan plan : List.copyOf(pendingMerges.values())) {
+            if (plan.encounters().stream().anyMatch(this::recovering)) continue;
             if (!plan.equals(pendingMerges.get(plan.primary()))) continue;
             if (!engine.encounterIds().containsAll(plan.encounters())) {
                 pendingMerges.remove(plan.primary());
@@ -465,6 +474,7 @@ public final class EncounterLifecycleCoordinator {
     public void reconcileMemberLocations() {
         requireThread();
         for (UUID encounterId : engine.encounterIds()) {
+            if (recovering(encounterId)) continue;
             StateView state = engine.stateView(encounterId);
             for (UUID memberId : state.members().keySet()) {
                 Entity member = null;
@@ -587,7 +597,6 @@ public final class EncounterLifecycleCoordinator {
         UUID encounterId = UUID.randomUUID();
         long nextSequence = projections.nextSequence();
         var captured = CombatPersistenceEnvelope.CapturedSettings.from(config);
-        Set<Long> chunks = exactRegionChunks(region);
         // Session settings must exist before beginCandidate fires the turn-start observer, because
         // that observer re-anchors the field through settingsFor.
         capturedSettings.put(encounterId, captured);
@@ -598,7 +607,8 @@ public final class EncounterLifecycleCoordinator {
             engine.setHostile(encounterId, relation.getValue(), relation.getKey(), true);
         }
         projections.bind(encounterId, nextSequence);
-        world.bind(encounterId, region);
+        // The first turn observer may already have expanded the field to all consenting players.
+        world.bind(encounterId, engine.stateView(encounterId).region());
         // Merge planning runs at beforeLevelTick. Queue capture follows the receipt commit.
         return engine.stateView(encounterId);
     }
@@ -687,30 +697,71 @@ public final class EncounterLifecycleCoordinator {
 
     public Set<UUID> stop(UUID encounterId) {
         requireThread();
-        if (engine.encounterIds().contains(encounterId)) for (UUID owner : engine.stateView(encounterId).members().keySet()) host.cancelAction(owner, "encounter stopped");
-        movement.finishEncounters(Set.of(encounterId), "encounter stopped");
-        if(engine.encounterIds().contains(encounterId)) for(UUID owner:engine.stateView(encounterId).members().keySet()) {
-            if(host.active() && resolve(owner) instanceof LivingEntity living) vanillaEffects.release(living);
+        if (!stopping.add(encounterId)) return Set.of();
+        try { return stopOwned(encounterId); }
+        finally { stopping.remove(encounterId); }
+    }
+
+    private Set<UUID> stopOwned(UUID encounterId) {
+        var closedBefore = engine.closedView(encounterId);
+        Set<UUID> owners = engine.encounterIds().contains(encounterId)
+            ? Set.copyOf(engine.stateView(encounterId).members().keySet())
+            : closedBefore == null ? Set.of() : Set.copyOf(closedBefore.members().keySet());
+        List<RuntimeException> failures = new ArrayList<>();
+        for (UUID owner : owners) releaseStep(failures, () -> {
+            UUID current = engine.encounterOf(owner);
+            if (current == null || current.equals(encounterId)) host.cancelAction(owner, "encounter stopped");
+        });
+        releaseStep(failures, () -> movement.finishEncounters(Set.of(encounterId), "encounter stopped"));
+        for (UUID owner : owners) releaseStep(failures, () -> {
+            UUID current = engine.encounterOf(owner);
+            if (current != null && !current.equals(encounterId)) return;
+            if (host.active() && resolve(owner) instanceof LivingEntity living) vanillaEffects.release(living);
             else vanillaEffects.forget(owner);
+        });
+        Set<UUID> released;
+        try { released = engine.end(encounterId); }
+        catch (RuntimeException failure) {
+            pendingStops.add(encounterId);
+            persistence.changed();
+            failures.forEach(failure::addSuppressed);
+            throw failure; // Rule ownership remains; do not expose its world as unowned.
         }
-        Set<UUID> released = engine.end(encounterId);
-        projectiles.revokeEndedProjectileDomains();
-        released.forEach(movement::forgetForce);
+        recoveryPending.remove(encounterId);
+        releaseStep(failures, projectiles::revokeEndedProjectileDomains);
+        for (UUID owner : owners) releaseStep(failures, () -> {
+            if (engine.encounterOf(owner) == null) movement.forgetForce(owner);
+        });
         world.unbind(encounterId);
         capturedSettings.remove(encounterId);
         turnStartedAt.remove(encounterId);
         discardMergesContaining(encounterId);
         mergeFailures.remove(encounterId);
         damageResolution.forget(encounterId);
-        world.scheduledTicks().releaseEncounter(encounterId);
+        releaseStep(failures, () -> world.scheduledTicks().releaseEncounter(encounterId));
         EncounterAuthority.View closed = engine.closedView(encounterId);
-        if (closed != null) for (UUID member : released) clear(member, encounterId, closed.version());
-        host.syncBodyStateTransitions();
+        if (closed != null) for (UUID member : owners)
+            releaseStep(failures, () -> clear(member, encounterId, closed.version()));
+        releaseStep(failures, host::syncBodyStateTransitions);
+        persistence.changed();
+        if (!failures.isEmpty()) {
+            pendingStops.add(encounterId);
+            RuntimeException failure = new IllegalStateException("encounter stopped with incomplete owner releases");
+            failures.forEach(failure::addSuppressed);
+            throw failure;
+        }
+        pendingStops.remove(encounterId);
         return released;
+    }
+
+    private static void releaseStep(List<RuntimeException> failures, Runnable release) {
+        try { release.run(); }
+        catch (RuntimeException failure) { failures.add(failure); }
     }
 
     public void leave(UUID entityId) {
         requireThread();
+        if (host.closing()) return;
         exitAuthorizations.revoke(entityId);
         if (worldOutcomeDepth > 0) {
             if (engine.encounterOf(entityId) != null) departuresDuringWorldOutcome.add(entityId);
@@ -751,7 +802,12 @@ public final class EncounterLifecycleCoordinator {
     public void enterOutcome() { worldOutcomeDepth++; }
     public void exitOutcome() { if (worldOutcomeDepth <= 0) throw new IllegalStateException("unbalanced outcome boundary"); worldOutcomeDepth--; }
     public int outcomeDepth() { return worldOutcomeDepth; }
-    public boolean recovering(UUID encounter) { return recoveryPending.contains(encounter); }
+    public boolean recovering(UUID encounter) {
+        return recoveryPending.contains(encounter) || pendingStops.contains(encounter) || stopping.contains(encounter);
+    }
+    public boolean waitingForRecovery(UUID member) {
+        return recoveryPending.contains(engine.encounterOf(member));
+    }
     public Map<UUID, CombatPersistenceEnvelope.CapturedSettings> capturedSettings() { return Map.copyOf(capturedSettings); }
     public Map<UUID, CombatPersistenceEnvelope.MergeBinding> mergeBindings() { return Map.copyOf(mergeBindings); }
     public Map<UUID, EncounterAuthority.MergePlan> pendingMerges() { return Map.copyOf(pendingMerges); }
@@ -855,6 +911,7 @@ public final class EncounterLifecycleCoordinator {
             || resolve(mob.getUUID()) != mob) return;
         UUID sourceDomain = engine.encounterOf(mob.getUUID());
         UUID targetDomain = engine.encounterOf(target.getUUID());
+        if (recovering(sourceDomain) || recovering(targetDomain)) return;
         if (sourceDomain == null && targetDomain == null) return;
         if (sourceDomain != null && targetDomain != null && !sourceDomain.equals(targetDomain)) {
             if (pendingMerges.values().stream().noneMatch(plan -> plan.encounters().contains(sourceDomain)
@@ -891,7 +948,7 @@ public final class EncounterLifecycleCoordinator {
         requireThread();
         if (attackerId.equals(targetId)) return false;
         UUID encounterId = engine.encounterOf(targetId);
-        if (encounterId == null || engine.encounterOf(attackerId) != null) return false;
+        if (encounterId == null || recovering(encounterId) || engine.encounterOf(attackerId) != null) return false;
         if (!engine.join(encounterId, attackerId)) return false;
         engine.setHostile(encounterId, attackerId, targetId, true);
         engine.setHostile(encounterId, targetId, attackerId, true);
@@ -902,6 +959,8 @@ public final class EncounterLifecycleCoordinator {
         return true;
     }
     public void reanchor(UUID encounterId) {
+        requireThread();
+        if (stopping.contains(encounterId) || pendingStops.contains(encounterId)) return;
         StateView state = engine.stateView(encounterId);
         EncounterRegion current = state.region();
         if (current == null) return;
@@ -929,16 +988,32 @@ public final class EncounterLifecycleCoordinator {
             next = MinecraftRegionSampler.capturePlayers(players.get(0).level(), players.get(0),
                 discovery, players, settings.regionRadius(), Math.addExact(current.version(), 1),
                 settings.maxSampledChunks(), settings.maxAnchors());
-        } catch (IllegalArgumentException | IllegalStateException samplingFailure) {
+        } catch (MinecraftRegionSampler.SamplingDeferred samplingFailure) {
             // Bounded, expected sampling failure (unloaded chunk / too large): keep the previous field.
             DebugDiagnostics.log("FIELD_REANCHOR_DEFERRED", () -> "encounter=" + encounterId
                 + " reason=" + samplingFailure.getMessage());
             return;
         }
-        var chunks = exactRegionChunks(next);
+        if (current.sameContent(next)) return;
+        var binding = WorldSimulationCoordinator.prepareBinding(next);
+        if (!world.scheduledTicks().canRebindMerge(Set.of(encounterId), next)) {
+            DebugDiagnostics.log("FIELD_REANCHOR_DEFERRED", () -> "encounter=" + encounterId
+                + " reason=held tick owner is not loaded");
+            return;
+        }
         // Commit: authoritative region first, then derived owners, then observers.
         engine.updateRegion(encounterId, next);
-        world.bind(encounterId, next);
+        try {
+            world.bind(encounterId, binding);
+            world.scheduledTicks().rebindRegion(encounterId);
+        } catch (RuntimeException failure) {
+            // The rule commit already happened. Release the session, never claim a rollback.
+            pendingStops.add(encounterId);
+            persistence.changed();
+            try { stop(encounterId); }
+            catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
+            throw new IllegalStateException("field committed but owner migration failed; encounter release attempted", failure);
+        }
         persistence.changed();
         sync(engine.stateView(encounterId));
     }
@@ -948,8 +1023,15 @@ public final class EncounterLifecycleCoordinator {
     public void tickDeadlines() {
         requireThread();
         if (host.closing()) return;
+        for (UUID failed : Set.copyOf(pendingStops)) {
+            try { stop(failed); }
+            catch (RuntimeException failure) {
+                LOGGER.warn("Encounter {} still awaits owner cleanup", failed, failure);
+            }
+        }
         long now = host.clock();
         for (UUID encounterId : List.copyOf(engine.encounterIds())) {
+            if (recovering(encounterId)) continue;
             StateView state = engine.stateView(encounterId);
             if (state.phase() != EncounterPhase.ACTIVE && state.phase() != EncounterPhase.CANDIDATE) continue;
             UUID current = state.current();
@@ -967,6 +1049,7 @@ public final class EncounterLifecycleCoordinator {
                 && evidence.phase() != AbilityCheckpoint.Phase.PREPARE) continue;
             UUID encounterId = engine.encounterOf(evidence.owner());
             if (encounterId == null || !engine.encounterIds().contains(encounterId)) continue;
+            if (recovering(encounterId)) continue;
             if (engine.pendingOperation(encounterId, evidence.operation()) == null) continue;
             if (host.actionRunning(evidence.owner())) continue;
             DebugDiagnostics.log("EXECUTION_DEADLINE_STOP", () -> "encounter=" + encounterId
@@ -1068,6 +1151,7 @@ public final class EncounterLifecycleCoordinator {
         return before.spawned().isEmpty() && !observed.spawned().isEmpty();
     }
     public void close() {
+        stopping.clear(); pendingStops.clear(); recoveryPending.clear();
         turnStartedAt.clear(); pendingDeaths.clear(); completedPlayerDeaths.clear(); departuresDuringWorldOutcome.clear();
     }
 

@@ -32,7 +32,6 @@ import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
 import cc.sighs.dndturn.platform.server.action.TriggeredAbilities;
 import cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController;
 import com.mojang.logging.LogUtils;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -560,49 +559,24 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             if (outcomes.outcomeDepth() == 0) outcomes.flushWorldOutcome();
         }
     }
-    private record PendingIntrusion(UUID attackerId, UUID targetId, long tick) {}
-    private final java.util.ArrayDeque<PendingIntrusion> pendingIntrusions = new java.util.ArrayDeque<>();
-    private static final int MAX_PENDING_INTRUSIONS = 256;
-    public void close() { pendingIntrusions.clear(); }
-
-    public boolean enqueueMeleeIntrusion(LivingEntity target, DamageSource source) {
+    /** The caller has canceled native damage; resolve before leaving that damage boundary. */
+    public boolean interceptMeleeIntrusion(LivingEntity target, DamageSource source) {
         requireThread();
-        Entity attacker = source.getEntity();
-        if (!(attacker instanceof LivingEntity) || source.getDirectEntity() != attacker) return false;
-        if (attacker.getUUID().equals(target.getUUID())) return false;
-        if (engine.encounterOf(target.getUUID()) == null) return false;
-        if (engine.encounterOf(attacker.getUUID()) != null) return false;
-        if (attacker instanceof ServerPlayer && target instanceof ServerPlayer) return false;
-        if (pendingIntrusions.size() >= MAX_PENDING_INTRUSIONS) {
-            DebugDiagnostics.log("INTRUSION_QUEUE_FULL", () -> "attacker=" + attacker.getUUID());
-            return false;
-        }
-        pendingIntrusions.add(new PendingIntrusion(attacker.getUUID(), target.getUUID(), host.clock()));
+        if (!(source.getEntity() instanceof LivingEntity attacker) || source.getDirectEntity() != attacker
+            || attacker == target || attacker.isDeadOrDying() || target.isDeadOrDying()
+            || attacker.level() != target.level() || host.resolve(attacker.getUUID()) != attacker
+            || host.resolve(target.getUUID()) != target
+            || attacker instanceof ServerPlayer && target instanceof ServerPlayer) return false;
+        UUID encounterId = engine.encounterOf(target.getUUID());
+        if (encounterId == null || engine.encounterOf(attacker.getUUID()) != null) return false;
+        StateView state = engine.stateView(encounterId);
+        if ((state.phase() != EncounterPhase.CANDIDATE && state.phase() != EncounterPhase.ACTIVE)
+            || engine.hasPendingOperations(encounterId)) return false;
+        if (!inMeleeReach(attacker, target) || MeleeAdapters.server().attacker(attacker) == null
+            || DamageReceivers.server().find(target) == null) return false;
+        if (!host.admitIntruder(attacker.getUUID(), target.getUUID())) return false;
+        UUID operation = UUID.randomUUID();
+        intrusionAttack(actorStates.context(attacker), target.getUUID(), operation, result -> {});
         return true;
-    }
-    public void drainIntrusionAttacks() {
-        requireThread();
-        for (PendingIntrusion pending = pendingIntrusions.poll(); pending != null; pending = pendingIntrusions.poll()) {
-            final PendingIntrusion current = pending;
-            try { resolveIntrusion(current); }
-            catch (RuntimeException failure) {
-                DebugDiagnostics.log("INTRUSION_ATTACK_FAILED", () -> "attacker=" + current.attackerId()
-                    + " target=" + current.targetId() + " error=" + failure.getMessage());
-            }
-        }
-    }
-    private void resolveIntrusion(PendingIntrusion pending) {
-        UUID encounterId = engine.encounterOf(pending.targetId());
-        if (encounterId == null) return;
-        if (!(host.resolve(pending.attackerId()) instanceof LivingEntity attacker) || attacker.isDeadOrDying()) return;
-        UUID attackerDomain = engine.encounterOf(pending.attackerId());
-        if (attackerDomain == null) {
-            if (!host.admitIntruder(pending.attackerId(), pending.targetId())) return;
-        } else if (!attackerDomain.equals(encounterId)) {
-            return; // cross-encounter interception is the merge contract, not an intrusion
-        }
-        UUID operation = UUID.nameUUIDFromBytes(("dndturn:intrusion:" + pending.attackerId() + ":"
-            + pending.targetId() + ":" + pending.tick()).getBytes(StandardCharsets.UTF_8));
-        intrusionAttack(actorStates.context(attacker), pending.targetId(), operation, result -> {});
     }
 }

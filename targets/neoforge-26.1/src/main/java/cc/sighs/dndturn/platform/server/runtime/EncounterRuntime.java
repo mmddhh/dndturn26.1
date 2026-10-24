@@ -386,7 +386,7 @@ public final class EncounterRuntime {
                 this::persistNow,
                 () -> { if (actions != null) actions.shutdown(); },
                 this::persistNow,
-                movement::close, world::close, combat::close, lifecycle::close,
+                movement::close, world::close, lifecycle::close,
                 projections::close, entityProjections::clear, () -> mobDecisions.retain(Set.of()))) {
             try { step.run(); }
             catch (RuntimeException error) { if (failure == null) failure = error; else if (failure != error) failure.addSuppressed(error); }

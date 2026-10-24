@@ -171,19 +171,28 @@ public final class RepairGameTests {
                 "frozen recovery settled or released an unaudited encounter");
             tickRate.setFrozen(false);
             tickRate.tick();
-            // This member deliberately has no world entity. Exercise the production audit,
-            // including its null-target UNKNOWN and subsequent release, not just decoding.
-            restored.world().beforeLevelTick(helper.getLevel());
-            helper.assertTrue(restored.encounterOf(member) == null,
-                "missing restored member retained control");
+            // An absent member is an availability wait, not evidence of an unknown effect.
+            for (int i = 0; i < 100; i++) {
+                restored.advancePersistenceClock();
+                restored.world().beforeLevelTick(helper.getLevel());
+                restored.lifecycle().tickDeadlines();
+            }
+            helper.assertTrue(beforeAudit.equals(restored.state(encounter))
+                && restored.lifecycle().recovering(encounter), "recovery wait advanced or released the encounter");
+            restored.persistIfChanged();
+            helper.assertTrue(saved.envelope().recoveryAudits().isEmpty()
+                && saved.envelope().rules().closed().isEmpty(), "availability wait fabricated terminal evidence");
+            restored.lifecycle().stop(encounter);
+            helper.assertTrue(restored.encounterOf(member) == null && !restored.lifecycle().recovering(encounter),
+                "explicit stop retained the waiting member");
             restored.persistIfChanged();
             var audited = saved.envelope();
             helper.assertTrue(audited.rules().encounters().isEmpty()
                 && audited.rules().closed().size() == 1,
-                "failed recovery was not archived");
+                "explicitly ended recovery was not archived");
             var results = audited.rules().closed().getFirst().results();
-            helper.assertTrue(results.stream().anyMatch(result -> result.outcome() == OperationRecord.Outcome.UNKNOWN
-                && result.snapshot().target() == null), "recovery lost its encounter-wide UNKNOWN evidence");
+            helper.assertTrue(results.stream().noneMatch(result -> result.outcome() == OperationRecord.Outcome.UNKNOWN),
+                "missing member alone produced UNKNOWN");
             helper.assertTrue(restored.projectiles().isProjectileQuarantined(arrow), "release removed projectile quarantine");
             restored.world().beforeLevelTick(helper.getLevel());
             restored.persistIfChanged();

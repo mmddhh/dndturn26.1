@@ -55,7 +55,6 @@ public final class MinecraftCombatRuntime {
             formal.finishMovementTicks();
             formal.lifecycle().reconcileMemberLocations();
             formal.lifecycle().tickDeadlines();
-            formal.combat().drainIntrusionAttacks();
             formal.advanceMobTurns();
             formal.flushResultPages();
             formal.syncBodyStateTransitions();
@@ -83,7 +82,7 @@ public final class MinecraftCombatRuntime {
             if (formal != null) {
                 formal.entityProjections().removeViewer(player.getUUID());
                 formal.lifecycle().consentDisconnected(player.getUUID());
-                formal.lifecycle().leave(player.getUUID());
+                if (!formal.lifecycle().waitingForRecovery(player.getUUID())) formal.lifecycle().leave(player.getUUID());
             }
         }
     }
@@ -110,8 +109,10 @@ public final class MinecraftCombatRuntime {
                 formal.projectiles().noteArrowLeave(event.getEntity());
             if (formal != null) {
                 formal.actorStates().detach(event.getEntity().getUUID());
-                formal.releaseVanillaEffects(event.getEntity());
-                formal.lifecycle().leave(event.getEntity().getUUID());
+                if (!formal.lifecycle().waitingForRecovery(event.getEntity().getUUID())) {
+                    formal.releaseVanillaEffects(event.getEntity());
+                    formal.lifecycle().leave(event.getEntity().getUUID());
+                }
             }
         }
     }

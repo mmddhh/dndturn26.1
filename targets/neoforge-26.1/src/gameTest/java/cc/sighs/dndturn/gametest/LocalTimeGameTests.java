@@ -285,6 +285,11 @@ public final class LocalTimeGameTests {
             UUID encounter = service.encounterOf(first.getUUID());
             helper.assertTrue(encounter != null && encounter.equals(service.encounterOf(second.getUUID()))
                     && encounter.equals(service.encounterOf(third.getUUID())), "all consent did not create one shared session");
+            var field = service.state(encounter).region();
+            helper.assertTrue(field.anchors().size() == 3
+                && field.sameContent(service.world().regions().get(encounter))
+                && field.version() == service.world().regions().get(encounter).version(),
+                "start binding overwrote the first-turn field with the original single-player sample");
             long version = service.state(encounter).version();
             service.lifecycle().respondToConsent(second, reply);
             helper.assertTrue(service.state(encounter).version() == version, "duplicate consent changed the encounter");
@@ -544,18 +549,18 @@ public final class LocalTimeGameTests {
         // This is a fixture deadline; no projectile lifetime or production budget changes.
         int settlementDeadline = 1200;
         int arenaX = pvp ? 12288 : removePending ? 10240 : miss ? 8192 : reverse ? 6144 : 3072;
-        int sourceX = reverse ? 24 : 0;
-        int destinationX = reverse ? 0 : 24;
+        int sourceX = reverse ? 96 : 0;
+        int destinationX = reverse ? 0 : 96;
         BlockPos anchor = helper.absolutePos(new BlockPos(arenaX, 141, 1));
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
-        ServerPlayer first = helper.makeMockServerPlayerInLevel();
-        ServerPlayer second = helper.makeMockServerPlayerInLevel();
+        ServerPlayer first = TestPlayers.survival(helper);
+        ServerPlayer second = TestPlayers.survival(helper);
         first.connection.markClientLoaded();
         second.connection.markClientLoaded();
         first.teleportTo(anchor.getX() + sourceX + 0.5, anchor.getY(), anchor.getZ() + 2.5);
         second.teleportTo(anchor.getX() + destinationX + 0.5, anchor.getY(), anchor.getZ() + 2.5);
-        for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
-            for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++) {
+        for (int x = (anchor.getX() - 48) >> 4; x <= (anchor.getX() + 144) >> 4; x++)
+            for (int z = (anchor.getZ() - 48) >> 4; z <= (anchor.getZ() + 48) >> 4; z++) {
                 helper.getLevel().getChunk(x, z);
                 helper.getLevel().setChunkForced(x, z, true);
             }
@@ -600,8 +605,8 @@ public final class LocalTimeGameTests {
                     helper.succeed();
                 } finally {
                     service.lifecycle().stop(firstId); service.lifecycle().stop(secondId);
-                    for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
-                        for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
+                    for (int x = (anchor.getX() - 48) >> 4; x <= (anchor.getX() + 144) >> 4; x++)
+                        for (int z = (anchor.getZ() - 48) >> 4; z <= (anchor.getZ() + 48) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
                 }
                 return;
@@ -628,8 +633,8 @@ public final class LocalTimeGameTests {
                     net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(removalProbe);
                     service.lifecycle().stop(firstId);
                     if (!firstId.equals(secondId)) service.lifecycle().stop(secondId);
-                    for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
-                        for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
+                    for (int x = (anchor.getX() - 48) >> 4; x <= (anchor.getX() + 144) >> 4; x++)
+                        for (int z = (anchor.getZ() - 48) >> 4; z <= (anchor.getZ() + 48) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
                 }
                 return;
@@ -647,8 +652,8 @@ public final class LocalTimeGameTests {
                         helper.succeed();
                     } finally {
                         service.lifecycle().stop(firstId);
-                        for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
-                            for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
+                        for (int x = (anchor.getX() - 48) >> 4; x <= (anchor.getX() + 144) >> 4; x++)
+                            for (int z = (anchor.getZ() - 48) >> 4; z <= (anchor.getZ() + 48) >> 4; z++)
                                 helper.getLevel().setChunkForced(x, z, false);
                     }
                     return;
@@ -663,8 +668,8 @@ public final class LocalTimeGameTests {
             }
         });
         helper.startSequence().thenWaitUntil(() -> {
-            for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
-                for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++) {
+            for (int x = (anchor.getX() - 48) >> 4; x <= (anchor.getX() + 144) >> 4; x++)
+                for (int z = (anchor.getZ() - 48) >> 4; z <= (anchor.getZ() + 48) >> 4; z++) {
                     long chunk = new net.minecraft.world.level.ChunkPos(x, z).pack();
                     helper.assertTrue(helper.getLevel().shouldTickBlocksAt(chunk)
                         && helper.getLevel().areEntitiesLoaded(chunk), "cross-session collision arena not ticking yet");
@@ -672,6 +677,8 @@ public final class LocalTimeGameTests {
         }).thenExecute(() -> {
             first.teleportTo(anchor.getX() + sourceX + 0.5, anchor.getY(), anchor.getZ() + 2.5);
             second.teleportTo(anchor.getX() + destinationX + 0.5, anchor.getY(), anchor.getZ() + 2.5);
+            shooterNeighbor.setTarget(first);
+            target.setTarget(second);
             var a = startEncounter(helper, first);
             StateView b;
             try {
@@ -739,8 +746,8 @@ public final class LocalTimeGameTests {
                     service.lifecycle().stop(primary);
                     UUID remaining = service.encounterOf(second.getUUID());
                     if (remaining != null) service.lifecycle().stop(remaining);
-                    for (int x = (anchor.getX() - 24) >> 4; x <= (anchor.getX() + 48) >> 4; x++)
-                        for (int z = (anchor.getZ() - 24) >> 4; z <= (anchor.getZ() + 24) >> 4; z++)
+                    for (int x = (anchor.getX() - 48) >> 4; x <= (anchor.getX() + 144) >> 4; x++)
+                        for (int z = (anchor.getZ() - 48) >> 4; z <= (anchor.getZ() + 48) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);
                 }
             });
@@ -924,8 +931,8 @@ public final class LocalTimeGameTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         BlockPos anchor = helper.absolutePos(new BlockPos(arenaX, arenaY, 1));
         player.teleportTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
-        for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
-            for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++) {
+        for (int x = (anchor.getX() - 64) >> 4; x <= (anchor.getX() + 64) >> 4; x++)
+            for (int z = (anchor.getZ() - 64) >> 4; z <= (anchor.getZ() + 64) >> 4; z++) {
                 helper.getLevel().getChunk(x, z);
                 helper.getLevel().setChunkForced(x, z, true);
             }
@@ -938,13 +945,13 @@ public final class LocalTimeGameTests {
         helper.runAtTickTime(2, () -> {
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         StateView state = startEncounter(helper, player);
-        Arrow crossing = new Arrow(helper.getLevel(), anchor.getX() - 12, anchor.getY() + 1,
+        Arrow crossing = new Arrow(helper.getLevel(), anchor.getX() - 48, anchor.getY() + 1,
             anchor.getZ() + 0.5, new ItemStack(Items.ARROW), null);
         crossing.setNoGravity(true);
-        crossing.setDeltaMovement(24, 0, 0);
+        crossing.setDeltaMovement(96, 0, 0);
         helper.getLevel().addFreshEntity(crossing);
-        Arrow outside = new Arrow(helper.getLevel(), anchor.getX() - 12, anchor.getY() + 1,
-            anchor.getZ() + 25.5, new ItemStack(Items.ARROW), null);
+        Arrow outside = new Arrow(helper.getLevel(), anchor.getX() - 48, anchor.getY() + 1,
+            anchor.getZ() + 48.5, new ItemStack(Items.ARROW), null);
         outside.setNoGravity(true);
         outside.setDeltaMovement(1, 0, 0);
         helper.getLevel().addFreshEntity(outside);
@@ -969,15 +976,15 @@ public final class LocalTimeGameTests {
                         helper.succeed();
                     } finally {
                         service.lifecycle().stop(next.id());
-                        for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
-                            for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
+                        for (int x = (anchor.getX() - 64) >> 4; x <= (anchor.getX() + 64) >> 4; x++)
+                            for (int z = (anchor.getZ() - 64) >> 4; z <= (anchor.getZ() + 64) >> 4; z++)
                                 helper.getLevel().setChunkForced(x, z, false);
                     }
                 });
             } catch (RuntimeException | Error failure) {
                 service.lifecycle().stop(state.id());
-                for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
-                    for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
+                for (int x = (anchor.getX() - 64) >> 4; x <= (anchor.getX() + 64) >> 4; x++)
+                    for (int z = (anchor.getZ() - 64) >> 4; z <= (anchor.getZ() + 64) >> 4; z++)
                         helper.getLevel().setChunkForced(x, z, false);
                 throw failure;
             }
@@ -1105,27 +1112,28 @@ public final class LocalTimeGameTests {
             firstPlayer.connection.markClientLoaded();
             secondPlayer.connection.markClientLoaded();
             BlockPos origin = helper.absolutePos(new BlockPos(1, 221, 1));
-            for (int x = 0; x <= 10; x++) for (int z = 0; z <= 3; z++)
+            for (int x = 0; x <= 128; x++) for (int z = 0; z <= 3; z++)
                 helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 220, z)),
                     Blocks.STONE.defaultBlockState());
             firstPlayer.setPos(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5);
-            secondPlayer.setPos(origin.getX() + 6.5, origin.getY(), origin.getZ() + 0.5);
-            for (int x = (origin.getX() - 24) >> 4; x <= (origin.getX() + 32) >> 4; x++)
-                for (int z = (origin.getZ() - 24) >> 4; z <= (origin.getZ() + 24) >> 4; z++)
+            secondPlayer.setPos(origin.getX() + 120.5, origin.getY(), origin.getZ() + 0.5);
+            for (int x = (origin.getX() - 48) >> 4; x <= (origin.getX() + 168) >> 4; x++)
+                for (int z = (origin.getZ() - 48) >> 4; z <= (origin.getZ() + 48) >> 4; z++)
                     {
                         helper.getLevel().getChunk(x, z);
                         helper.getLevel().setChunkForced(x, z, true);
                     }
             helper.startSequence().thenWaitUntil(() -> {
-                for (int x = (origin.getX() - 24) >> 4; x <= (origin.getX() + 32) >> 4; x++)
-                    for (int z = (origin.getZ() - 24) >> 4; z <= (origin.getZ() + 24) >> 4; z++) {
+                for (int x = (origin.getX() - 48) >> 4; x <= (origin.getX() + 168) >> 4; x++)
+                    for (int z = (origin.getZ() - 48) >> 4; z <= (origin.getZ() + 48) >> 4; z++) {
                         long key = new net.minecraft.world.level.ChunkPos(x, z).pack();
                         helper.assertTrue(helper.getLevel().shouldTickBlocksAt(key)
                             && helper.getLevel().areEntitiesLoaded(key), "merge arena is not yet ticking");
                     }
             }).thenExecute(() -> {
             Zombie firstMob = helper.spawn(EntityType.ZOMBIE, new BlockPos(2, 221, 2));
-            Zombie secondMob = helper.spawn(EntityType.ZOMBIE, new BlockPos(8, 221, 2));
+            Zombie secondMob = helper.spawn(EntityType.ZOMBIE, new BlockPos(122, 221, 2));
+            firstMob.setNoAi(true); secondMob.setNoAi(true);
             // The field only admits mobs with an actual directed lock; presence alone is not enough.
             firstMob.setTarget(firstPlayer);
             secondMob.setTarget(secondPlayer);
@@ -1136,11 +1144,21 @@ public final class LocalTimeGameTests {
             secondPlayer.teleportTo(secondPosition.x, secondPosition.y, secondPosition.z);
             UUID secondId = startEncounter(helper, secondPlayer).id();
             helper.assertFalse(firstId.equals(secondId), "merge fixture did not create two sessions");
+            helper.assertFalse(service.state(firstId).region().overlaps(service.state(secondId).region()),
+                "Mob causal merge fixture already overlaps");
+            firstMob.setTarget(secondMob);
+            helper.assertTrue(service.lifecycle().pendingMerges().values().stream().anyMatch(plan ->
+                plan.encounters().contains(firstId) && plan.encounters().contains(secondId)),
+                "committed Mob target did not request a causal merge");
+            var pendingMerge = service.lifecycle().pendingMerges();
+            firstMob.setTarget(secondMob);
+            helper.assertTrue(pendingMerge.equals(service.lifecycle().pendingMerges()),
+                "duplicate Mob target replaced the pending merge");
             long firstProjection = service.sessionProjectionSequence(firstId);
             long secondProjection = service.sessionProjectionSequence(secondId);
             helper.assertTrue(firstProjection < secondProjection,
                 "fixture did not create the source-order counterexample");
-            BlockPos held = helper.absolutePos(new BlockPos(8, 221, 3));
+            BlockPos held = helper.absolutePos(new BlockPos(122, 221, 3));
             helper.getLevel().setBlockAndUpdate(held,
                 Blocks.REDSTONE_LAMP.defaultBlockState().setValue(RedstoneLampBlock.LIT, true));
             helper.getLevel().getBlockTicks().schedule(new ScheduledTick<>(Blocks.REDSTONE_LAMP,
@@ -1169,10 +1187,13 @@ public final class LocalTimeGameTests {
                 helper.assertTrue(canonical != null && canonical.equals(service.encounterOf(secondPlayer.getUUID()))
                     && canonical.equals(service.encounterOf(firstMob.getUUID()))
                     && canonical.equals(service.encounterOf(secondMob.getUUID())),
-                    "overlapping sessions did not merge at the real world tick boundary; first=" + canonical
+                    "Mob-linked sessions did not merge at the real world tick boundary; first=" + canonical
                         + " second=" + service.encounterOf(secondPlayer.getUUID())
                         + " firstMob=" + service.encounterOf(firstMob.getUUID())
                         + " secondMob=" + service.encounterOf(secondMob.getUUID()));
+                helper.assertTrue(cc.sighs.dndturn.platform.server.action.ActionTestAccess.authority(service.actions())
+                    .isHostile(canonical, firstMob.getUUID(), secondMob.getUUID()),
+                    "merged Mob target lost its hostility");
                 helper.assertTrue(service.sessionProjectionSequence(canonical) > secondProjection,
                     "merged primary reused a projection sequence older than a source tombstone");
                 helper.assertTrue(service.lifecycle().results(canonical, 0, 100).results().stream()
@@ -1225,8 +1246,8 @@ public final class LocalTimeGameTests {
                         helper.succeed();
                     } finally {
                         service.lifecycle().stop(canonical);
-                        for (int x = (origin.getX() - 24) >> 4; x <= (origin.getX() + 32) >> 4; x++)
-                            for (int z = (origin.getZ() - 24) >> 4; z <= (origin.getZ() + 24) >> 4; z++)
+                        for (int x = (origin.getX() - 48) >> 4; x <= (origin.getX() + 168) >> 4; x++)
+                            for (int z = (origin.getZ() - 48) >> 4; z <= (origin.getZ() + 48) >> 4; z++)
                                 helper.getLevel().setChunkForced(x, z, false);
                     }
                 });
@@ -1355,8 +1376,10 @@ public final class LocalTimeGameTests {
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         var started = startEncounter(helper, player);
         UUID exitId = UUID.randomUUID();
-        if (!player.getUUID().equals(service.state(started.id()).current()))
+        // Candidate activation rerolls initiative; ending the first Mob turn need not select the player.
+        for (int turn = 0; turn < 2 && !player.getUUID().equals(service.state(started.id()).current()); turn++)
             service.combat().endCurrentTurn(started.id(), UUID.randomUUID(), service.state(started.id()).version());
+        helper.assertTrue(player.getUUID().equals(service.state(started.id()).current()), "EXIT fixture has not reached the player turn");
         long version = service.state(started.id()).version();
         boolean insideRejected = false;
         try { service.lifecycle().exitEncounter(player, started.id(), exitId, version); }
@@ -2264,7 +2287,31 @@ public final class LocalTimeGameTests {
                     "reloaded scheduled tick ran before the paused encounter advanced");
                 helper.assertTrue(helper.getLevel().getBlockTicks().hasScheduledTick(inside, Blocks.REDSTONE_LAMP),
                     "reloaded scheduled tick was lost during paused recapture");
-                service.lifecycle().stop(state.id());
+                service.lifecycle().reanchor(state.id());
+                var anchored = service.state(state.id());
+                service.lifecycle().reanchor(state.id());
+                helper.assertTrue(service.state(state.id()).version() == anchored.version()
+                    && service.state(state.id()).region().version() == anchored.region().version(),
+                    "unchanged field invalidated rule or region revision");
+                Vec3 loadedPosition = player.position();
+                player.setPos(player.getX() + 100000, player.getY(), player.getZ());
+                service.lifecycle().reanchor(state.id());
+                helper.assertTrue(service.state(state.id()).equals(anchored)
+                    && RegionalScheduledTicks.isHeld(helper.getLevel().getBlockTicks(), inside, Blocks.REDSTONE_LAMP),
+                    "failed sampling partially committed the field or released a held tick");
+                player.setPos(loadedPosition.x, loadedPosition.y, loadedPosition.z);
+                player.setPos(player.getX(), player.getY() + 40, player.getZ());
+                service.lifecycle().reanchor(state.id());
+                helper.assertTrue(service.state(state.id()).region().version() == anchored.region().version() + 1
+                    && service.state(state.id()).members().equals(anchored.members())
+                    && service.state(state.id()).environmentRemaining() == anchored.environmentRemaining(),
+                    "reanchor changed resources or did not update the field once");
+                helper.assertFalse(RegionalScheduledTicks.isHeld(helper.getLevel().getBlockTicks(), inside, Blocks.REDSTONE_LAMP),
+                    "departing field retained a scheduled tick under its old owner");
+                helper.assertTrue(helper.getLevel().getChunkAt(inside)
+                    .getTicksForSerialization(helper.getLevel().getGameTime()).blocks().stream()
+                    .filter(tick -> tick.pos().equals(inside) && tick.type() == Blocks.REDSTONE_LAMP && tick.delay() == 1)
+                    .count() == 1, "field release lost remaining delay or duplicated a tick");
                 helper.assertTrue(helper.getLevel().getBlockTicks().hasScheduledTick(preexisting,
                     Blocks.REDSTONE_LAMP) && helper.getLevel().getBlockTicks().hasScheduledTick(inside,
                     Blocks.REDSTONE_LAMP), "encounter exit did not return held ticks to vanilla");
@@ -2281,8 +2328,43 @@ public final class LocalTimeGameTests {
                             + " powered=" + helper.getLevel().hasNeighborSignal(preexisting));
                     helper.assertFalse(helper.getLevel().getBlockState(inside).getValue(RedstoneLampBlock.LIT),
                         "normal encounter exit did not return the held tick to vanilla");
+                    // A missing native queue container must not prevent other owners from releasing.
+                    BlockPos blocked = player.blockPosition();
+                    BlockPos releasable = blocked.offset(16, 0, 0);
+                    var queue = helper.getLevel().getBlockTicks();
+                    helper.getLevel().scheduleTick(blocked, Blocks.REDSTONE_LAMP, 9);
+                    helper.getLevel().scheduleTick(releasable, Blocks.REDSTONE_LAMP, 11);
+                    helper.assertTrue(RegionalScheduledTicks.isHeld(queue, blocked, Blocks.REDSTONE_LAMP)
+                        && RegionalScheduledTicks.isHeld(queue, releasable, Blocks.REDSTONE_LAMP),
+                        "release fault fixture did not capture both ticks");
+                    var containers = ((cc.sighs.dndturn.platform.mixin.server.control.LevelTicksAccessor<net.minecraft.world.level.block.Block>) queue)
+                        .dndturn$containers();
+                    long chunk = net.minecraft.world.level.ChunkPos.pack(blocked);
+                    var missing = containers.remove(chunk);
+                    try {
+                        boolean failed = false;
+                        try { service.lifecycle().stop(state.id()); }
+                        catch (IllegalStateException expected) { failed = true; }
+                        helper.assertTrue(failed && service.lifecycle().recovering(state.id())
+                            && service.encounterOf(player.getUUID()) == null,
+                            "partial cleanup was reported as successful or retained rule membership");
+                        helper.assertTrue(RegionalScheduledTicks.isHeld(queue, blocked, Blocks.REDSTONE_LAMP)
+                            && !RegionalScheduledTicks.isHeld(queue, releasable, Blocks.REDSTONE_LAMP)
+                            && queue.hasScheduledTick(releasable, Blocks.REDSTONE_LAMP),
+                            "failed release lost its tick or skipped another chunk");
+                    } finally {
+                        containers.put(chunk, missing);
+                    }
+                    service.lifecycle().tickDeadlines();
+                    service.lifecycle().stop(state.id());
+                    helper.assertFalse(service.lifecycle().recovering(state.id()), "cleanup retry stayed blocked");
+                    helper.assertTrue(helper.getLevel().getChunkAt(blocked)
+                        .getTicksForSerialization(helper.getLevel().getGameTime()).blocks().stream()
+                        .filter(tick -> tick.pos().equals(blocked) && tick.type() == Blocks.REDSTONE_LAMP && tick.delay() == 9)
+                        .count() == 1, "cleanup retry duplicated a tick or changed its remaining delay");
                     helper.succeed();
                 } finally {
+                    service.lifecycle().stop(state.id());
                     for (int chunkX = (playerPos.getX() - 16) >> 4;
                          chunkX <= (playerPos.getX() + 16) >> 4; chunkX++)
                         for (int chunkZ = (playerPos.getZ() - 16) >> 4;

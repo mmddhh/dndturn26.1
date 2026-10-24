@@ -64,7 +64,17 @@ public final class WorldSimulationCoordinator implements RegionalScheduledTicks.
     public RegionalScheduledTicks scheduledTicks() { return scheduledTicks; }
     public Map<UUID, EncounterRegion> regions() { return Map.copyOf(regions); }
     public Set<Long> chunks(UUID encounter) { return regionChunks.getOrDefault(encounter, Set.of()); }
-    public void bind(UUID encounter, EncounterRegion region) { var chunks = exactRegionChunks(region); regions.put(encounter, region); regionChunks.put(encounter, chunks); }
+    public record RegionBinding(EncounterRegion region, Set<Long> chunks) {
+        public RegionBinding { Objects.requireNonNull(region); chunks = Set.copyOf(chunks); }
+    }
+    public static RegionBinding prepareBinding(EncounterRegion region) {
+        return new RegionBinding(region, exactRegionChunks(region));
+    }
+    public void bind(UUID encounter, EncounterRegion region) { bind(encounter, prepareBinding(region)); }
+    public void bind(UUID encounter, RegionBinding binding) {
+        regions.put(encounter, binding.region());
+        regionChunks.put(encounter, binding.chunks());
+    }
     public void unbind(UUID encounter) { regions.remove(encounter); regionChunks.remove(encounter); environmentStepStartedAt.remove(encounter); }
     public void advanceClock() { simulationDecisions.clear(); }
     public void close() {
@@ -394,6 +404,7 @@ public final class WorldSimulationCoordinator implements RegionalScheduledTicks.
     public void expireStepDeadlines(long limit) {
         long now = host.clock();
         for (UUID encounterId : List.copyOf(engine.encounterIds())) {
+            if (host.blocked(encounterId)) continue;
             StateView state = engine.stateView(encounterId);
             UUID step = engine.authorizedEnvironmentStep(encounterId);
             if (step == null) { environmentStepStartedAt.remove(encounterId); continue; }

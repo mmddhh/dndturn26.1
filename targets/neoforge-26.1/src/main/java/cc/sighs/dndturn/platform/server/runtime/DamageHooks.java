@@ -37,7 +37,7 @@ public final class DamageHooks {
                 && !WorldOutcomePolicy.unscopedDamage(AuthorityProjection.incomingDamage(event.getEntity(), event.getSource())).allowed()) {
             event.setCanceled(true);
             var runtime = ServerRuntime.existingEncounter(((ServerLevel)event.getEntity().level()).getServer());
-            if (runtime != null && runtime.combat().enqueueMeleeIntrusion(event.getEntity(), event.getSource())) return;
+            if (runtime != null && runtime.combat().interceptMeleeIntrusion(event.getEntity(), event.getSource())) return;
             if (event.getEntity() instanceof ServerPlayer player)
                 player.sendOverlayMessage(Component.literal("DNDTurn: unsupported external damage rejected"));
         }
