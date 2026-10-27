@@ -71,8 +71,8 @@ class EffectInvocationTest {
         assertEquals(TriggeredExecutionRecord.Status.PENDING, output.status());
     }
     @Test void nativeRankIsOneBasedAndRejectsZero() {
-        var effect = new EffectSnapshot.Vanilla("minecraft:strength", 1, -1, false, true);
+        var effect = new EffectSnapshot.Vanilla("minecraft:strength", 1, -1, false, true, -2, EffectSnapshot.NativeSupport.NATIVE);
         assertEquals(0, effect.amplifier()); assertEquals(1, effect.rank());
-        assertThrows(IllegalArgumentException.class, () -> new EffectSnapshot.Vanilla("minecraft:strength", 0, 20, false, true));
+        assertThrows(IllegalArgumentException.class, () -> new EffectSnapshot.Vanilla("minecraft:strength", 0, 20, false, true, -2, EffectSnapshot.NativeSupport.NATIVE));
     }
 }

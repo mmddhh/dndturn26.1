@@ -10,7 +10,7 @@ public final class OperationRecord {
     private OperationRecord() {}
 
     public enum Kind { START, JOIN, MERGE, MOVE, ATTACK, DASH, DODGE, DISENGAGE, HELP, END_TURN, DAMAGE, ENVIRONMENT, INTERRUPT,
-        PLAN, PLACE, BREAK, USE_ITEM, USE_BLOCK, TRIGGERED }
+        PLAN, PLACE, BREAK, USE_ITEM, USE_BLOCK, TRIGGERED, NATIVE_EFFECT }
     public enum Outcome {
         ACCEPTED(0), COMPLETED(1), PARTIAL(2), REJECTED(3), INTERRUPTED(4), UNKNOWN(5);
         private final int code;

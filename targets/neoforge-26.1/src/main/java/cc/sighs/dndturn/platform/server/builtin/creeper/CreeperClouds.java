@@ -2,7 +2,7 @@ package cc.sighs.dndturn.platform.server.builtin.creeper;
 
 import cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord;
 import cc.sighs.dndturn.platform.mixin.server.effect.CreeperCloudAccess;
-import cc.sighs.dndturn.platform.observation.VanillaEffectTypes;
+import cc.sighs.dndturn.platform.server.effect.vanilla.EffectAdapters;
 import cc.sighs.dndturn.platform.server.control.WorldOutcomePolicy;
 import cc.sighs.dndturn.platform.server.action.TriggeredAbilities;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
@@ -35,7 +35,7 @@ public final class CreeperClouds {
                     || body.getRadiusPerTick() != -2.5F / 300) return false;
             int count = 0;
             for (var effect : ((CreeperCloudAccess)body).dndturn$potionContents().getAllEffects())
-                if (++count > 32 || !VanillaEffectTypes.supported(effect)) return false;
+                if (++count > 32 || (effect.getEffect().value().isInstantenous() || !EffectAdapters.supported(effect))) return false;
             var tag = cloud.getPersistentData();
             UUID actor = UUID.fromString(tag.getStringOr(ACTOR, "")), operation = UUID.fromString(tag.getStringOr(OPERATION, ""));
             var invocation = service.invocation(operation);

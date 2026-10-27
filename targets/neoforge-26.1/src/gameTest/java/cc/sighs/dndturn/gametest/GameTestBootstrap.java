@@ -18,6 +18,7 @@ import net.neoforged.fml.common.Mod;
 public final class GameTestBootstrap {
     public GameTestBootstrap(IEventBus bus) {
         SeededGameTests.register();
+        cc.sighs.dndturn.platform.server.encounter.ParticipantEffectsChecks.register(bus);
         ArcheryExtension.register();
         LocalTimeGameTests.TEST_FUNCTIONS.register("mob_standardization_automatic", () -> MobStandardizationChecks::automatic);
         LocalTimeGameTests.TEST_FUNCTIONS.register("mob_standardization_miss", () -> MobStandardizationChecks::miss);

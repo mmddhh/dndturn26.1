@@ -8,7 +8,7 @@ import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.*;
 
-@Mixin({PoisonMobEffect.class, WitherMobEffect.class})
+@Mixin(targets={"net.minecraft.world.effect.PoisonMobEffect", "net.minecraft.world.effect.WitherMobEffect", "net.minecraft.world.effect.HealOrHarmMobEffect"})
 public abstract class PeriodicDamageRoundMixin {
     @Redirect(method="applyEffectTick", at=@At(value="INVOKE", target="Lnet/minecraft/world/entity/LivingEntity;hurtServer(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;F)Z"))
     private boolean dndturn$periodicDamage(LivingEntity target, ServerLevel level, DamageSource source, float amount) {

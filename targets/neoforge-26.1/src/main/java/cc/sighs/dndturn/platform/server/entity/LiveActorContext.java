@@ -15,6 +15,7 @@ public record LiveActorContext(LivingEntity body, Facts facts) {
         UUID encounterAtBlock(ServerLevel level, net.minecraft.core.BlockPos pos);
         boolean ownsProjectile(ServerPlayer owner, net.minecraft.world.entity.projectile.Projectile projectile);
         String fault(UUID actor);
+        cc.sighs.dndturn.domain.effect.EffectSnapshot.Vanilla effect(LivingEntity actor, net.minecraft.world.effect.MobEffectInstance effect);
         boolean hostile(UUID encounter, UUID actor, UUID target);
         void requireAbilityWork(UUID actor, UUID encounter, cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget.Work work);
     }

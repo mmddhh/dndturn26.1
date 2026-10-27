@@ -12,9 +12,11 @@ public final class VanillaEffectSettlementState {
     private VanillaEffectSettlementState() {}
     public static final String POLICY = "dndturn:participant_round_effects";
     public static final int VERSION = 1;
-    public record Timer(UUID instance, int amplifier, int expectedNativeTicks, RoundDuration duration) {
+    public record Timer(UUID instance, int amplifier, int expectedNativeTicks, RoundDuration duration, String adapter, int semanticVersion) {
         public Timer {
             Objects.requireNonNull(instance); Objects.requireNonNull(duration);
+            cc.sighs.dndturn.domain.fact.FactKey.requireId(adapter);
+            if (semanticVersion < 1) throw new IllegalArgumentException("effect semantics");
             if (amplifier < 0 || amplifier > 255 || expectedNativeTicks < -1
                 || expectedNativeTicks != duration.nativeTicks())
                 throw new IllegalArgumentException("invalid native timer evidence");

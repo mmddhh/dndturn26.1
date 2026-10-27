@@ -32,6 +32,15 @@ class ParticipantEffectTest {
         UUID owner=view.current(),other=owner.equals(a)?b:a, op=UUID.randomUUID();
         var root=new OperationRecord.Snapshot(op,null,id,owner,owner,null,1,view.version(),null,null,OperationRecord.Kind.END_TURN);
         assertTrue(engine.beginOperation(root));
+        var unscoped=new OperationRecord.Snapshot(UUID.randomUUID(),null,id,owner,owner,owner,1,engine.stateView(id).version(),null,null,OperationRecord.Kind.NATIVE_EFFECT);
+        assertFalse(engine.beginOperation(unscoped));
+        UUID nativePermit=UUID.randomUUID();
+        engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(nativePermit,id,op,owner,Set.of(owner),Set.of(EncounterPhase.CANDIDATE),1,0));
+        var nativeEffect=new OperationRecord.Snapshot(UUID.randomUUID(),op,id,owner,owner,owner,1,engine.stateView(id).version(),null,null,OperationRecord.Kind.NATIVE_EFFECT);
+        assertTrue(engine.beginOperation(nativeEffect,nativePermit));
+        engine.publish(id,nativeEffect.operationId(),0,OperationRecord.Outcome.COMPLETED,"instant native effect",0,0,true);
+        var exhausted=new OperationRecord.Snapshot(UUID.randomUUID(),op,id,owner,owner,owner,1,engine.stateView(id).version(),null,null,OperationRecord.Kind.NATIVE_EFFECT);
+        assertFalse(engine.beginOperation(exhausted,nativePermit));
         long before=engine.stateView(id).version();
         assertThrows(IllegalArgumentException.class,()->engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(UUID.randomUUID(),id,op,owner,
             Set.of(other),Set.of(EncounterPhase.CANDIDATE),1,0)));

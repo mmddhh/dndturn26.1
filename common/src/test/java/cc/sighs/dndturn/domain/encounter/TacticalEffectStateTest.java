@@ -103,7 +103,7 @@ class TacticalEffectStateTest {
         var value = effect(d, UUID.randomUUID(), source, 2, 3, 1);
         apply(owner, new ActorStates.Apply(value));
         var projected = EffectSnapshot.Tactical.capture(value);
-        var nativeEffect = new EffectSnapshot.Vanilla("minecraft:strength", 4, -1, false, true);
+        var nativeEffect = new EffectSnapshot.Vanilla("minecraft:strength", 4, -1, false, true, -2, EffectSnapshot.NativeSupport.NATIVE);
         var effects = new ArrayList<EffectSnapshot>(List.of(projected, nativeEffect));
         var facts = new FactSlice(Map.of(), Map.of());
         var actorDefinition = new ActorDefinition("test:actor", 1, Set.of(), facts);

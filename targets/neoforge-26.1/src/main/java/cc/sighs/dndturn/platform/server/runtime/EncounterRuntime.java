@@ -98,6 +98,7 @@ public final class EncounterRuntime {
         public DamageTrace rangedTrace(LivingEntity actor, UUID target, UUID operation, boolean opening) { return EncounterRuntime.this.rangedTrace(actor, target, operation, opening); }
     };
     private final ActionEffects actionEffects = new ActionEffects() {
+        public cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController.ApplicationScope applications(java.util.function.Supplier<cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Snapshot> root, java.util.List<LivingEntity> targets) { return vanillaEffects.applications(root,targets); }
         public void drainImmediateTriggers(LiveActorContext actor, UUID encounter, UUID parent) { EncounterRuntime.this.drainImmediateTriggers(actor, encounter, parent); }
         public void joinGeneratedMob(ServerPlayer owner, Mob mob, UUID encounter) { EncounterRuntime.this.joinGeneratedMob(owner, mob, encounter); }
         public void swing(LivingEntity actor, UUID encounter, UUID operation, net.minecraft.world.InteractionHand hand) { entityProjections.swing(actor, encounter, operation, hand); }
@@ -283,6 +284,7 @@ public final class EncounterRuntime {
             public void quarantineProjectile(UUID projectile, UUID encounter, UUID target, String reason) { projectiles.quarantineProjectile(projectile, encounter, target, reason); }
         }, cloudEvidence);
         this.projectiles = new ProjectileExecutionCoordinator(server, engine, generation, actorStates, world.scheduler(), persistence, damageResolution, new ProjectileExecutionCoordinator.Host() {
+            public cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController.ApplicationScope applications(java.util.function.Supplier<cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Snapshot> root, java.util.List<LivingEntity> targets) { return vanillaEffects.applications(root,targets); }
             public cc.sighs.dndturn.platform.server.damage.DamageAttempt damageAttempt() { return combat; }
             public long clock() { return cumulativeServerTicks; }
             public Map<UUID, EncounterRegion> regions() { return world.regions(); }
@@ -300,6 +302,7 @@ public final class EncounterRuntime {
             public Entity resolve(UUID id) { return EncounterRuntime.this.resolve(id); }
         });
         actorStates.snapshots().bindFacts(new LiveActorContext.Facts() {
+            public cc.sighs.dndturn.domain.effect.EffectSnapshot.Vanilla effect(LivingEntity actor, net.minecraft.world.effect.MobEffectInstance effect) { return vanillaEffects.describe(actor, effect); }
             public boolean hostile(UUID encounter, UUID actor, UUID target) {
                 return engine.isHostile(encounter, actor, target) || engine.isHostile(encounter, target, actor);
             }

@@ -10,6 +10,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class VanillaEffectSettlementStateTest {
     @Test void rejectsDurationEvidenceThatDoesNotMatchCapturedRounds() {
         assertThrows(IllegalArgumentException.class, () -> new VanillaEffectSettlementState.Timer(
-                UUID.randomUUID(), 0, 31, RoundDuration.capture(new RoundTime(30), 31)));
+                UUID.randomUUID(), 0, 31, RoundDuration.capture(new RoundTime(30), 31), "dndturn:basic_effect", 1));
     }
 }

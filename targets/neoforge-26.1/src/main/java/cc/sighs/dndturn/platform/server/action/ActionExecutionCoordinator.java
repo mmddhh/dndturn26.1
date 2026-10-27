@@ -596,7 +596,8 @@ public final class ActionExecutionCoordinator {
         }
     }
     private void execute(LivingEntity player, Execution execution) {
-        try (var impact = TacticalImpact.enter(this, actorStates.context(player), execution)) {
+        try (var impact = TacticalImpact.enter(this, actorStates.context(player), execution);
+             var applications = effects.applications(() -> execution.action == null ? null : engine.pendingOperation(execution.root.encounterId(), execution.action), List.of(player))) {
         var root = execution.root;
         var intent = root.intent();
         validate(player, intent, engine.stateView(root.encounterId()));
@@ -636,7 +637,8 @@ public final class ActionExecutionCoordinator {
             }
     }
     private void tickAction(LivingEntity player, Execution execution) {
-        try (var impact = TacticalImpact.enter(this, actorStates.context(player), execution)) {
+        try (var impact = TacticalImpact.enter(this, actorStates.context(player), execution);
+             var applications = effects.applications(() -> execution.action == null ? null : engine.pendingOperation(execution.root.encounterId(), execution.action), List.of(player))) {
         var intent = execution.root.intent();
         validate(player, intent, engine.stateView(execution.root.encounterId()));
         if (!canExecute(player, intent, player.position())) throw new IllegalStateException("execution target out of reach");

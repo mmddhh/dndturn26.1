@@ -880,7 +880,8 @@ public final class EncounterAuthority {
         if (parent == null || (parent.kind() != OperationRecord.Kind.ATTACK
             && parent.kind() != OperationRecord.Kind.DAMAGE
             && parent.kind() != OperationRecord.Kind.INTERRUPT && parent.kind() != OperationRecord.Kind.END_TURN
-            && parent.kind() != OperationRecord.Kind.TRIGGERED))
+            && parent.kind() != OperationRecord.Kind.TRIGGERED && parent.kind() != OperationRecord.Kind.NATIVE_EFFECT
+            && parent.kind() != OperationRecord.Kind.USE_ITEM && parent.kind() != OperationRecord.Kind.ENVIRONMENT))
             throw new IllegalStateException("permit requires an executing cause");
         if (parent.kind() == OperationRecord.Kind.END_TURN
             && (!permit.source().equals(parent.owner()) || !permit.targets().equals(Set.of(parent.owner()))))
@@ -1158,11 +1159,15 @@ public final class EncounterAuthority {
             OperationRecord.Snapshot parent = encounter.operations.causes.get(snapshot.parentId());
             UUID rootId = parent == null ? null : rootOf(encounter, parent);
             PermitState permit = encounter.permits.get(permitId);
-            boolean damage = parent != null && permit != null && snapshot.kind() == OperationRecord.Kind.DAMAGE
+            boolean damage = parent != null && permit != null
+                && (snapshot.kind() == OperationRecord.Kind.DAMAGE || snapshot.kind() == OperationRecord.Kind.NATIVE_EFFECT)
                 && (parent.kind() == OperationRecord.Kind.ATTACK || parent.kind() == OperationRecord.Kind.DAMAGE
                     || parent.kind() == OperationRecord.Kind.INTERRUPT || parent.kind() == OperationRecord.Kind.TRIGGERED
+                    || (parent.kind() == OperationRecord.Kind.NATIVE_EFFECT || parent.kind() == OperationRecord.Kind.USE_ITEM
+                        || parent.kind() == OperationRecord.Kind.ENVIRONMENT) && encounter.operations.pending.containsKey(parent.operationId())
                     || parent.kind() == OperationRecord.Kind.END_TURN && encounter.operations.pending.containsKey(parent.operationId())
                         && snapshot.owner().equals(snapshot.source()) && snapshot.owner().equals(snapshot.target()))
+                && (snapshot.kind() != OperationRecord.Kind.NATIVE_EFFECT || encounter.operations.pending.containsKey(parent.operationId()))
                 && snapshot.owner().equals(parent.owner())
                 && permit.permit.parentId().equals(snapshot.parentId())
                 && permit.permit.source().equals(snapshot.source())
@@ -1197,7 +1202,7 @@ public final class EncounterAuthority {
             && snapshot.kind() != OperationRecord.Kind.END_TURN && snapshot.kind() != OperationRecord.Kind.MOVE
             && snapshot.kind() != OperationRecord.Kind.PLAN && !planStep) return false;
         if ((!planStep && !encounter.operations.pending.isEmpty()) || snapshot.source() == null || !snapshot.source().equals(snapshot.owner())
-            || snapshot.kind() == OperationRecord.Kind.DAMAGE || snapshot.kind() == OperationRecord.Kind.INTERRUPT
+            || snapshot.kind() == OperationRecord.Kind.DAMAGE || snapshot.kind() == OperationRecord.Kind.NATIVE_EFFECT || snapshot.kind() == OperationRecord.Kind.INTERRUPT
             || snapshot.kind() == OperationRecord.Kind.ENVIRONMENT || snapshot.kind() == OperationRecord.Kind.MERGE
             || snapshot.kind() == OperationRecord.Kind.START || snapshot.kind() == OperationRecord.Kind.JOIN) return false;
         if (!planStep && (snapshot.kind() == OperationRecord.Kind.PLACE || snapshot.kind() == OperationRecord.Kind.BREAK

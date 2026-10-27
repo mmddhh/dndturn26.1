@@ -5,7 +5,7 @@ import cc.sighs.dndturn.domain.encounter.EncounterPhase;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.encounter.operation.WorldOutcomeObservation;
 import cc.sighs.dndturn.platform.mixin.server.effect.CreeperEffectAccess;
-import cc.sighs.dndturn.platform.observation.VanillaEffectTypes;
+import cc.sighs.dndturn.platform.server.effect.vanilla.EffectAdapters;
 import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 import cc.sighs.dndturn.platform.server.action.TriggeredAbilities;
 import java.util.*;
@@ -39,7 +39,7 @@ public final class CreeperExplosion {
             throw new IllegalArgumentException("Creeper executor identity");
         int radius = ((CreeperEffectAccess)source).dndturn$explosionRadius() * (source.isPowered() ? 2 : 1);
         if (radius < 1 || radius > 6) throw new IllegalArgumentException("Creeper explosion radius unsupported");
-        if (source.getActiveEffects().size() > 32 || source.getActiveEffects().stream().anyMatch(effect -> !VanillaEffectTypes.supported(effect)))
+        if (source.getActiveEffects().size() > 32 || source.getActiveEffects().stream().anyMatch(effect -> (effect.getEffect().value().isInstantenous() || !EffectAdapters.supported(effect))))
             throw new IllegalStateException("CREEPER_EFFECT_ADAPTER_UNAVAILABLE");
         int extent = radius * 2 + 2;
         BlockPos center = source.blockPosition();

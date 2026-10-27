@@ -37,6 +37,12 @@ public final class ActorStateAuthority {
     private java.util.function.Function<UUID, UUID> membership = id -> null;
     private final cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget queryBudget = new cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget();
     private final MinecraftSnapshotCapture snapshots = new MinecraftSnapshotCapture(new LiveActorContext.Facts() {
+        public cc.sighs.dndturn.domain.effect.EffectSnapshot.Vanilla effect(LivingEntity actor, net.minecraft.world.effect.MobEffectInstance effect) {
+            return new cc.sighs.dndturn.domain.effect.EffectSnapshot.Vanilla(
+                net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()).toString(),
+                effect.getAmplifier()+1, effect.getDuration(), effect.isAmbient(), effect.isVisible(), -2,
+                cc.sighs.dndturn.domain.effect.EffectSnapshot.NativeSupport.NATIVE);
+        }
         public boolean hostile(UUID encounter, UUID actor, UUID target) { return false; }
         public ActorStates.State state(UUID actor) { return ActorStateAuthority.this.state(actor); }
         public String fault(UUID actor) { return ActorStateAuthority.this.fault(actor); }

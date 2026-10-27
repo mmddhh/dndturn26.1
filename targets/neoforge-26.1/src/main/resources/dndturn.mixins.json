@@ -36,6 +36,8 @@
     "server.control.MobNavigationLeaseMixin",
     "server.control.LivingActiveProcessMixin",
     "server.effect.MobEffectRoundMixin",
+    "server.effect.InstantEffectMixin",
+    "server.effect.InstantHealHarmMixin",
     "server.effect.LivingEffectRoundAccess",
     "server.effect.LivingEffectRoundMixin",
     "server.effect.PeriodicDamageRoundMixin",

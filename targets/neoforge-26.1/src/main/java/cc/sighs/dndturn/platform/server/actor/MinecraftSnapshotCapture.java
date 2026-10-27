@@ -185,9 +185,7 @@ public final class MinecraftSnapshotCapture {
                 .map(EffectSnapshot.Tactical::capture).forEach(result::add);
         actor.body().getActiveEffects().stream()
                 .sorted(Comparator.comparing(effect -> BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()).toString()))
-                .forEach(effect -> result.add(new EffectSnapshot.Vanilla(
-                        BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()).toString(),
-                        Math.addExact(effect.getAmplifier(), 1), effect.getDuration(), effect.isAmbient(), effect.isVisible())));
+                .forEach(effect -> result.add(facts.effect(actor.body(), effect)));
         return List.copyOf(result);
     }
     public ResolutionContext capture(LiveActorContext input, ActorSnapshot snapshot, ActionIntent intent,

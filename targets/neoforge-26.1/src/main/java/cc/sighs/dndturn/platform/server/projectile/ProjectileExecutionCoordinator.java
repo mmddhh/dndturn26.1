@@ -52,6 +52,7 @@ import org.slf4j.Logger;
 /** Owns launch evidence, simulation leases, pending contacts, quarantine and their recovery. */
 public final class ProjectileExecutionCoordinator {
     public interface Host {
+        cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController.ApplicationScope applications(java.util.function.Supplier<cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Snapshot> root, java.util.List<LivingEntity> targets);
         cc.sighs.dndturn.platform.server.damage.DamageAttempt damageAttempt();
         long clock();
         Map<UUID, EncounterRegion> regions();
@@ -199,7 +200,8 @@ public final class ProjectileExecutionCoordinator {
                 OperationRecord.Kind.ENVIRONMENT,generation);
             if (!engine.beginCausalItemImpact(origin,snapshot)) throw new IllegalStateException("causal item effect admission denied");
             admitted=true;
-            var result=original.get();
+            net.minecraft.world.entity.projectile.ProjectileDeflection result;
+            try (var applications=host.applications(() -> snapshot,affected)) { result=original.get(); }
             engine.publish(domain,operation,0,OperationRecord.Outcome.COMPLETED,"native item impact completed",0,0,true);
             return result;
         } catch(RuntimeException failure) {

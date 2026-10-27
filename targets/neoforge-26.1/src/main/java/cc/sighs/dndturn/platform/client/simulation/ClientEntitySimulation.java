@@ -3,7 +3,6 @@ package cc.sighs.dndturn.platform.client.simulation;
 import cc.sighs.dndturn.platform.client.presentation.ClientPresentation;
 import cc.sighs.dndturn.platform.client.state.ClientCombatState;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
-import cc.sighs.dndturn.platform.observation.VanillaEffectTypes;
 import cc.sighs.dndturn.platform.projection.PresentationIdentity;
 import java.util.*;
 import net.minecraft.client.Minecraft;
@@ -83,7 +82,7 @@ public final class ClientEntitySimulation {
     /** Remaining effect duration is maintained by authoritative participant packets. */
     public static boolean holdsEffect(net.minecraft.world.entity.LivingEntity entity, net.minecraft.world.effect.MobEffectInstance effect) {
         var state = projection(entity);
-        return state != null && state.facts().member() != null && VanillaEffectTypes.supported(effect);
+        return state != null && state.facts().member() != null;
     }
     /** Coalesce confirmed progress into one visual update. Tracking starts from a baseline, never history. */
     public static boolean consumeEnvironmentVisual(Entity entity) {

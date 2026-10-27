@@ -21,6 +21,7 @@ public final class RegistrationLifecycle {
     public static synchronized void freeze() {
         AbilityExecutors.validate();
         WorldOutcomeHooks.freeze();
+        cc.sighs.dndturn.platform.server.effect.vanilla.EffectAdapters.freeze();
         CloudOrigins.freeze();
         var modifiers = new ArrayList<>(AbilityAdapterRegistry.continuous().registeredModifiers());
         AbilityAdapterRegistry.effects().definitions().forEach(value -> modifiers.addAll(value.modifiers()));

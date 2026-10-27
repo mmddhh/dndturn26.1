@@ -22,7 +22,10 @@ final class ThrownItemBehavior extends VanillaBehaviors.Interaction {
             var contents=stack(p,i).get(DataComponents.POTION_CONTENTS);
             if (contents==null || !contents.hasEffects()) return "water splash needs a separate block-effect adapter";
             for (var effect:contents.getAllEffects())
-                if (effect.getEffect().value().isInstantenous())
+                if (effect.getEffect().value().isInstantenous()
+                    && effect.getEffect().value()!=net.minecraft.world.effect.MobEffects.INSTANT_HEALTH.value()
+                    && effect.getEffect().value()!=net.minecraft.world.effect.MobEffects.INSTANT_DAMAGE.value()
+                    && effect.getEffect().value()!=net.minecraft.world.effect.MobEffects.SATURATION.value())
                     return "potion effect requires a dedicated impact adapter";
         }
         return null;

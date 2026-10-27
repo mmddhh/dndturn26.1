@@ -33,9 +33,13 @@ public sealed interface EffectSnapshot permits EffectSnapshot.Tactical, EffectSn
 
     /** rank is one-based; remaining is native ticks, -1 means infinite.
      * Only the active effect is projected. A hidden replacement chain is not a stack chain. */
-    record Vanilla(String effect, int rank, long remaining, boolean ambient, boolean visible) implements EffectSnapshot {
+    enum NativeSupport { NATIVE, MANAGED, NEEDS_ADAPTER }
+    record Vanilla(String effect, int rank, long remaining, boolean ambient, boolean visible, long remainingRounds, NativeSupport support) implements EffectSnapshot {
         public Vanilla {
             FactKey.requireId(effect);
+            Objects.requireNonNull(support);
+            if (remainingRounds < -2 || (support == NativeSupport.NATIVE) != (remainingRounds == -2))
+                throw new IllegalArgumentException("native effect clock");
             if (rank < 1 || remaining < -1) throw new IllegalArgumentException("native effect snapshot");
         }
         public int amplifier() { return rank - 1; }
