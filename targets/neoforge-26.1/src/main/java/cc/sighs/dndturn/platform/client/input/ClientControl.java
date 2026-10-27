@@ -209,6 +209,7 @@ public final class ClientControl {
     }
     /** Invoked at AUI's per-document dispatch seam: no duplicate dispatch, no lower document leakage. */
     public static boolean allowDocument(Document doc) {
+        if (!OverlayUi.visible(doc)) return false;
         if (!OverlayUi.stylesReady(doc)) return false;
         Minecraft mc = Minecraft.getInstance();
         if (doc == TacticalOverlay.document() && !TacticalOverlay.hudVisible()) return false;
@@ -378,7 +379,9 @@ public final class ClientControl {
         double range = 0;
         while (range < 64 && mc.level.hasChunkAt(BlockPos.containing(rig.position().add(direction.scale(range + 1))))) range++;
         Vec3 end = rig.position().add(direction.scale(range));
-        var block = TerrainCutaway.clip(mc.level, new ClipContext(rig.position(), end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+        var block = TerrainCutaway.clip(mc.level, new ClipContext(rig.position(), end,
+            ClientTacticalPlan.itemUseTargeting() ? ClipContext.Block.OUTLINE : ClipContext.Block.COLLIDER,
+            ClientTacticalPlan.cursorFluids(), mc.player));
         double nearest = block.getType() == HitResult.Type.MISS ? range * range : block.getLocation().distanceToSqr(rig.position());
         java.util.UUID selected = null;
         Vec3 contact = block.getType() == HitResult.Type.MISS ? null : block.getLocation();

@@ -172,7 +172,14 @@ public final class VanillaBehaviors {
         protected InteractionResult invoke(ServerPlayer p, Execution e) {
             var i = e.root.intent();
             try (var context = new TacticalUseContext(p, pos(i.target().cell()), false, e.preparedImpact)) {
-                return p.gameMode.useItemOn(p, p.level(), stack(p, i), hand(i), hit(i));
+                var result = p.gameMode.useItemOn(p, p.level(), stack(p, i), hand(i), hit(i));
+                // A generic item may implement use rather than useOn (maps, horns, shields, etc.).
+                // Only an unhandled interaction may continue, with the same bound cursor target.
+                // Dedicated placements and explicitly failed interactions never take this branch.
+                if (result == InteractionResult.PASS && definition().id().equals("dndturn:tool")
+                    && (NativeUse.supportsUse(stack(p, i)) || stack(p, i).has(DataComponents.CONSUMABLE)))
+                    return p.gameMode.useItem(p, p.level(), stack(p, i), hand(i));
+                return result;
             }
         }
         protected InteractionResult invoke(ServerPlayer p, ActionIntent i) {
@@ -195,6 +202,9 @@ public final class VanillaBehaviors {
                 RuleFacts.AVAILABILITY, "dndturn:native_use",
                 AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE)); }
         public boolean supportsItem(ItemStack stack) {
+            return supportsUse(stack);
+        }
+        static boolean supportsUse(ItemStack stack) {
             var item = stack.getItem();
             return !stack.isEmpty() && !stack.has(DataComponents.CONSUMABLE) && !stack.has(DataComponents.EQUIPPABLE)
                     && !(item instanceof BowItem) && !(item instanceof CrossbowItem) && !(item instanceof BucketItem)

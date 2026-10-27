@@ -67,6 +67,14 @@ public final class ClientTacticalPlan {
     }
     public static boolean previewClick(ClientControl.WorldPick pick) {
         if (pick == null) return false;
+        if (useItem && phase == Phase.TARGETING && !running() && !arming) {
+            var ability = itemUseAt(pick);
+            if (ability == null) { clearPreview(); reason = "此光标目标不支持使用该物品"; return true; }
+            behavior = ability.id();
+            if (ability.targets().equals(java.util.Set.of(ActionIntent.TargetKind.SELF))) {
+                target(null, null, true); return true;
+            }
+        }
         if (phase == Phase.IDLE && !running() && !arming && pick.entity() == null
             && pick.block().getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
             var state = ClientCombatState.encounter();
@@ -116,10 +124,16 @@ public final class ClientTacticalPlan {
         }
         if (!state.generation().equals(localGeneration) || !state.encounterId().equals(localEncounter)
             || jobOrigin!=null && jobOrigin.distanceToSqr(mc.player.position())>.0001 || localRevision!=revision) clearPreview();
-        if (arming || phase!=Phase.TARGETING || behavior==null || pick==null || !mc.player.getUUID().equals(state.current())) { clearPreview(); return; }
+        if (arming || phase!=Phase.TARGETING || pick==null || !mc.player.getUUID().equals(state.current())) { clearPreview(); return; }
+        if (useItem) {
+            var selected = itemUseAt(pick);
+            if (selected == null || selected.targets().equals(java.util.Set.of(ActionIntent.TargetKind.SELF))) { clearPreview(); return; }
+            behavior = selected.id();
+        }
+        if (behavior == null) { clearPreview(); return; }
         if (hoverEntityInstance!=null && (hoverEntityInstance.isRemoved() || !hoverEntityInstance.isAlive() || hoverEntityInstance.level()!=mc.level)) clearPreview();
         java.util.UUID entityId=pick.entity();
-        Vec3 inRing=ringHit(pick);
+        Vec3 inRing=useItem ? null : ringHit(pick);
         if (entityId==null && inRing!=null && !(phase==Phase.IDLE && behavior==null && hoverEntityInstance==null)) entityId=hoverEntityInstance.getUUID();
         if (entityId!=null) {
             final var wanted=entityId;
@@ -171,25 +185,52 @@ public final class ClientTacticalPlan {
     private static ActionIntent.ItemReference confirmedItem;
     private static boolean arming, submitAfterQuery;
     private static boolean itemSelected;
+    private static boolean useItem;
+    public static boolean itemUseTargeting() { return useItem && phase == Phase.TARGETING && !arming; }
+    public static net.minecraft.world.level.ClipContext.Fluid cursorFluids() {
+        var player = Minecraft.getInstance().player;
+        if (!itemUseTargeting() || player == null) return net.minecraft.world.level.ClipContext.Fluid.NONE;
+        var stack = hand == ActionIntent.Hand.OFF_HAND ? player.getOffhandItem() : player.getInventory().getItem(slot);
+        if (stack.getItem() instanceof net.minecraft.world.item.BoatItem
+            || stack.getItem() instanceof net.minecraft.world.item.FishingRodItem)
+            return net.minecraft.world.level.ClipContext.Fluid.ANY;
+        if (stack.is(net.minecraft.world.item.Items.BUCKET) || stack.is(net.minecraft.world.item.Items.GLASS_BOTTLE)
+            || stack.getItem() instanceof net.minecraft.world.item.SpawnEggItem)
+            return net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY;
+        return net.minecraft.world.level.ClipContext.Fluid.NONE;
+    }
     private static UUID turnOwner;
     private static long turnRound = -1;
     private static String attackBehavior;
     public static Phase phase() { return phase; }
     public static java.util.List<ActionProtocol.Ability> abilities() { return confirmedItem == null ? java.util.List.of() : abilities; }
+    private static ActionProtocol.Ability itemUseAt(ClientControl.WorldPick pick) {
+        return ItemUseSelection.resolve(abilities(), pick.entity() != null ? ActionIntent.TargetKind.ENTITY
+            : pick.block().getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? ActionIntent.TargetKind.BLOCK : ActionIntent.TargetKind.SELF);
+    }
+    public static void selectItemUse() {
+        if (running() || abilities().stream().noneMatch(ItemUseSelection::includes)) return;
+        terminalFailure = ""; invalidate(); selectedTarget = null;
+        itemSelected = true; useItem = true; arming = false; behavior = null;
+        preferredCost = ActionIntent.Capability.USE_ITEM; phase = Phase.TARGETING;
+        reason = "使用物品 · 请选择光标目标";
+        var self = ItemUseSelection.resolve(abilities(), ActionIntent.TargetKind.SELF);
+        if (self != null && !self.id().equals("dndturn:native_use")) { behavior = self.id(); target(null, null, true); }
+    }
     public static void selectBehavior(ActionProtocol.Ability value) {
         if (running() || !abilities().contains(value)) return;
+        if (ItemUseSelection.includes(value)) { selectItemUse(); return; }
+        useItem = false;
         terminalFailure = "";
         if (value.source().kind() == GrantEvidence.Kind.EQUIPMENT) itemSelected = true;
         invalidate(); arming = false; behavior = value.id(); preferredCost = value.kind(); phase = Phase.TARGETING;
         reason = (value.kind() == ActionIntent.Capability.ATTACK ? "攻击" : value.label()) + " · 请选择目标";
-        if (value.id().equals("dndturn:reel") && Minecraft.getInstance().player.fishing!=null) {
-            target(Minecraft.getInstance().player.fishing.getUUID(),null,true); return;
-        }
         if (value.targets().contains(ActionIntent.TargetKind.SELF)) target(null, null, true);
     }
     public static UUID inspected() { return selectedTarget == null ? null : selectedTarget.entity(); }
     public static void inspect(UUID value) {
         if (running()) return;
+        useItem = false;
         terminalFailure = "";
         invalidate(); arming = false; behavior = null; preferredCost = null; phase = Phase.IDLE;
         var world = Minecraft.getInstance().level;
@@ -211,6 +252,7 @@ public final class ClientTacticalPlan {
         DebugDiagnostics.log("GUI_SELECT_SLOT", () -> "wantedSlot=" + value + " " + diagnosticState());
         if (running()) { reason = "执行中不能换槽，请先取消计划"; return; }
         terminalFailure = "";
+        useItem = false;
         itemSelected = true; preferredCost = null; confirmedItem = null; invalidate(); slot = value; hand = ActionIntent.Hand.MAIN_HAND; behavior = null; phase = Phase.TARGETING; arming = true;
         target(null, null);
     }
@@ -226,7 +268,15 @@ public final class ClientTacticalPlan {
             phase = Phase.CONTEXT_MENU; target(entity, hit); return;
         }
         if (phase == Phase.CONTEXT_MENU) { cancel(); return; }
-        if (phase == Phase.TARGETING || phase == Phase.QUERYING) { arming = false; target(entity, hit, true); return; }
+        if (phase == Phase.TARGETING || phase == Phase.QUERYING) {
+            if (useItem) {
+                var selected = ItemUseSelection.resolve(abilities(), entity != null ? ActionIntent.TargetKind.ENTITY
+                    : hit != null && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? ActionIntent.TargetKind.BLOCK : ActionIntent.TargetKind.SELF);
+                if (selected == null) { reason = "此光标目标不支持使用该物品"; return; }
+                behavior = selected.id();
+            }
+            arming = false; target(entity, hit, true); return;
+        }
         // Idle block clicks use previewClick's precise movement path; entities and MISS do nothing.
     }
     private static long terminalVersion;
@@ -235,9 +285,14 @@ public final class ClientTacticalPlan {
     private static long queryRound;
     private static ActionProtocol.Options options;
     private static ActionIntent.Hand hand = ActionIntent.Hand.MAIN_HAND;
-    public static java.util.List<ActionProtocol.Offer> offers() { return options == null ? java.util.List.of() : options.offers().stream()
-        .filter(o -> o.intent().capability() != ActionIntent.Capability.ATTACK || o.intent().behaviorId().equals(attackBehavior)).toList(); }
-    public static void toggleHand() { if (running()) return; itemSelected = true; preferredCost = null; confirmedItem = null; invalidate(); hand = hand == ActionIntent.Hand.MAIN_HAND ? ActionIntent.Hand.OFF_HAND : ActionIntent.Hand.MAIN_HAND; arming = true; phase = Phase.TARGETING; behavior = null; target(null, null); }
+    public static java.util.List<ActionProtocol.Offer> offers() {
+        if (options == null) return java.util.List.of();
+        var use = selectedTarget == null ? null : ItemUseSelection.resolve(abilities, selectedTarget.kind());
+        return options.offers().stream().filter(o -> ItemUseSelection.includes(o.intent())
+            ? use != null && o.intent().behaviorId().equals(use.id())
+            : o.intent().capability() != ActionIntent.Capability.ATTACK || o.intent().behaviorId().equals(attackBehavior)).toList();
+    }
+    public static void toggleHand() { if (running()) return; useItem = false; itemSelected = true; preferredCost = null; confirmedItem = null; invalidate(); hand = hand == ActionIntent.Hand.MAIN_HAND ? ActionIntent.Hand.OFF_HAND : ActionIntent.Hand.MAIN_HAND; arming = true; phase = Phase.TARGETING; behavior = null; target(null, null); }
     public static void receiveOptions(ActionProtocol.Options value, IPayloadContext context) {
         DebugDiagnostics.log("GUI_OPTIONS_RECEIVE", () -> "query=" + value.query() + " selection=" + value.revision()
             + " generation=" + value.generation() + " encounter=" + value.encounter() + " version=" + value.version()
@@ -279,7 +334,8 @@ public final class ClientTacticalPlan {
         }
         itemName = itemSelected ? value.itemName() : "空手";
         attackBehavior = attackForSelection(itemSelected, emptyStack, value.defaultBehavior(), value.abilities());
-        abilities = value.abilities().stream().filter(a -> a.kind() != ActionIntent.Capability.ATTACK || a.id().equals(attackBehavior)).toList();
+        abilities = value.abilities().stream().filter(a -> a.kind() != ActionIntent.Capability.ATTACK
+            || a.id().equals(attackBehavior) || ItemUseSelection.includes(a)).toList();
         reason = value.reason().isEmpty() ? "选择目标或服务器提供的行为" : value.reason();
         confirmedItem = value.item();
         if (arming) {
@@ -287,6 +343,7 @@ public final class ClientTacticalPlan {
             else if (behavior == null) behavior = preferredCost == null ? value.defaultBehavior()
                 : abilities.stream().filter(a -> a.kind() == preferredCost).map(ActionProtocol.Ability::id).findFirst().orElse(null);
             var selectedAbility = abilities.stream().filter(a -> a.id().equals(behavior)).findFirst();
+            if (selectedAbility.filter(ItemUseSelection::includes).isPresent()) useItem = true;
             selectedAbility.ifPresent(a -> preferredCost = a.kind());
             phase = selectedAbility.isEmpty() ? Phase.IDLE : Phase.TARGETING; arming = false;
             reason = selectedAbility.isEmpty() ? "能力不可用" : "请选择目标";
@@ -315,6 +372,7 @@ public final class ClientTacticalPlan {
         var state = ClientCombatState.encounter();
         if (state == null || options == null || running() || offer.failure().code() != ActionFailure.Code.NONE || !offers().contains(offer)) return;
         terminalFailure = "";
+        useItem = ItemUseSelection.includes(offer.intent());
         behavior = offer.intent().behaviorId(); preferredCost = offer.intent().capability();
         if (offer.intent().source().kind() == GrantEvidence.Kind.EQUIPMENT) itemSelected = true;
         queryId = null; requested = UUID.randomUUID(); phase = Phase.AWAITING_SERVER;
@@ -333,7 +391,7 @@ public final class ClientTacticalPlan {
 
     private static String reason = "选择物品或能力；右键对象查看行为";
     private ClientTacticalPlan() {}
-    public static void reset() { terminalFailure = ""; clearPreview(); phase = Phase.IDLE; selectedTarget = null; preferredCost = null; abilities = java.util.List.of(); confirmedItem = null; revision++; itemName = ""; behavior = null; arming = false; submitAfterQuery = false; slot = 0; queryId = null; options = null; hand = ActionIntent.Hand.MAIN_HAND; projection = null; sequence = -1; requested = null; endAfterCancel = false; itemSelected = false; attackBehavior = null; turnOwner = null; turnRound = -1; reason = "选择物品或能力；右键对象查看行为"; }
+    public static void reset() { useItem = false; terminalFailure = ""; clearPreview(); phase = Phase.IDLE; selectedTarget = null; preferredCost = null; abilities = java.util.List.of(); confirmedItem = null; revision++; itemName = ""; behavior = null; arming = false; submitAfterQuery = false; slot = 0; queryId = null; options = null; hand = ActionIntent.Hand.MAIN_HAND; projection = null; sequence = -1; requested = null; endAfterCancel = false; itemSelected = false; attackBehavior = null; turnOwner = null; turnRound = -1; reason = "选择物品或能力；右键对象查看行为"; }
     public static boolean selectedSlot(int value) { return itemSelected && hand == ActionIntent.Hand.MAIN_HAND && slot == value; }
     /** Retain choice only, never a target, preview, query or execution authorization. */
     public static void suspendSelection() {
@@ -343,6 +401,8 @@ public final class ClientTacticalPlan {
     }
     public static void select(ActionIntent.Capability value) {
         if (running()) return;
+        if (value == ActionIntent.Capability.USE_ITEM && confirmedItem != null) { selectItemUse(); return; }
+        useItem = value == ActionIntent.Capability.USE_ITEM;
         terminalFailure = "";
         preferredCost = value;
         behavior = switch (value) { case MOVE -> "dndturn:move"; case ATTACK -> null; case PLACE -> "dndturn:place"; case BREAK -> "dndturn:break"; case USE_BLOCK -> "dndturn:block"; case USE_ITEM -> null; case EQUIP -> "dndturn:equip"; };
@@ -428,7 +488,7 @@ public final class ClientTacticalPlan {
         DebugDiagnostics.log("GUI_CANCEL", ClientTacticalPlan::diagnosticState);
         terminalFailure = "";
         invalidate(); arming = false;
-        if (!endAfterCancel) { behavior = null; preferredCost = null; }
+        if (!endAfterCancel) { behavior = null; preferredCost = null; useItem = false; }
         if (!running()) { selectedTarget = null; phase = Phase.IDLE; reason = "已取消选择"; return; }
         phase = Phase.CANCEL_PENDING;
         var state = ClientCombatState.encounter();

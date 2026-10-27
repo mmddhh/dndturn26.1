@@ -39,6 +39,7 @@ public final class ClientSession {
             && origin.player() != null && origin.player() == playerInstance;
     }
     public static void onClientTick(ClientTickEvent.Post event) {
+        cc.sighs.dndturn.platform.client.ui.OverlayUi.warmup();
         refreshSession();
         ClientControl.reconcile();
         ClientTacticalPlan.tick();

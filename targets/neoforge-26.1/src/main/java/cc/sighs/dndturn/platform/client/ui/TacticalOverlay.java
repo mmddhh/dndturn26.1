@@ -8,7 +8,6 @@ import cc.sighs.dndturn.platform.client.input.ClientControl;
 import cc.sighs.dndturn.platform.client.input.CombatControls;
 import cc.sighs.dndturn.platform.client.state.ClientCombatState;
 import cc.sighs.dndturn.platform.client.state.ClientInspection;
-import cc.sighs.dndturn.platform.diagnostics.DebugDiagnostics;
 import cc.sighs.dndturn.platform.network.ActionProtocol;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
 import com.sighs.apricityui.ApricityUI;
@@ -34,6 +33,7 @@ public final class TacticalOverlay {
     private static long refreshGeneration = -1;
     private static UUID encounterId;
     private static int retryDelay;
+    private static boolean projectionPending = true;
     private static final Map<String, String> values = new HashMap<>();
     private static final Map<UUID, Element> members = new LinkedHashMap<>();
     private static final Map<UUID, Element> memberLabels = new HashMap<>();
@@ -47,23 +47,25 @@ public final class TacticalOverlay {
 
     private TacticalOverlay() {}
 
-    public static boolean isOpen() { return document != null && document.isActive(); }
+    public static boolean isOpen() { return encounterId != null && document != null && document.isActive(); }
 
-    /** Document lifetime follows the encounter; visibility follows vanilla HUD/Screen ownership. */
+    /** The shell survives encounters; no vanilla screen shares its input or visible HUD. */
     public static boolean hudVisible() {
         var game = Minecraft.getInstance();
         return ClientCombatState.encounter() != null && game.level != null && game.player != null
-            && game.player.isAlive() && !game.options.hideGui && game.getOverlay() == null
-            && (game.screen == null || game.screen instanceof net.minecraft.client.gui.screens.ChatScreen);
+            && game.player.isAlive() && OverlayUi.unobstructed();
     }
 
     static void prepareFrame() {
         var state = ClientCombatState.encounter();
         var player = Minecraft.getInstance().player;
         if (state == null || player == null) return;
-        boolean rebound = document.getRefreshGeneration() != refreshGeneration;
-        renderProjection(state, player.getUUID(), ClientCombatState.latestStatus());
-        if (rebound) updateInventory();
+        if (document.getRefreshGeneration() != refreshGeneration || projectionPending) {
+            if (document.getRefreshGeneration() != refreshGeneration) bind();
+            renderProjection(state, player.getUUID(), ClientCombatState.latestStatus());
+            updateInventory();
+        }
+        updateLayout();
     }
 
     /** GUI pixels reserved below chat; recomputed from the same geometry as the action dock. */
@@ -79,7 +81,7 @@ public final class TacticalOverlay {
     }
 
     public static void hideVanillaHotbar(net.neoforged.neoforge.client.event.RenderGuiLayerEvent.Pre event) {
-        if (ClientCombatState.encounter() == null) return;
+        if (!hudVisible()) return;
         if (event.getName().equals(net.neoforged.neoforge.client.gui.VanillaGuiLayers.HOTBAR)
             || event.getName().equals(net.neoforged.neoforge.client.gui.VanillaGuiLayers.SELECTED_ITEM_NAME))
             event.setCanceled(true);
@@ -113,18 +115,29 @@ public final class TacticalOverlay {
 
     public static void close() {
         ClientInspection.close();
+        if (encounterId == null) return;
         cancelGesture(); ClientControl.documentClosed(document);
-        if (document != null) document.remove();
-        document = null;
-        movementRing = null;
         encounterId = null;
-        refreshGeneration = -1;
-        values.clear(); members.clear(); memberLabels.clear(); memberPortraits.clear(); memberOrder = List.of();
+        clearMembers();
+        clearBehaviors();
+        if (document != null && document.isActive()) {
+            for (int i = 0; i < inventory.length; i++) {
+                if (document.getElementById("inventory-" + i) instanceof com.sighs.apricityui.element.Item item)
+                    item.setIngredientStack(net.minecraft.world.item.ItemStack.EMPTY);
+                if (i < 9 && document.getElementById("hotbar-item-" + i) instanceof com.sighs.apricityui.element.Item item)
+                    item.setIngredientStack(net.minecraft.world.item.ItemStack.EMPTY);
+            }
+            for (String id : List.of("description", "status", "target", "inspection-content")) text(id, "");
+        }
         java.util.Arrays.fill(inventory, null);
-        retryDelay = 0;
         inventoryOpen = false;
         abilitiesTab = false;
         contextX = contextY = .5;
+        layoutKey = null;
+        lastMembersState = null;
+        projectionPending = true;
+        values.clear();
+        OverlayUi.resetSession(document);
     }
 
     public static void tick() {
@@ -133,20 +146,30 @@ public final class TacticalOverlay {
         Minecraft game = Minecraft.getInstance();
         if (state == null || game.player == null || !game.player.isAlive()) { close(); return; }
         if (!state.encounterId().equals(encounterId)) { close(); encounterId = state.encounterId(); }
-        renderProjection(state, game.player.getUUID(), ClientCombatState.latestStatus());
-        updateInventory();
+        if (hudVisible()) {
+            renderProjection(state, game.player.getUUID(), ClientCombatState.latestStatus());
+            updateInventory();
+        } else projectionPending = true;
+    }
+
+    static void ensureDocument() {
+        if (document != null && document.isActive()) {
+            if (document.getRefreshGeneration() != refreshGeneration) bind();
+            return;
+        }
+        if (retryDelay-- > 0 || com.sighs.apricityui.parser.HTML.getTemple("dndturn/tactical.html") == null) return;
+        ClientControl.documentClosed(document);
+        document = ApricityUI.createDocument("dndturn/tactical.html");
+        if (document == null) { retryDelay = 100; return; }
+        bind();
     }
 
     static void renderProjection(EncounterProtocol.EncounterState state, UUID viewer,
                                  EncounterProtocol.IntentStatus status) {
-        if (!isOpen()) {
-            if (retryDelay-- > 0) return;
-            ClientControl.documentClosed(document);
-            document = ApricityUI.createDocument("dndturn/tactical.html");
-            if (document == null) { retryDelay = 100; return; }
-            refreshGeneration = -1;
-        }
+        ensureDocument();
+        if (document == null || !document.isActive()) return;
         if (document.getRefreshGeneration() != refreshGeneration) bind();
+        projectionPending = false;
         boolean myTurn = state.interactive() && viewer.equals(state.current()) && state.phase() != EncounterPhase.ENVIRONMENT;
         movementRing.update(state.movementTicks(), state.movementTicksPerTurn());
         text("environment", "环境 " + state.environmentRemaining());
@@ -204,7 +227,10 @@ public final class TacticalOverlay {
         document.getElementById("inspection-prev").addEventListener("click", event -> ClientInspection.page(-1, ClientControl.modal()));
         document.getElementById("inspection-next").addEventListener("click", event -> ClientInspection.page(1, ClientControl.modal()));
         renderedOffers = List.of(); renderedAbilities = List.of(); renderedPhase = null;
-        behaviorButtons.clear(); offerButtons.clear();
+        behaviorButtons.clear(); offerButtons.clear(); behaviorPool.clear(); offerPool.clear();
+        abilityBindings.clear(); offerBindings.clear(); abilityIcons.clear();
+        memberPool.clear(); memberNodes.clear();
+        lastMembersState = null; layoutKey = null; projectionPending = true;
         values.clear(); members.clear(); memberLabels.clear(); memberPortraits.clear(); memberOrder = List.of();
         java.util.Arrays.fill(inventory, null);
         ability("move", ActionIntent.Capability.MOVE, "移动按实际获准位移计费；再次点击停止。结束回合会先结算移动。");
@@ -279,6 +305,8 @@ public final class TacticalOverlay {
             OverlayUi.text(number, Integer.toString(i + 1));
             visual.appendChild(number);
         }
+        for (int i = 0; i < 9; i++) { behaviorSlot(i); offerSlot(i); }
+        for (int i = 0; i < 8; i++) memberPool.add(newMemberNodes());
     }
 
     private static ClientTacticalPlan.Phase renderedPhase;
@@ -286,49 +314,95 @@ public final class TacticalOverlay {
     private static List<ActionProtocol.Offer> renderedOffers = List.of();
     private static final java.util.List<Element> behaviorButtons = new java.util.ArrayList<>();
     private static final java.util.List<Element> offerButtons = new java.util.ArrayList<>();
+    private static final java.util.List<Element> behaviorPool = new java.util.ArrayList<>();
+    private static final java.util.List<Element> offerPool = new java.util.ArrayList<>();
+    private static final Map<Element, ActionProtocol.Ability> abilityBindings = new HashMap<>();
+    private static final Map<Element, ActionProtocol.Offer> offerBindings = new HashMap<>();
+    private static final Map<Element, String> abilityIcons = new HashMap<>();
+
+    private static Element behaviorSlot(int index) {
+        while (behaviorPool.size() <= index) {
+            Element button = document.getElementById("behavior-options").appendChild(document.createElement("button"));
+            button.addEventListener("click", event -> {
+                var ability = abilityBindings.get(button);
+                if (ability != null && !button.hasAttribute("disabled") && ClientControl.allowDocument(document))
+                    ClientTacticalPlan.selectBehavior(ability);
+            });
+            button.addEventListener("mouseenter", event -> text("description", button.getAttribute("aria-label")));
+            TacticalIcons.append(document, button, "use-item");
+            abilityIcons.put(button, "use-item");
+            TacticalButton.style(TacticalButton.host(button), "display: none");
+            behaviorPool.add(button);
+        }
+        return behaviorPool.get(index);
+    }
+
+    private static Element offerSlot(int index) {
+        while (offerPool.size() <= index) {
+            Element button = document.getElementById("context-options").appendChild(document.createElement("button"));
+            button.addEventListener("click", event -> {
+                var offer = offerBindings.get(button);
+                if (offer != null && offer.reason().isEmpty() && ClientControl.allowDocument(document)) ClientTacticalPlan.choose(offer);
+            });
+            button.addEventListener("mouseenter", event -> {
+                var offer = offerBindings.get(button);
+                if (offer != null) text("description", offer.reason());
+            });
+            TacticalButton.style(button, "display: none");
+            offerPool.add(button);
+        }
+        return offerPool.get(index);
+    }
+
+    private static void clearBehaviors() {
+        abilityBindings.clear(); offerBindings.clear();
+        for (var button : behaviorPool) TacticalButton.style(TacticalButton.host(button), "display: none");
+        for (var button : offerPool) { TacticalButton.style(button, "display: none"); OverlayUi.text(button, ""); }
+        behaviorButtons.clear(); offerButtons.clear();
+        renderedAbilities = List.of(); renderedOffers = List.of(); renderedPhase = null;
+    }
+
     private static void renderBehaviors() {
         var offers = ClientTacticalPlan.offers();
         var abilities = ClientTacticalPlan.abilities();
         if (!abilities.equals(renderedAbilities)) {
-            var host = document.getElementById("behavior-options");
-            for (var button : behaviorButtons) host.removeChild(TacticalButton.host(button));
-            behaviorButtons.clear();
+            OverlayUi.resetInteraction(document);
+            abilityBindings.clear(); behaviorButtons.clear();
+            boolean itemUseAdded = false;
             for (var ability : abilities) {
-                if (ability.kind() == ActionIntent.Capability.MOVE
-                    || ability.kind() == ActionIntent.Capability.USE_BLOCK) continue;
-                var button = document.createElement("button");
-                String label = ability.kind() == ActionIntent.Capability.ATTACK ? "攻击" : ability.label();
+                if (ability.kind() == ActionIntent.Capability.MOVE || ability.kind() == ActionIntent.Capability.USE_BLOCK) continue;
+                boolean itemUse = cc.sighs.dndturn.platform.client.action.ItemUseSelection.includes(ability);
+                if (itemUse && itemUseAdded) continue;
+                itemUseAdded |= itemUse;
+                Element button = behaviorSlot(behaviorButtons.size());
+                String label = itemUse ? "使用物品" : ability.kind() == ActionIntent.Capability.ATTACK ? "攻击" : ability.label();
                 button.setAttribute("aria-label", label);
-                button.addEventListener("click", event -> ClientTacticalPlan.selectBehavior(ability));
-                button.addEventListener("mouseenter", event -> text("description", label));
-                button = host.appendChild(button); behaviorButtons.add(button);
-                TacticalIcons.append(document, button, switch (ability.kind()) {
+                abilityBindings.put(button, ability); behaviorButtons.add(button);
+                String icon = itemUse ? "use-item" : switch (ability.kind()) {
                     case MOVE -> "move"; case ATTACK -> "attack"; case PLACE -> "place";
                     case BREAK -> "break-block"; case USE_BLOCK -> "use-block"; case USE_ITEM, EQUIP -> "use-item";
-                });
+                };
+                if (!icon.equals(abilityIcons.put(button, icon))) TacticalIcons.update(button, icon);
             }
+            for (int i = behaviorButtons.size(); i < behaviorPool.size(); i++)
+                TacticalButton.style(TacticalButton.host(behaviorPool.get(i)), "display: none");
             renderedAbilities = abilities;
-            DebugDiagnostics.log("GUI_ACTION_ROW", () -> "phase=" + ClientTacticalPlan.phase()
-                + " abilities=" + abilities.stream().limit(32).map(ActionProtocol.Ability::id).toList()
-                + " buttons=" + behaviorButtons.size() + " emptyReason=" + ClientTacticalPlan.abilityStatus());
+            layoutKey = null;
         }
         if (!offers.equals(renderedOffers) || renderedPhase != ClientTacticalPlan.phase()) {
-            var context = document.getElementById("context-options");
-            for (var button : offerButtons) context.removeChild(button);
-            offerButtons.clear();
+            OverlayUi.resetInteraction(document);
+            offerBindings.clear(); offerButtons.clear();
             if (ClientTacticalPlan.phase() == ClientTacticalPlan.Phase.CONTEXT_MENU) for (var offer : offers) {
-                var button = document.createElement("button");
-                button.setAttribute("id", "offer-" + offer.intent().behaviorId().replace(':','-'));
-                OverlayUi.text(button, offer.intent().capability() == ActionIntent.Capability.ATTACK ? "攻击" : offer.label());
-                button.addEventListener("mouseenter", event -> text("description", offer.reason()));
-                if (!offer.reason().isEmpty()) button.setAttribute("disabled", "");
-                button.addEventListener("click", event -> ClientTacticalPlan.choose(offer));
-                offerButtons.add(context.appendChild(button));
+                Element button = offerSlot(offerButtons.size());
+                OverlayUi.text(button, cc.sighs.dndturn.platform.client.action.ItemUseSelection.includes(offer.intent())
+                    ? "使用物品" : offer.intent().capability() == ActionIntent.Capability.ATTACK ? "攻击" : offer.label());
+                if (offer.reason().isEmpty()) button.removeAttribute("disabled"); else button.setAttribute("disabled", "");
+                TacticalButton.style(button, "display: block");
+                offerBindings.put(button, offer); offerButtons.add(button);
             }
+            for (int i = offerButtons.size(); i < offerPool.size(); i++) TacticalButton.style(offerPool.get(i), "display: none");
             renderedOffers = offers;
             renderedPhase = ClientTacticalPlan.phase();
-            DebugDiagnostics.log("GUI_CONTEXT_MENU", () -> "phase=" + renderedPhase
-                + " offers=" + offers.size() + " buttons=" + offerButtons.size() + " status=" + ClientTacticalPlan.contextStatus());
         }
         text("behavior-empty", ClientTacticalPlan.abilityStatus());
         text("context-status", ClientTacticalPlan.contextStatus());
@@ -349,33 +423,71 @@ public final class TacticalOverlay {
         element.addEventListener("mouseenter", event -> text("description", element.getAttribute("aria-label") + " · " + CombatControls.keyLabel(id) + " · " + values.getOrDefault(id + ":description", description)));
     }
 
-    private static void updateMembers(EncounterProtocol.EncounterState state) {
-        List<UUID> order = state.members().stream().map(EncounterProtocol.MemberNotice::id).toList();
-
-        Element host = document.getElementById("initiative");
-        for (UUID id : List.copyOf(members.keySet())) if (!order.contains(id)) {
-            host.removeChild(members.remove(id));
-            memberLabels.remove(id);
-            memberPortraits.remove(id);
-            values.keySet().removeIf(key -> key.startsWith(id.toString()));
+    private static final class MemberNodes {
+        final Element row, label, portrait, globe;
+        UUID target;
+        boolean entity;
+        MemberNodes(Element row, Element label, Element portrait, Element globe) {
+            this.row = row; this.label = label; this.portrait = portrait; this.globe = globe;
         }
+        void clear() {
+            target = null; entity = false;
+            TacticalButton.style(row, "display: none");
+            OverlayUi.text(label, "");
+            row.setAttribute("class", "member");
+        }
+    }
+    private static final java.util.ArrayDeque<MemberNodes> memberPool = new java.util.ArrayDeque<>();
+    private static final Map<UUID, MemberNodes> memberNodes = new HashMap<>();
+    private static EncounterProtocol.EncounterState lastMembersState;
+    private static UUID lastSelectedMember;
+
+    private static MemberNodes newMemberNodes() {
+        Element row = document.getElementById("initiative").appendChild(document.createElement("div"));
+        row.setAttribute("role", "button"); row.setAttribute("tabindex", "0");
+        Element portrait = ParticipantPortraits.append(document, row, false);
+        Element globe = ParticipantPortraits.append(document, row, true);
+        Element label = row.appendChild(document.createElement("span")); label.setAttribute("class", "member-name");
+        MemberNodes nodes = new MemberNodes(row, label, portrait, globe);
+        row.addEventListener("click", event -> {
+            if (nodes.entity && nodes.target != null && ClientControl.allowDocument(document)) ClientTacticalPlan.inspect(nodes.target);
+        });
+        row.addEventListener("mouseenter", event -> text("description", values.getOrDefault(nodes.target + ":detail", "")));
+        nodes.clear();
+        return nodes;
+    }
+
+    private static void releaseMember(UUID id) {
+        MemberNodes nodes = memberNodes.remove(id);
+        nodes.clear(); memberPool.add(nodes);
+        members.remove(id); memberLabels.remove(id); memberPortraits.remove(id);
+        values.keySet().removeIf(key -> key.startsWith(id.toString()));
+    }
+
+    private static void clearMembers() {
+        for (UUID id : List.copyOf(memberNodes.keySet())) releaseMember(id);
+        memberOrder = List.of(); lastSelectedMember = null;
+    }
+
+    private static void updateMembers(EncounterProtocol.EncounterState state) {
+        if (lastMembersState == state && java.util.Objects.equals(lastSelectedMember, selectedTarget())) return;
+        lastMembersState = state; lastSelectedMember = selectedTarget();
+        List<UUID> order = state.members().stream().map(EncounterProtocol.MemberNotice::id).toList();
+        var ids = new java.util.HashSet<>(order);
+        Element host = document.getElementById("initiative");
+        for (UUID id : List.copyOf(members.keySet())) if (!ids.contains(id)) releaseMember(id);
         for (var member : state.members()) {
-            Element row = members.computeIfAbsent(member.id(), id -> {
-                Element node = host.appendChild(document.createElement("div"));
-                node.setAttribute("role", "button");
-                node.setAttribute("tabindex", "0");
-                node.addEventListener("click", event -> {
-                    if (member.kind() == TurnParticipant.Kind.ENTITY) ClientTacticalPlan.inspect(id);
-                });
-                node.addEventListener("mouseenter", event -> text("description",
-                    values.getOrDefault(id + ":detail", "")));
-                memberPortraits.put(id, ParticipantPortraits.append(document, node,
-                    member.kind() == TurnParticipant.Kind.ENVIRONMENT));
-                Element label = node.appendChild(document.createElement("span"));
-                label.setAttribute("class", "member-name");
-                memberLabels.put(id, label);
-                return node;
-            });
+            MemberNodes nodes = memberNodes.get(member.id());
+            if (nodes == null) {
+                nodes = memberPool.isEmpty() ? newMemberNodes() : memberPool.removeFirst();
+                nodes.target = member.id(); nodes.entity = member.kind() == TurnParticipant.Kind.ENTITY;
+                TacticalButton.style(nodes.entity ? nodes.globe : nodes.portrait, "display: none");
+                memberNodes.put(member.id(), nodes); members.put(member.id(), nodes.row);
+                memberLabels.put(member.id(), nodes.label);
+                memberPortraits.put(member.id(), nodes.entity ? nodes.portrait : nodes.globe);
+                layoutKey = null;
+            }
+            Element row = nodes.row;
             String flags = (member.dodging() ? " · 回避" : "") + (member.disengaged() ? " · 撤离" : "")
                 + (member.eligibleRound() > state.round() ? " · 下轮行动" : "");
             values.put(member.id() + ":detail", member.name() + " · 先攻 " + member.initiative()
@@ -390,6 +502,7 @@ public final class TacticalOverlay {
             if (!css.equals(values.put(member.id() + ":class", css))) row.setAttribute("class", css);
         }
         if (!memberOrder.equals(order)) {
+            OverlayUi.resetInteraction(document);
             for (UUID id : order) host.appendChild(members.get(id));
             memberOrder = order;
         }
@@ -426,11 +539,19 @@ public final class TacticalOverlay {
         contextY = Math.clamp(point.y / Math.max(1, size.height()), 0, 1);
     }
 
+    private record LayoutKey(int width, int height, boolean inventory, boolean abilities, boolean inspection,
+                             boolean context, int members, double contextX, double contextY) {}
+    private static LayoutKey layoutKey;
+
     private static void updateLayout() {
         document.applyViewport(false);
         var size = document.getViewportSize();
         int width = Math.max(1, (int) size.width()), height = Math.max(1, (int) size.height());
-        boolean chatting = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen;
+        LayoutKey next = new LayoutKey(width, height, inventoryOpen, abilitiesTab, ClientInspection.open(),
+            ClientTacticalPlan.phase() == ClientTacticalPlan.Phase.CONTEXT_MENU, members.size(), contextX, contextY);
+        if (next.equals(layoutKey)) return;
+        layoutKey = next;
+        boolean chatting = false;
         attribute("initiative", "class", chatting ? "chat-hidden" : "");
         attribute("journal", "class", "combat-panel journal" + (chatting ? " chat-hidden" : ""));
         double panelHeight = height * PANEL_HEIGHT_FRACTION;

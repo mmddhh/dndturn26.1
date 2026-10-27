@@ -37,10 +37,10 @@ public final class DefaultInteractionChecks {
         h.runAtTickTime(30,()->{
             try {
                 var clicked=base.offset(1,-1,0); var destination=clicked.above();
-                for(int scenario=0;scenario<3;scenario++) {
+                for(int scenario=0;scenario<4;scenario++) {
                     level.setBlockAndUpdate(destination,scenario==2?Blocks.LEVER.defaultBlockState():Blocks.AIR.defaultBlockState());
                     level.setBlockAndUpdate(clicked,scenario==1?Blocks.DIRT.defaultBlockState():Blocks.STONE.defaultBlockState());
-                    var item=scenario==0?Items.OAK_FENCE:scenario==1?Items.POTION:Items.REDSTONE;
+                    var item=scenario==0?Items.OAK_FENCE:scenario==1?Items.POTION:scenario==2?Items.REDSTONE:Items.MAP;
                     player.getInventory().setSelectedSlot(0); player.getInventory().setItem(0,new ItemStack(item,8));
                     if(scenario==1) player.getMainHandItem().set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.WATER));
                     service.lifecycle().requestStart(player,UUID.randomUUID()); var encounter=service.encounterOf(player.getUUID());
@@ -50,7 +50,7 @@ public final class DefaultInteractionChecks {
                     var target=new ActionIntent.Target(ActionIntent.TargetKind.BLOCK,level.dimension().identifier().toString(),null,
                         MinecraftCoordinates.cell(pos),Direction.UP.ordinal(),.5,1,.5);
                     var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
-                    String behavior=scenario==0?"dndturn:place":scenario==1?"dndturn:tool":"dndturn:block";
+                    String behavior=scenario==0?"dndturn:place":scenario==2?"dndturn:block":"dndturn:tool";
                     var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals(behavior)).findFirst().orElseThrow(()->new IllegalStateException("missing "+behavior+": "+options));
                     h.assertTrue(offer.reason().isEmpty(),behavior+" unavailable: "+offer.reason());
                     h.assertTrue(player.getMainHandItem().getCount()==8,"query consumed item");
@@ -63,10 +63,22 @@ public final class DefaultInteractionChecks {
                         h.assertTrue(level.getBlockState(scenario==0?destination:clicked).is(scenario==0?Blocks.OAK_FENCE:Blocks.MUD),"native placement missing");
                         h.assertTrue(player.getMainHandItem().getCount()==7,"wrong item consumption");
                         h.assertTrue(!service.state(encounter).members().get(player.getUUID()).action(),"paid use did not spend action");
-                    } else {
+                    } else if(scenario==2) {
                         h.assertTrue(level.getBlockState(destination).getValue(LeverBlock.POWERED),"native block callback missing");
                         h.assertTrue(player.getMainHandItem().getCount()==8,"free block interaction consumed held item");
                         h.assertTrue(service.state(encounter).members().get(player.getUUID()).action(),"free block interaction spent action");
+                    } else {
+                        h.assertTrue(player.getMainHandItem().getCount()==7,"useOn PASS did not consume exactly one empty map");
+                        h.assertTrue(!service.state(encounter).members().get(player.getUUID()).action(),"native use fallback did not spend one action");
+                        h.assertTrue(level.getBlockState(clicked).is(Blocks.STONE),"native use fallback changed its cursor block");
+                        service.actions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),offer.intent(),false));
+                        h.assertTrue(player.getMainHandItem().getCount()==7,"retried item use repeated native consumption");
+                        int maps=0;
+                        for(int slot=0;slot<player.getInventory().getContainerSize();slot++) {
+                            var stack=player.getInventory().getItem(slot);
+                            if(stack.is(Items.FILLED_MAP)) maps+=stack.getCount();
+                        }
+                        h.assertTrue(maps==1,"native use fallback did not create exactly one map");
                     }
                     System.out.println("DEFAULT_INTERACTION behavior="+behavior+" passed");
                     service.lifecycle().stop(encounter);

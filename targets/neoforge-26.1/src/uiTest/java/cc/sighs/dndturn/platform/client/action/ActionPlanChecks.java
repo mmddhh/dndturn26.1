@@ -5,7 +5,52 @@ import cc.sighs.dndturn.platform.network.ActionProtocol;
 
 public final class ActionPlanChecks {
     private ActionPlanChecks() {}
-    public static void run() throws Exception { checkSelectionLifecycle(); checkDiscoveryLifecycle(); checkExitReplies(); }
+    public static void run() throws Exception { checkSelectionLifecycle(); checkDiscoveryLifecycle(); checkExitReplies(); checkItemUse(); }
+    private static void checkItemUse() throws Exception {
+        var source = cc.sighs.dndturn.domain.ability.GrantEvidence.equipment(ActionIntent.Hand.MAIN_HAND,
+            new ActionIntent.ItemReference(0, "confirmed-item"));
+        var tool = new ActionProtocol.Ability("dndturn:tool", "tool", ActionIntent.Capability.USE_ITEM,
+            java.util.Set.of(ActionIntent.TargetKind.BLOCK), 1, source);
+        var nativeUse = new ActionProtocol.Ability("dndturn:native_use", "use", ActionIntent.Capability.USE_ITEM,
+            java.util.Set.of(ActionIntent.TargetKind.SELF), 1, source);
+        var entityUse = new ActionProtocol.Ability("dndturn:entity_item", "entity", ActionIntent.Capability.USE_ITEM,
+            java.util.Set.of(ActionIntent.TargetKind.ENTITY), 1, source);
+        var generic = java.util.List.of(nativeUse, entityUse, tool);
+        require(ItemUseSelection.resolve(generic, ActionIntent.TargetKind.BLOCK) == tool,
+            "cursor block lost its useOn binding to self use");
+        require(ItemUseSelection.resolve(generic, ActionIntent.TargetKind.ENTITY) == entityUse,
+            "cursor entity lost its interaction binding");
+        require(ItemUseSelection.resolve(generic, ActionIntent.TargetKind.SELF) == nativeUse,
+            "untargeted native use unavailable");
+        for (String id : java.util.List.of("place", "spawn_item", "bucket", "bottle", "brush", "fishing_rod")) {
+            var dedicated = new ActionProtocol.Ability("dndturn:" + id, id,
+                id.equals("place") ? ActionIntent.Capability.PLACE : ActionIntent.Capability.USE_ITEM,
+                java.util.Set.of(ActionIntent.TargetKind.BLOCK), 1, source);
+            var choices = java.util.List.of(tool, nativeUse, entityUse, dedicated);
+            require(ItemUseSelection.resolve(choices, ActionIntent.TargetKind.BLOCK) == dedicated,
+                "generic entry bypassed dedicated lifecycle: " + id);
+            require(ItemUseSelection.resolve(choices, ActionIntent.TargetKind.SELF) == null,
+                "missing cursor target fell back to untargeted use: " + id);
+            require(ItemUseSelection.resolve(choices, ActionIntent.TargetKind.ENTITY) == entityUse,
+                "item lost native entity interaction: " + id);
+        }
+        var consume = new ActionProtocol.Ability("dndturn:consume", "consume", ActionIntent.Capability.USE_ITEM,
+            java.util.Set.of(ActionIntent.TargetKind.SELF), 1, source);
+        require(ItemUseSelection.resolve(java.util.List.of(tool, consume), ActionIntent.TargetKind.BLOCK) == tool,
+            "consumable lost native useOn semantics");
+        require(ItemUseSelection.resolve(java.util.List.of(tool, consume), ActionIntent.TargetKind.SELF) == consume,
+            "consumable self use lost its confirmed source");
+        var block = new ActionProtocol.Ability("dndturn:block", "block", ActionIntent.Capability.USE_BLOCK,
+            java.util.Set.of(ActionIntent.TargetKind.BLOCK), 1, cc.sighs.dndturn.domain.ability.GrantEvidence.basic());
+        require(!ItemUseSelection.includes(block), "free block interaction merged into paid item use");
+        ClientTacticalPlan.reset();
+        setPlanField("useItem", true);
+        ClientTacticalPlan.cancel();
+        require(Boolean.FALSE.equals(planField("useItem")), "cancel retained item dispatch mode");
+        setPlanField("useItem", true);
+        ClientTacticalPlan.reset();
+        require(Boolean.FALSE.equals(planField("useItem")), "new session inherited item dispatch mode");
+    }
     private static void checkExitReplies() throws Exception {
         var controls = cc.sighs.dndturn.platform.client.input.CombatControls.class;
         var operation = controls.getDeclaredField("exitOperationId"); operation.setAccessible(true);

@@ -25,6 +25,7 @@ public final class DNDTurnNeoForgeClient {
             event.enqueueWork(PresentationAdapters::freeze));
         modBus.addListener(CombatControls::registerKeys);
         modBus.addListener(CombatControls::registerHud);
+        modBus.addListener(cc.sighs.dndturn.platform.client.ui.OverlayUi::registerReload);
         modBus.addListener(ClientPresentation::register);
         NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.platform.client.ClientSession::onClientTick);
         NeoForge.EVENT_BUS.addListener(ActionPreviewRenderer::extract);

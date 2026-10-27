@@ -19,7 +19,18 @@ final class TacticalIcons {
         node.setAttribute("width", "64");
         node.setAttribute("height", "64");
         Canvas canvas = (Canvas) visual.appendChild(node);
+        paint(canvas, name);
+    }
+
+    static void update(Element button, String name) {
+        paint((Canvas) TacticalButton.host(button).getLastElementChild().getFirstElementChild(), name);
+    }
+
+    private static void paint(Canvas canvas, String name) {
         canvas.renderOperation(g -> {
+            g.setComposite(java.awt.AlphaComposite.Clear);
+            g.fillRect(0, 0, 64, 64);
+            g.setComposite(java.awt.AlphaComposite.SrcOver);
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.scale(2, 2);
             g.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
