@@ -29,6 +29,35 @@ class TacticalEffectStateTest {
     private ActorStates.State apply(ActorStates owner, ActorStates.Change... changes) {
         return owner.apply(new ActorStates.Command(UUID.randomUUID(), actor, owner.state(actor).revision(), List.of(changes)));
     }
+    @Test void learnedBindingsFollowPreparationRevocationAndInstanceWithoutMutatingSnapshots() {
+        var registry = new cc.sighs.dndturn.domain.ability.AbilityRegistry();
+        var ability = new cc.sighs.dndturn.domain.ability.AbilityDefinition("test:learned", 1, "Learned",
+                cc.sighs.dndturn.domain.action.ActionIntent.Capability.USE_ITEM,
+                Set.of(cc.sighs.dndturn.domain.action.ActionIntent.TargetKind.SELF),
+                cc.sighs.dndturn.domain.ability.AbilityDefinition.Activation.CONTINUOUS,
+                cc.sighs.dndturn.domain.ability.ActionCost.FREE,
+                new cc.sighs.dndturn.domain.fact.ReadContract(Set.of(cc.sighs.dndturn.domain.fact.RuleFacts.SOURCE_VALID)), "test:learned",
+                cc.sighs.dndturn.domain.ability.AbilityDefinition.TargetPolicy.NATIVE_INTERACTION,
+                cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.PREPARED);
+        registry.register(ability); registry.freeze();
+        assertThrows(IllegalArgumentException.class, () -> ability.validateLearning(false));
+        var owner = new ActorStates(); var grant = UUID.randomUUID(); var instance = UUID.randomUUID();
+        apply(owner, new ActorStates.Learn(new cc.sighs.dndturn.domain.actor.ActorPersistentState.Learned(grant, ability.id(), 1, "test:admin", true, 1)));
+        assertTrue(ActorCompilation.bindings(actor, instance, owner.state(actor), registry).isEmpty());
+        apply(owner, new ActorStates.Prepare(Set.of(grant)));
+        var bound = ActorCompilation.bindings(actor, instance, owner.state(actor), registry);
+        apply(owner, new ActorStates.Prepare(Set.of()));
+        assertTrue(ActorCompilation.bindings(actor, instance, owner.state(actor), registry).isEmpty());
+        apply(owner, new ActorStates.Prepare(Set.of(grant)));
+        assertNotEquals(bound, ActorCompilation.bindings(actor, instance, owner.state(actor), registry));
+        assertNotEquals(bound, ActorCompilation.bindings(actor, UUID.randomUUID(), owner.state(actor), registry));
+        apply(owner, new ActorStates.Forget(grant));
+        assertTrue(ActorCompilation.bindings(actor, instance, owner.state(actor), registry).isEmpty());
+        assertEquals(1, bound.size());
+        var missing = new FactSlice(Map.of(), Map.of(new cc.sighs.dndturn.domain.fact.FactKey<>("test:missing", Double.class), FactSlice.Missing.UNSUPPORTED));
+        assertEquals(missing, ActorCompilation.apply(missing, owner.state(actor),
+                List.of(new EffectDefinition.Modifier("test:missing", EffectDefinition.Operator.ADD, 3))));
+    }
     @Test void policyMergesDifferentCallerIdsAndPreservesRank() {
         var owner = new ActorStates(); var d = definition(EffectDefinition.InstancePolicy.SINGLE_PER_TARGET, EffectDefinition.Overflow.CLAMP);
         var first = effect(d, UUID.randomUUID(), source, 1, 2, 1);
@@ -41,6 +70,28 @@ class TacticalEffectStateTest {
         assertThrows(UnsupportedOperationException.class, () -> before.runtime().effects().clear());
         assertEquals(12, ActorCompilation.stat(after, "test:constant", 10));
         assertEquals(7, ActorCompilation.stat(after, "test:scaled", 10));
+        var explanation = ActorCompilation.explain(after, "test:scaled", 10,
+                new cc.sighs.dndturn.domain.ability.ContinuousAbilities.Expanded(List.of(), List.of()));
+        assertEquals(ActorCompilation.stat(after, "test:scaled", 10), explanation.value());
+        assertEquals(first.id(), explanation.contributions().get(0).effect());
+        assertEquals(3, explanation.contributions().get(0).scale());
+        var ability = new cc.sighs.dndturn.domain.ability.AbilityDefinition("test:passive", 1, "Passive",
+                cc.sighs.dndturn.domain.action.ActionIntent.Capability.USE_ITEM, Set.of(cc.sighs.dndturn.domain.action.ActionIntent.TargetKind.SELF),
+                cc.sighs.dndturn.domain.ability.AbilityDefinition.Activation.CONTINUOUS, cc.sighs.dndturn.domain.ability.ActionCost.FREE,
+                cc.sighs.dndturn.domain.fact.RuleFacts.AVAILABILITY, "test:passive", cc.sighs.dndturn.domain.ability.AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
+        var registry = new cc.sighs.dndturn.domain.ability.AbilityRegistry(); registry.register(ability);
+        var binding = new cc.sighs.dndturn.domain.ability.AbilityBinding(ability, cc.sighs.dndturn.domain.ability.AbilityGrant.nativeGrant(actor,
+                cc.sighs.dndturn.domain.ability.GrantEvidence.intrinsic("test:source", 1, actor, UUID.randomUUID())));
+        var continuous = new cc.sighs.dndturn.domain.ability.ContinuousAbilities();
+        continuous.register(ability, new cc.sighs.dndturn.domain.ability.ContinuousAbilities.Contribution(
+                List.of(new EffectDefinition.Modifier("test:scaled", EffectDefinition.Operator.MULTIPLY, 1.5)), List.of()));
+        var expanded = continuous.expand(List.of(binding), registry);
+        var sourced = ActorCompilation.explain(after, "test:scaled", 10, expanded);
+        assertEquals(10.5, sourced.value());
+        assertEquals(ActorCompilation.stat(after, "test:scaled", 10, expanded.modifiers()), sourced.value());
+        assertEquals(binding.source(), sourced.contributions().get(1).grant());
+        assertTrue(continuous.expand(List.of(), registry).sources().isEmpty());
+        assertEquals(expanded, continuous.expand(List.of(binding, binding), registry));
     }
     @Test void sourcePoliciesAndUniqueApplicationsDoNotMergeUnrelatedSources() {
         for (var policy : EffectDefinition.InstancePolicy.values()) {
@@ -106,7 +157,7 @@ class TacticalEffectStateTest {
         var nativeEffect = new EffectSnapshot.Vanilla("minecraft:strength", 4, -1, false, true, -2, EffectSnapshot.NativeSupport.NATIVE);
         var effects = new ArrayList<EffectSnapshot>(List.of(projected, nativeEffect));
         var facts = new FactSlice(Map.of(), Map.of());
-        var actorDefinition = new ActorDefinition("test:actor", 1, Set.of(), facts);
+        var actorDefinition = new ActorDefinition("test:actor", 1, Set.of(), facts, List.of(), ActorDefinition.Classification.unspecified(), Map.of());
         var snapshot = new ActorSnapshot(actor, UUID.randomUUID(), actorDefinition,
                 new ActorSnapshot.Revision(UUID.randomUUID(), 1, "test:rules"), facts, List.of(), effects);
         effects.clear();

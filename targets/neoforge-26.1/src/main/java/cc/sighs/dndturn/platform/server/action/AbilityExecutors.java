@@ -49,6 +49,8 @@ public final class AbilityExecutors {
                 case PERIODIC -> require(activation, "periodic activation missing", definition);
                 case CONTINUOUS -> require(!paid && !executable, "continuous ability execution conflict", definition);
             }
+            if (definition.learning() != AbilityDefinition.Learning.UNAVAILABLE && executable)
+                require(AbilityAdapterRegistry.facts(definition.id()).supportsPersistentSource(), "persistent source unsupported", definition);
             if (paid) require(executable, "paid ability executor missing", definition);
             if (executable) require(AbilityAdapterRegistry.hasNativeFacts(definition.id()), "native facts missing", definition);
         }

@@ -8,6 +8,8 @@ import cc.sighs.dndturn.domain.actor.ActorActivations;
 import cc.sighs.dndturn.domain.actor.ActorPersistentState;
 import cc.sighs.dndturn.domain.actor.ActorRuntimeState;
 import cc.sighs.dndturn.domain.actor.ActorStates;
+import cc.sighs.dndturn.domain.actor.StatResolution;
+import cc.sighs.dndturn.domain.ability.ContinuousAbilities;
 import cc.sighs.dndturn.domain.effect.EffectDefinition;
 import cc.sighs.dndturn.domain.effect.EffectInstance;
 import cc.sighs.dndturn.domain.fact.ActorFacts;
@@ -33,10 +35,13 @@ public final class ActorCompilation {
         state.persistent().grants().values().stream().sorted(Comparator.comparing(ActorPersistentState.Learned::id)).forEach(grant -> {
             if (!grant.requiresPreparation() || state.persistent().prepared().contains(grant.id())) {
                 var definition = registry.find(grant.ability(), grant.version());
-                if (definition != null) result.add(new AbilityBinding(definition, new AbilityGrant(actor,
+                if (definition != null) {
+                    definition.validateLearning(grant.requiresPreparation());
+                    result.add(new AbilityBinding(definition, new AbilityGrant(actor,
                         AbilityGrant.Origin.LEARNED, AbilityGrant.Owner.ACTOR_PERSISTENT,
                         GrantEvidence.owned(GrantEvidence.Kind.PERSISTENT, "dndturn:actor_persistent", 1, actor, instance,
                                 grant.id(), grant.revision(), null))));
+                }
             }
         });
         state.runtime().effects().values().stream().sorted(Comparator.comparing(EffectInstance::id)).forEach(effect -> {
@@ -83,8 +88,10 @@ public final class ActorCompilation {
         for (var modifier : continuous) keys.add(new FactKey<>(modifier.stat().id(), Double.class));
         for (var key : keys) {
             var numeric = new FactKey<>(key.id(), Double.class);
-            double value = input.read(new ReadContract(Set.of(numeric)), numeric);
-            values.put(numeric, stat(state, key.id(), value, continuous));
+            try {
+                double value = input.read(new ReadContract(Set.of(numeric)), numeric);
+                values.put(numeric, stat(state, key.id(), value, continuous));
+            } catch (FactSlice.MissingFact unavailable) { /* A contribution cannot invent its baseline. */ }
         }
         return input.derive(values);
     }
@@ -92,17 +99,41 @@ public final class ActorCompilation {
         return stat(state, key, base, List.of());
     }
     public static double stat(ActorStates.State state, String key, double base, List<EffectDefinition.Modifier> continuous) {
-        double addition = 0, multiplier = 1;
+        var calculation = new Calculation();
         for (var effect : state.runtime().effects().values().stream().sorted(Comparator.comparing(EffectInstance::id)).toList())
             for (var modifier : effect.definition().modifiers()) if (modifier.stat().id().equals(key)) {
                 int scale = modifier.scaling() == EffectDefinition.Scaling.PER_STACK ? effect.stacks() : 1;
-                if (modifier.operator() == EffectDefinition.Operator.ADD) addition += modifier.amount() * scale;
-                else multiplier *= Math.pow(modifier.amount(), scale);
+                calculation.add(modifier.operator(), modifier.amount(), scale);
             }
         for (var modifier : continuous) if (modifier.stat().id().equals(key)) {
-            if (modifier.operator() == EffectDefinition.Operator.ADD) addition += modifier.amount();
-            else multiplier *= modifier.amount();
+            calculation.add(modifier.operator(), modifier.amount(), 1);
         }
+        return finish(key, base, calculation.addition, calculation.multiplier);
+    }
+    /** Same arithmetic as stat(), with the source evidence retained for explicit character reads. */
+    public static StatResolution explain(ActorStates.State state, String key, double base, ContinuousAbilities.Expanded continuous) {
+        var contributions = new ArrayList<StatResolution.Contribution>();
+        for (var effect : state.runtime().effects().values().stream().sorted(Comparator.comparing(EffectInstance::id)).toList())
+            for (var modifier : effect.definition().modifiers()) if (modifier.stat().id().equals(key))
+                contributions.add(new StatResolution.Contribution(effect.definition().id(), effect.id(), null,
+                        modifier.operator(), modifier.amount(), modifier.scaling() == EffectDefinition.Scaling.PER_STACK ? effect.stacks() : 1));
+        for (var source : continuous.sources()) if (source.modifier().stat().id().equals(key))
+            contributions.add(new StatResolution.Contribution(source.source().id(), null, source.source().source(),
+                    source.modifier().operator(), source.modifier().amount(), 1));
+        var calculation = new Calculation();
+        for (var contribution : contributions) {
+            calculation.add(contribution.operator(), contribution.operand(), contribution.scale());
+        }
+        return new StatResolution(key, base, calculation.addition, calculation.multiplier, finish(key, base, calculation.addition, calculation.multiplier), contributions);
+    }
+    private static final class Calculation {
+        private double addition, multiplier = 1;
+        void add(EffectDefinition.Operator operator, double operand, int scale) {
+            if (operator == EffectDefinition.Operator.ADD) addition += operand * scale;
+            else multiplier *= Math.pow(operand, scale);
+        }
+    }
+    private static double finish(String key, double base, double addition, double multiplier) {
         double value = (base + addition) * multiplier;
         if (!Double.isFinite(value)) throw new IllegalArgumentException("modifier overflow");
         if (key.equals(ActorFacts.ARMOR_CLASS.id()) || key.equals(ActorFacts.DAMAGE_REDUCTION.id())) {

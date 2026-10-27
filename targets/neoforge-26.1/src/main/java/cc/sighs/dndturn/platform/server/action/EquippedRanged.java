@@ -26,7 +26,7 @@ public final class EquippedRanged extends AbilityAdapter {
     public EquippedRanged() {
         super(new AbilityDefinition(ID, 1, "Bow", ActionIntent.Capability.ATTACK,
                 Set.of(ActionIntent.TargetKind.ENTITY), AbilityDefinition.Activation.MANUAL,
-                ActionCost.ATTACK, RuleFacts.AVAILABILITY, ID, AbilityDefinition.TargetPolicy.PVE_LIVING_MEMBER));
+                ActionCost.ATTACK, RuleFacts.AVAILABILITY, ID, AbilityDefinition.TargetPolicy.PVE_LIVING_MEMBER, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE));
     }
     static EquipmentEffects.Contribution contribution(LiveActorContext actor) {
         return AbilityAdapterRegistry.equipmentEffects().resolve(actor.state().runtime().effects().values()).orElse(null);
@@ -56,11 +56,11 @@ public final class EquippedRanged extends AbilityAdapter {
         String ammunition = switch (effect.policy().ammunition()) {
             case HELD_OR_NATIVE_ORDINARY_ARROW -> ammunition(actor);
         };
-        return GrantEvidence.equipment(hand, ActorEquipment.reference(actor, hand), effect.policy().id(), effect.policy().version(),
+        return ActorEquipment.bind(actor, GrantEvidence.equipment(hand, ActorEquipment.reference(actor, hand), effect.policy().id(), effect.policy().version(),
                 actor.id(), actor.instance(), effect.effect(), effect.grantRevision())
                 .withDependencies(Map.of("ammunition", ammunition, "driver", driver.id() + "@" + driver.version(),
                         "mainGeneration", Long.toString(ActorEquipment.generation(actor, ActionIntent.Hand.MAIN_HAND)),
-                        "offGeneration", Long.toString(ActorEquipment.generation(actor, ActionIntent.Hand.OFF_HAND))));
+                        "offGeneration", Long.toString(ActorEquipment.generation(actor, ActionIntent.Hand.OFF_HAND)))));
     }
     public String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) {
         var source = source(actor, intent.hand());

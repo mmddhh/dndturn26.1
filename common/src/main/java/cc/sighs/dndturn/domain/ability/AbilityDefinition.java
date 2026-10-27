@@ -12,12 +12,12 @@ public record AbilityDefinition(String id, int version, String label, ActionInte
                                 Set<ActionIntent.TargetKind> targets, Activation activation,
                                 ActionCost cost, ReadContract reads, String executor, TargetPolicy targetPolicy,
                                 OperationRecord.Kind executionKind,
-                                Map<String, Set<String>> parameters) {
+                                Map<String, Set<String>> parameters, Learning learning) {
     public AbilityDefinition(String id, int version, String label, ActionIntent.Capability kind,
             Set<ActionIntent.TargetKind> targets, Activation activation, ActionCost cost, ReadContract reads,
-            String executor, TargetPolicy targetPolicy) {
+            String executor, TargetPolicy targetPolicy, Learning learning) {
         this(id, version, label, kind, targets, activation, cost, reads, executor, targetPolicy,
-                defaultExecutionKind(kind), Map.of());
+                defaultExecutionKind(kind), Map.of(), learning);
     }
     private static OperationRecord.Kind defaultExecutionKind(ActionIntent.Capability kind) {
         return switch (kind) {
@@ -29,6 +29,7 @@ public record AbilityDefinition(String id, int version, String label, ActionInte
             case USE_BLOCK, EQUIP -> OperationRecord.Kind.USE_BLOCK;
         };
     }
+    public enum Learning { UNAVAILABLE, IMMEDIATE, PREPARED }
     public enum Activation { MANUAL, TRIGGERED, CONTINUOUS, PERIODIC }
     public enum TargetPolicy { NATIVE_INTERACTION, NON_PLAYER_LIVING_MEMBER, OPPOSITE_PLAYER_LIVING_MEMBER, PVE_LIVING_MEMBER }
     public AbilityDefinition {
@@ -37,7 +38,7 @@ public record AbilityDefinition(String id, int version, String label, ActionInte
         Objects.requireNonNull(cost); Objects.requireNonNull(reads);
         if (cost.requiresReaction() && activation != Activation.TRIGGERED)
             throw new IllegalArgumentException("reaction cost requires triggered admission");
-        Objects.requireNonNull(targetPolicy);
+        Objects.requireNonNull(targetPolicy); Objects.requireNonNull(learning);
         Objects.requireNonNull(executionKind);
         var bounded = new LinkedHashMap<String, Set<String>>();
         Objects.requireNonNull(parameters).forEach((key, values) -> {
@@ -52,6 +53,10 @@ public record AbilityDefinition(String id, int version, String label, ActionInte
             throw new IllegalArgumentException("ability definition");
         if (!reads.keys().contains(RuleFacts.SOURCE_VALID))
             throw new IllegalArgumentException("every ability must declare grant evidence");
+    }
+    public void validateLearning(boolean requiresPreparation) {
+        if (learning == Learning.UNAVAILABLE || requiresPreparation != (learning == Learning.PREPARED))
+            throw new IllegalArgumentException("ability learning policy mismatch: " + id);
     }
     public void validateParameters(Map<String, String> values) {
         if (values.entrySet().stream().anyMatch(e -> !parameters.getOrDefault(e.getKey(), Set.of()).contains(e.getValue())))

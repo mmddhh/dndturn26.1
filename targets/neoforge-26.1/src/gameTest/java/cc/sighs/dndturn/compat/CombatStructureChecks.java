@@ -46,7 +46,7 @@ public final class CombatStructureChecks {
             var definition = new AbilityDefinition("test:defense_" + name, 1, name, ActionIntent.Capability.USE_ITEM,
                     Set.of(ActionIntent.TargetKind.SELF), AbilityDefinition.Activation.TRIGGERED,
                     name.equals("free") ? ActionCost.FREE : ActionCost.REACTION, RuleFacts.AVAILABILITY,
-                    "test:defense_" + name, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION);
+                    "test:defense_" + name, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
             var adapter = new MinecraftAbilityAdapter(definition) {
                 public GrantEvidence source(LiveActorContext actor, ActionIntent.Hand hand) { return null; }
                 public String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) { return null; }

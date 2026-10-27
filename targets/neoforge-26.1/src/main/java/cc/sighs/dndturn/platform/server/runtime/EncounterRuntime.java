@@ -242,7 +242,8 @@ public final class EncounterRuntime {
         var opened = EncounterPersistence.open(savedData, config.roundTicks());
         this.persistence = opened.persistence();
         this.engine = opened.authority();
-        this.inspections = new InspectionService(engine, actorStates, generation, this::planClock);
+        this.inspections = new InspectionService(engine, actorStates, generation, this::planClock,
+                (actor, instance) -> processes().activeFor(actor, instance));
         this.actorStates.bindEncounterMembership(engine::encounterOf);
         this.movement = new MovementExecutionCoordinator(server, engine, generation, new MovementExecutionCoordinator.Host() {
             public boolean supportsMovement(Mob actor) { return cc.sighs.dndturn.platform.server.ai.MovementPorts.find(actor) != null; }

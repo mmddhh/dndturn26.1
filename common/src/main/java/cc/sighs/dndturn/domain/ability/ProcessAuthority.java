@@ -7,6 +7,11 @@ import java.util.*;
 public final class ProcessAuthority {
     private final Map<UUID, ProcessState> states = new LinkedHashMap<>();
     public Map<UUID, ProcessState> snapshot() { return Map.copyOf(states); }
+    public List<ProcessState> activeFor(UUID actor, UUID instance) {
+        return states.values().stream().filter(s -> s.owner().kind() == ProcessState.Ownership.ACTOR
+                && s.owner().id().equals(actor) && s.instance().equals(instance)
+                && s.release() != ProcessState.Release.RELEASED).sorted(Comparator.comparing(ProcessState::id)).toList();
+    }
     public ProcessState find(UUID id) { return states.get(id); }
     public ProcessState require(UUID id) { return Objects.requireNonNull(states.get(id), "unknown process"); }
     public ProcessState open(ProcessState state) {

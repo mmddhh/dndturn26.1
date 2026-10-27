@@ -120,6 +120,7 @@ public final class ActionExecutionCoordinator {
         TacticalImpact.Prepared preparedImpact;
         String observationFailure = "";
         String runningItemRevision;
+        Long runningEquipmentGeneration;
         AbilityCheckpoint.SourceChange sourceChange;
         int cursor;
         int stalled;
@@ -414,8 +415,10 @@ public final class ActionExecutionCoordinator {
             int slot = source.item().slot();
             String expected = active != null && active.root.intent().equals(intent) && active.runningItemRevision != null
                 ? active.runningItemRevision : source.item().revision();
-            ActorEquipment.validate(actorStates.context(player), source, expected);
             expectedSource = source.withItemRevision(expected);
+            if (active != null && active.root.intent().equals(intent) && active.runningEquipmentGeneration != null)
+                expectedSource = ActorEquipment.continuing(expectedSource, active.runningEquipmentGeneration);
+            ActorEquipment.validate(actorStates.context(player), expectedSource, expected);
         }
         var actor = actorStates.context(player);
         var snapshot = actorStates.snapshots().capture(actor, AbilityAdapterRegistry.definitions().require(intent));
@@ -723,6 +726,7 @@ public final class ActionExecutionCoordinator {
     void confirmSourceChange(ServerPlayer player, Execution execution) {
         if (execution.root.intent().source().kind() != GrantEvidence.Kind.EQUIPMENT) return;
         String previous = execution.runningItemRevision == null ? execution.root.intent().source().item().revision() : execution.runningItemRevision;
+        execution.runningEquipmentGeneration = ActorEquipment.generation(actorStates.context(player), execution.root.intent().source().hand());
         String current = ItemStackFingerprint.revision(player, PlayerBehavior.stack(player, execution.root.intent()));
         if (current.equals(previous)) return;
         execution.sourceChange = new AbilityCheckpoint.SourceChange(execution.executionSteps, previous, current);

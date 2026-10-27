@@ -24,7 +24,7 @@ class EffectInvocationTest {
     private final AbilityRegistry registry = new AbilityRegistry();
     private final AbilityDefinition observer = new AbilityDefinition("test:observer", 1, "observer", ActionIntent.Capability.USE_ITEM,
             Set.of(ActionIntent.TargetKind.SELF), AbilityDefinition.Activation.TRIGGERED, ActionCost.FREE,
-            new ReadContract(Set.of(RuleFacts.SOURCE_VALID)), "test:observer", AbilityDefinition.TargetPolicy.NATIVE_INTERACTION);
+            new ReadContract(Set.of(RuleFacts.SOURCE_VALID)), "test:observer", AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
     EffectInvocationTest() { registry.register(observer); }
     private EffectInstance effect(EffectDefinition.Clock clock) {
         var definition = new EffectDefinition("test:effect", 1, clock, EffectDefinition.Stacking.STACK, 3, false, true,

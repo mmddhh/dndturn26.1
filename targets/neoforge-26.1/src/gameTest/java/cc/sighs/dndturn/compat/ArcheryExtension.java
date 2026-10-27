@@ -32,7 +32,7 @@ public final class ArcheryExtension {
             public String id(){return GROUP;}
             public int priority(){return 10;}
             public boolean matches(LiveActorContext actor){return actor.body().getType()==EntityType.COW && actor.body().entityTags().contains(GROUP);}
-            public ActorDefinition definition(LiveActorContext actor){return new ActorDefinition(GROUP,1,Set.of(GROUP),new FactSlice(Map.of(),Map.of()));}
+            public ActorDefinition definition(LiveActorContext actor){return new ActorDefinition(GROUP,1,Set.of(GROUP),new FactSlice(Map.of(),Map.of()), List.of(), ActorDefinition.Classification.unspecified(), Map.of());}
         });
         RangedAdapters.register(new RangedAdapters.Adapter("test:cow_native_arrow",1,
                 actor->actor.body().getType()==EntityType.COW && actor.body().entityTags().contains(GROUP),

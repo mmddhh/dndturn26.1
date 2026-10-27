@@ -193,7 +193,7 @@ public final class VanillaBehaviors {
                 ActionIntent.Capability.USE_ITEM, Set.of(ActionIntent.TargetKind.SELF),
                 AbilityDefinition.Activation.MANUAL, ActionCost.USE,
                 RuleFacts.AVAILABILITY, "dndturn:native_use",
-                AbilityDefinition.TargetPolicy.NATIVE_INTERACTION)); }
+                AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE)); }
         public boolean supportsItem(ItemStack stack) {
             var item = stack.getItem();
             return !stack.isEmpty() && !stack.has(DataComponents.CONSUMABLE) && !stack.has(DataComponents.EQUIPPABLE)

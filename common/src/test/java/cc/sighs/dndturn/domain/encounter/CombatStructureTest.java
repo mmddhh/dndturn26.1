@@ -73,7 +73,7 @@ class CombatStructureTest {
     private static AbilityDefinition ability(String suffix, ActionCost cost) {
         return new AbilityDefinition("test:" + suffix, 1, suffix, ActionIntent.Capability.USE_ITEM,
                 Set.of(ActionIntent.TargetKind.SELF), AbilityDefinition.Activation.TRIGGERED, cost,
-                RuleFacts.AVAILABILITY, "test:" + suffix, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION);
+                RuleFacts.AVAILABILITY, "test:" + suffix, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
     }
     private static final class Fixture {
         final AbilityRegistry definitions = new AbilityRegistry();

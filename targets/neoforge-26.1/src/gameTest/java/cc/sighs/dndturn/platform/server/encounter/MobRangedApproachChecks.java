@@ -39,12 +39,12 @@ public final class MobRangedApproachChecks {
             for(long key:forced){var c=ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);}forced.clear();
         };
         h.runAtTickTime(299,cleanup);
-        h.startSequence().thenIdle(20).thenExecute(()->service.lifecycle().requestStart(player,UUID.randomUUID())).thenWaitUntil(()->{
+        h.startSequence().thenIdle(20).thenExecute(()->{ mob.setTarget(player); service.lifecycle().requestStart(player,UUID.randomUUID()); }).thenWaitUntil(()->{
             id[0]=service.encounterOf(mob.getUUID());h.assertTrue(id[0]!=null,"approach actor not discovered");
             var state=service.state(id[0]);if(player.getUUID().equals(state.current()))service.combat().endTurn(id[0],player,UUID.randomUUID(),state.version());
             state=service.state(id[0]);h.assertTrue(mob.getUUID().equals(state.current())&&state.members().get(mob.getUUID()).action(),"waiting for approach turn");
         }).thenExecute(()->{
-            var actor=new LiveActorContext(mob);var state=service.state(id[0]);
+            var actor=service.actorStates().context(mob);var state=service.state(id[0]);
             var target=new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,level.dimension().identifier().toString(),player.getUUID(),null,-1,0,0,0);
             var found=cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor,state,target).stream().filter(o->o.binding().id().equals(EquippedRanged.ID)).findFirst().orElseThrow();
             h.assertTrue(found.availability()==cc.sighs.dndturn.platform.server.ability.AbilityQueries.Availability.APPROACH_REQUIRED,"out of range bow did not request approach");

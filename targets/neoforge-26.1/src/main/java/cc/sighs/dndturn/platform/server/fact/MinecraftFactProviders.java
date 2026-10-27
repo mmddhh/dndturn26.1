@@ -14,6 +14,8 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 
 /** Demand-driven native providers. Values are copied, never the AttributeMap or equipment objects. */
 public final class MinecraftFactProviders {
+    private record AttributeRead(Holder<Attribute> type, boolean base) {}
+    private static final Map<FactKey<?>, AttributeRead> ATTRIBUTES = new LinkedHashMap<>();
     private static final Map<FactKey<?>, Function<LiveActorContext, ?>> PROVIDERS = new LinkedHashMap<>();
     private static boolean frozen;
     static {
@@ -24,6 +26,16 @@ public final class MinecraftFactProviders {
         attribute(ActorFacts.TOUGHNESS_BASE, ActorFacts.TOUGHNESS_EFFECTIVE, Attributes.ARMOR_TOUGHNESS);
         attribute(ActorFacts.SPEED_BASE, ActorFacts.SPEED_EFFECTIVE, Attributes.MOVEMENT_SPEED);
         attribute(ActorFacts.FOLLOW_BASE, ActorFacts.FOLLOW_EFFECTIVE, Attributes.FOLLOW_RANGE);
+        attribute(ActorFacts.MAX_HEALTH_BASE, ActorFacts.MAX_HEALTH, Attributes.MAX_HEALTH);
+        register(ActorFacts.HEALTH, actor -> (double) actor.body().getHealth());
+        register(ActorFacts.ABSORPTION, actor -> (double) actor.body().getAbsorptionAmount());
+        register(ActorFacts.ALIVE, actor -> actor.body().isAlive());
+        register(ActorFacts.DIMENSION, actor -> actor.level().dimension().identifier().toString());
+        register(ActorFacts.X, actor -> actor.body().getX());
+        register(ActorFacts.Y, actor -> actor.body().getY());
+        register(ActorFacts.Z, actor -> actor.body().getZ());
+        register(ActorFacts.YAW, actor -> (double) actor.body().getYRot());
+        register(ActorFacts.PITCH, actor -> (double) actor.body().getXRot());
         register(ActorFacts.WIDTH, actor -> (double) actor.body().getBbWidth());
         register(ActorFacts.HEIGHT, actor -> (double) actor.body().getBbHeight());
         register(ActorFacts.POSE, actor -> actor.body().getPose().name());
@@ -42,6 +54,7 @@ public final class MinecraftFactProviders {
     public static synchronized void freeze() { frozen = true; }
     public static synchronized boolean owns(FactKey<?> key) { return PROVIDERS.containsKey(key); }
     private static void attribute(FactKey<Double> base, FactKey<Double> effective, Holder<Attribute> type) {
+        ATTRIBUTES.put(base, new AttributeRead(type, true)); ATTRIBUTES.put(effective, new AttributeRead(type, false));
         register(base, actor -> {
             var attribute = actor.body().getAttribute(type);
             return attribute == null ? null : attribute.getBaseValue();
@@ -50,6 +63,27 @@ public final class MinecraftFactProviders {
             var attribute = actor.body().getAttribute(type);
             return attribute == null ? null : attribute.getValue();
         });
+    }
+    public static FactSlice captureObserved(LiveActorContext actor, ReadContract contract,
+            cc.sighs.dndturn.domain.actor.NativeActorObservation observed) {
+        actor.verifyCurrent();
+        if (!actor.id().equals(observed.actor()) || !actor.instance().equals(observed.instance()))
+            throw new IllegalArgumentException("native observation instance");
+        var values = new LinkedHashMap<FactKey<?>, Object>();
+        ATTRIBUTES.forEach((key, reader) -> {
+            var attribute = observed.attributes().get(net.minecraft.core.registries.BuiltInRegistries.ATTRIBUTE.getKey(reader.type().value()).toString());
+            if (contract.keys().contains(key) && attribute != null) values.put(key, reader.base() ? attribute.base() : attribute.effective());
+        });
+        var body = observed.body(); var vitals = observed.vitals(); var transform = observed.transform();
+        Map<FactKey<?>, Object> direct = Map.ofEntries(
+                Map.entry(InspectionPolicy.NAME, observed.name()), Map.entry(InspectionPolicy.TYPE, observed.type()),
+                Map.entry(ActorFacts.HEALTH, vitals.health()), Map.entry(ActorFacts.ABSORPTION, vitals.absorption()), Map.entry(ActorFacts.ALIVE, vitals.alive()),
+                Map.entry(ActorFacts.WIDTH, body.width()), Map.entry(ActorFacts.HEIGHT, body.height()), Map.entry(ActorFacts.POSE, body.pose()),
+                Map.entry(ActorFacts.DIMENSION, transform.dimension()), Map.entry(ActorFacts.X, transform.x()), Map.entry(ActorFacts.Y, transform.y()),
+                Map.entry(ActorFacts.Z, transform.z()), Map.entry(ActorFacts.YAW, transform.yaw()), Map.entry(ActorFacts.PITCH, transform.pitch()));
+        direct.forEach((key, value) -> { if (contract.keys().contains(key)) values.put(key, value); });
+        var remaining = new HashSet<>(contract.keys()); remaining.removeAll(values.keySet());
+        return new FactSlice(values, Map.of()).merge(capture(actor, new ReadContract(remaining)));
     }
     public static FactSlice capture(LiveActorContext actor, ReadContract contract) {
         actor.verifyCurrent();

@@ -156,6 +156,11 @@ public final class TacticalOverlay {
         text("inspection-refresh", ClientInspection.label("refresh"));
         text("inspection-close", ClientInspection.label("close"));
         text("inspection-content", ClientInspection.content());
+        text("inspection-section", ClientInspection.sectionLabel());
+        text("inspection-page", ClientInspection.pageLabel());
+        enabled("inspection-section", ClientInspection.ownCharacter());
+        enabled("inspection-prev", ClientInspection.hasPage(-1));
+        enabled("inspection-next", ClientInspection.hasPage(1));
         enabled("investigate", selectedTarget() != null && state.members().stream().anyMatch(m ->
             m.id().equals(selectedTarget()) && m.kind() == TurnParticipant.Kind.ENTITY));
         enabled("move", myTurn && state.movementTicks() > 0);
@@ -195,6 +200,9 @@ public final class TacticalOverlay {
         });
         document.getElementById("inspection-refresh").addEventListener("click", event -> ClientInspection.refresh(ClientControl.modal()));
         document.getElementById("inspection-close").addEventListener("click", event -> ClientInspection.close());
+        document.getElementById("inspection-section").addEventListener("click", event -> ClientInspection.nextSection(ClientControl.modal()));
+        document.getElementById("inspection-prev").addEventListener("click", event -> ClientInspection.page(-1, ClientControl.modal()));
+        document.getElementById("inspection-next").addEventListener("click", event -> ClientInspection.page(1, ClientControl.modal()));
         renderedOffers = List.of(); renderedAbilities = List.of(); renderedPhase = null;
         behaviorButtons.clear(); offerButtons.clear();
         values.clear(); members.clear(); memberLabels.clear(); memberPortraits.clear(); memberOrder = List.of();
@@ -446,7 +454,7 @@ public final class TacticalOverlay {
         int inspectHeight = Math.min(220, Math.max(1, height - 8));
         attribute("inspection-panel", "style", (ClientInspection.open() && !chatting ? "display: block; " : "display: none; ")
             + box((width - inspectWidth) / 2, Math.max(4, (height - inspectHeight) / 2), inspectWidth, inspectHeight));
-        attribute("inspection-content", "style", "height: " + Math.max(20, inspectHeight - 92) + "px");
+        attribute("inspection-content", "style", "height: " + Math.max(20, inspectHeight - 122) + "px");
         for (String id : List.of("items-tab", "abilities-tab"))
             attribute(id, "style", "height: " + 10 * dockScale + "px; padding: 0 "
                 + 5 * dockScale + "px; border-width: " + .5 * dockScale + "px; " + textSize(5.5, 8, dockScale));

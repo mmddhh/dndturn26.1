@@ -16,6 +16,7 @@ public final class TacticalCommands {
     private TacticalCommands() {}
     public static void register(RegisterCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("dndturn")
+            .then(ActorAbilityCommands.tree())
             .then(Commands.literal("encounter")
                 .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))
                 .then(Commands.literal("stop").then(Commands.argument("uuid", UuidArgument.uuid())

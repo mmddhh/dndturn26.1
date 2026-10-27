@@ -100,7 +100,7 @@ public final class EffectReactionChecks {
     private static AbilityDefinition ability(String suffix) {
         return new AbilityDefinition(PREFIX + suffix, 1, "test reaction " + suffix, ActionIntent.Capability.USE_ITEM,
                 Set.of(ActionIntent.TargetKind.SELF), AbilityDefinition.Activation.TRIGGERED, ActionCost.FREE,
-                new ReadContract(Set.of(RuleFacts.SOURCE_VALID)), PREFIX + suffix, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION);
+                new ReadContract(Set.of(RuleFacts.SOURCE_VALID)), PREFIX + suffix, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
     }
     public static void run(GameTestHelper helper) {
         selfLifecycle(helper);

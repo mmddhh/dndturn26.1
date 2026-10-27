@@ -13,12 +13,16 @@ public final class InspectionService {
     private final cc.sighs.dndturn.platform.server.actor.ActorStateAuthority actors;
     private final UUID generation;
     private final java.util.function.LongSupplier clock;
+    private final java.util.function.BiFunction<UUID, UUID, List<cc.sighs.dndturn.domain.ability.ProcessState>> processes;
     private final Map<UUID, Budget> budgets = new HashMap<>();
     private long tick = -1;
     private int captures;
     public InspectionService(cc.sighs.dndturn.domain.encounter.EncounterAuthority engine,
             cc.sighs.dndturn.platform.server.actor.ActorStateAuthority actors, UUID generation,
-            java.util.function.LongSupplier clock) { this.engine = engine; this.actors = actors; this.generation = generation; this.clock = clock; }
+            java.util.function.LongSupplier clock,
+            java.util.function.BiFunction<UUID, UUID, List<cc.sighs.dndturn.domain.ability.ProcessState>> processes) {
+        this.engine = engine; this.actors = actors; this.generation = generation; this.clock = clock; this.processes = processes;
+    }
 
     public InspectionProtocol.Reply query(ServerPlayer observer, InspectionProtocol.Query query) {
         var server = observer.level().getServer();
@@ -45,7 +49,26 @@ public final class InspectionService {
                     || !state.members().containsKey(query.target())) return reject(query, InspectionProtocol.Status.UNAVAILABLE);
             if (living != observer && (living.isInvisibleTo(observer) || !loadedSight(observer, living)
                     || !observer.hasLineOfSight(living))) return reject(query, InspectionProtocol.Status.UNAVAILABLE);
-            var view = actors.inspect(actors.context(observer), actors.context(living), state);
+            cc.sighs.dndturn.application.inspection.ActorViews.InspectionView view;
+            if (living == observer) {
+                var sheet = actors.character(actors.context(living));
+                var hostile = state.members().keySet().stream().filter(id -> engine.isHostile(state.id(), query.target(), id)
+                        || engine.isHostile(state.id(), id, query.target())).sorted().toList();
+                var active = query.section() == cc.sighs.dndturn.application.inspection.CharacterProjection.Section.ENCOUNTER
+                        ? processes.apply(query.target(), sheet.actor().instance()) : List.<cc.sighs.dndturn.domain.ability.ProcessState>of();
+                var context = new cc.sighs.dndturn.application.inspection.CharacterProjection.CombatContext(state, hostile, active,
+                        engine.pendingActionDebt(state.id(), query.target()), engine.movementTicksPerTurn(state.id()), engine.environmentTicks(state.id()));
+                view = cc.sighs.dndturn.application.inspection.CharacterProjection.project(sheet, observer.getUUID(), context, query.section(), query.page());
+            } else {
+                if (query.section() != cc.sighs.dndturn.application.inspection.CharacterProjection.Section.OVERVIEW || query.page() != 0)
+                    return reject(query, InspectionProtocol.Status.UNAVAILABLE);
+                view = actors.inspect(actors.context(observer), actors.context(living), state);
+            }
+            actors.context(living).verifyCurrent();
+            if (!state.equals(engine.stateView(query.encounter()))
+                    || !query.encounter().equals(engine.encounterOf(query.target()))
+                    || !query.encounter().equals(engine.encounterOf(observer.getUUID())))
+                return reject(query, InspectionProtocol.Status.STALE_SESSION);
             return new InspectionProtocol.Reply(query, InspectionProtocol.Status.OK, view);
         } catch (RuntimeException unavailable) {
             // Never forward provider exceptions, hidden fact names or rule quarantine details.

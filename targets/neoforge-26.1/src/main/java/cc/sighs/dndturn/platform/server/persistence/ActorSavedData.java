@@ -113,6 +113,8 @@ public final class ActorSavedData extends SavedData {
         var saved = GSON.fromJson(document, Checkpoint.class);
         var states = new LinkedHashMap<UUID, ActorStates.State>();
         saved.actors().forEach((id, state) -> {
+            state.persistent().grants().values().forEach(grant -> AbilityAdapterRegistry.definitions()
+                    .require(grant.ability(), grant.version()).validateLearning(grant.requiresPreparation()));
             var effects = new LinkedHashMap<UUID, EffectInstance>();
             state.runtime().effects().forEach((key, value) -> { if (value.definition().persist()) effects.put(key, value); });
             long revision = effects.size() == state.runtime().effects().size() ? state.revision() : Math.addExact(state.revision(), 1);

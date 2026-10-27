@@ -41,6 +41,6 @@ public final class ActorDefinitions {
             return definition;
         }
         return new ActorDefinition(BuiltInRegistries.ENTITY_TYPE.getKey(actor.body().getType()).toString(),
-                1, Set.of(), new FactSlice(Map.of(), Map.of()));
+                1, Set.of(), new FactSlice(Map.of(), Map.of()), List.of(), ActorDefinition.Classification.unspecified(), Map.of());
     }
 }

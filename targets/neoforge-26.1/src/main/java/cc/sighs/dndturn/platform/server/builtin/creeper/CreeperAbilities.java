@@ -48,7 +48,7 @@ public final class CreeperAbilities {
     private CreeperAbilities() {}
     private static AbilityDefinition definition(String id, AbilityDefinition.Activation activation, ActionCost cost, ActionIntent.TargetKind target) {
         return new AbilityDefinition(id, 1, id, ActionIntent.Capability.USE_ITEM, Set.of(target), activation,
-                cost, RuleFacts.AVAILABILITY, id, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION);
+                cost, RuleFacts.AVAILABILITY, id, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
     }
     public static void register() {
         WorldOutcomeHooks.register("dndturn:creeper", new WorldOutcomeHooks.Observer() {
@@ -97,7 +97,7 @@ public final class CreeperAbilities {
         AbilityAdapterRegistry.effects().register(DEFINITION);
         var threshold = new AbilityDefinition(THRESHOLD, 1, "Fuse threshold", ActionIntent.Capability.USE_ITEM,
                 Set.of(ActionIntent.TargetKind.SELF), AbilityDefinition.Activation.TRIGGERED, ActionCost.FREE,
-                new ReadContract(Set.of(RuleFacts.SOURCE_VALID)), THRESHOLD, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION);
+                new ReadContract(Set.of(RuleFacts.SOURCE_VALID)), THRESHOLD, AbilityDefinition.TargetPolicy.NATIVE_INTERACTION, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
         AbilityAdapterRegistry.registerActorEffect(threshold,
                 new ActivationSpec(AbilityDefinition.Activation.TRIGGERED, ActivationSpec.Event.STACK_CHANGED, null, 0), input -> {
                     var transition = input.event().transition();
@@ -116,7 +116,7 @@ public final class CreeperAbilities {
             public boolean matches(LiveActorContext actor) { return actor.body() instanceof Creeper; }
             public ActorDefinition definition(LiveActorContext actor) {
                 return new ActorDefinition(id(), 1, Set.of(), new FactSlice(Map.of(), Map.of()),
-                        List.of(new EffectDefinition.Grant(CHARGE, 1)));
+                        List.of(new EffectDefinition.Grant(CHARGE, 1)), ActorDefinition.Classification.unspecified(), Map.of());
             }
         });
         AiPlanner.register(CHARGE, c -> {

@@ -12,8 +12,12 @@ public final class ContinuousAbilities {
                 throw new IllegalArgumentException("continuous contribution bounds");
         }
     }
-    public record Expanded(List<AbilityBinding> bindings, List<EffectDefinition.Modifier> modifiers) {
-        public Expanded { bindings = List.copyOf(bindings); modifiers = List.copyOf(modifiers); }
+    public record SourcedModifier(AbilityBinding source, EffectDefinition.Modifier modifier) {
+        public SourcedModifier { Objects.requireNonNull(source); Objects.requireNonNull(modifier); }
+    }
+    public record Expanded(List<AbilityBinding> bindings, List<SourcedModifier> sources) {
+        public Expanded { bindings = List.copyOf(bindings); sources = List.copyOf(sources); }
+        public List<EffectDefinition.Modifier> modifiers() { return sources.stream().map(SourcedModifier::modifier).toList(); }
     }
     private final Map<String, Contribution> contributions = new LinkedHashMap<>();
     private boolean frozen;
@@ -46,14 +50,14 @@ public final class ContinuousAbilities {
     }
     public Expanded expand(List<AbilityBinding> roots, AbilityRegistry registry) {
         var bindings = new LinkedHashSet<>(roots);
-        var pending = new ArrayDeque<>(roots);
-        var modifiers = new ArrayList<EffectDefinition.Modifier>();
+        var pending = new ArrayDeque<>(bindings);
+        var modifiers = new ArrayList<SourcedModifier>();
         while (!pending.isEmpty()) {
             var binding = pending.removeFirst();
             var contribution = contributions.get(binding.id());
             if (contribution == null) continue;
             registry.require(binding.id(), binding.version());
-            modifiers.addAll(contribution.modifiers());
+            contribution.modifiers().forEach(modifier -> modifiers.add(new SourcedModifier(binding, modifier)));
             if (modifiers.size() > 256) throw new IllegalStateException("continuous modifier budget exceeded");
             for (var grant : contribution.grants()) {
                 var child = new AbilityBinding(registry.require(grant.ability(), grant.version()), binding.grant());

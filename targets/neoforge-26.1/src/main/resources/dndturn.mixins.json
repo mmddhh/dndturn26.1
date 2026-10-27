@@ -10,6 +10,7 @@
     "server.lifecycle.ServerPlayerDeathMixin",
     "server.lifecycle.PresentationIdentityMixin",
     "server.lifecycle.EntityEquipmentRevisionMixin",
+    "server.lifecycle.InventoryRevisionMixin",
     "server.lifecycle.ActorEquipmentAccess",
     "server.control.MobGoalEvidenceAccess",
     "server.lifecycle.PresentationUseIdentityMixin",

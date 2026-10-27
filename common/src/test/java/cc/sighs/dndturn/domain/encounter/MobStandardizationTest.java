@@ -33,7 +33,7 @@ class MobStandardizationTest {
         var binding = new AbilityBinding(BuiltinAbilities.require("dndturn:intrinsic_melee"),
             AbilityGrant.nativeGrant(actor, GrantEvidence.intrinsic("test:melee", 1, actor, instance)));
         var empty = new FactSlice(Map.of(), Map.of());
-        var snapshot = new ActorSnapshot(actor, instance, new ActorDefinition("test:actor", 1, Set.of(), empty),
+        var snapshot = new ActorSnapshot(actor, instance, new ActorDefinition("test:actor", 1, Set.of(), empty, List.of(), ActorDefinition.Classification.unspecified(), Map.of()),
             new ActorSnapshot.Revision(UUID.randomUUID(), 0, CombatRules.RULES_REVISION), empty, List.of(binding));
         var member = new MemberView(actor, 10, 0, 30, true, true, false, false, 0);
         var other = new MemberView(target, 9, 0, 30, true, true, false, false, 0);
@@ -86,7 +86,7 @@ class MobStandardizationTest {
         var definition = new AbilityDefinition("test:area", 1, "Area", ActionIntent.Capability.ATTACK,
                 Set.of(ActionIntent.TargetKind.GROUND), AbilityDefinition.Activation.MANUAL, ActionCost.ATTACK,
                 RuleFacts.AVAILABILITY, "test:area", AbilityDefinition.TargetPolicy.NATIVE_INTERACTION,
-                OperationRecord.Kind.USE_ITEM, Map.of("shape", Set.of("small", "wide")));
+                OperationRecord.Kind.USE_ITEM, Map.of("shape", Set.of("small", "wide")), cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE);
         var registry = new AbilityRegistry(); registry.register(definition); registry.freeze();
         var source = GrantEvidence.intrinsic("test:source", 1, UUID.randomUUID(), UUID.randomUUID());
         var target = new ActionIntent.Target(ActionIntent.TargetKind.GROUND, "minecraft:overworld", null,

@@ -14,7 +14,9 @@ import cc.sighs.dndturn.domain.ability.GrantEvidence;
 import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.domain.actor.ActorSnapshot;
 import cc.sighs.dndturn.domain.actor.ActorStates;
-import cc.sighs.dndturn.domain.effect.EffectDefinition;
+import cc.sighs.dndturn.domain.actor.NativeActorObservation;
+import cc.sighs.dndturn.domain.actor.StatResolution;
+import cc.sighs.dndturn.application.inspection.ActorViews;
 import cc.sighs.dndturn.domain.effect.EffectInstance;
 import cc.sighs.dndturn.domain.effect.EffectSnapshot;
 import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
@@ -34,8 +36,6 @@ import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 import java.util.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.item.Items;
 
 /** Server-thread capture boundary. No native reference survives in a returned value. */
 public final class MinecraftSnapshotCapture {
@@ -48,17 +48,65 @@ public final class MinecraftSnapshotCapture {
     }
     public LiveActorContext context(LivingEntity actor) { return new LiveActorContext(actor, facts); }
     public static MinecraftSnapshotCapture forActor(LiveActorContext actor) { return new MinecraftSnapshotCapture(actor.requireFacts()); }
+    /** Bounded synchronous evidence, never an execution permit or a native revision clock. */
+    private record ReadStamp(UUID actor, UUID instance, long actorRevision, long tick, int selected,
+                             long mainGeneration, long offGeneration) {}
+    private ReadStamp stamp(LiveActorContext actor) {
+        actor.verifyCurrent();
+        return new ReadStamp(actor.id(), actor.instance(), facts.state(actor.id()).revision(), actor.level().getGameTime(),
+                ActorEquipment.address(actor, ActionIntent.Hand.MAIN_HAND),
+                ActorEquipment.generation(actor, ActionIntent.Hand.MAIN_HAND), ActorEquipment.generation(actor, ActionIntent.Hand.OFF_HAND));
+    }
+    private <T> T read(LiveActorContext input, java.util.function.Supplier<T> capture) {
+        var actor = context(input.body());
+        var before = stamp(actor);
+        T result = capture.get();
+        if (!before.equals(stamp(actor))) throw ActionFailure.source("actor changed during bounded capture; refresh query");
+        return result;
+    }
     public ActorSnapshot captureActor(LiveActorContext input) {
         var actor = context(input.body());
-        return captureActor(actor, Set.of());
+        return read(actor, () -> captureActor(actor, Set.of()));
+    }
+    /** Full explicit character read; normal discovery continues to use demand-driven facts. */
+    public ActorViews.CharacterSheet captureCharacter(LiveActorContext input) {
+        return read(input, () -> captureCharacterWithinRead(input));
+    }
+    private ActorViews.CharacterSheet captureCharacterWithinRead(LiveActorContext input) {
+        var actor = context(input.body()); actor.verifyCurrent();
+        if (facts.fault(actor.id()) != null) throw new IllegalStateException("actor rules quarantined");
+        var state = facts.state(actor.id());
+        var observed = NativeActorCapture.capture(actor, UUID.randomUUID());
+        var derivations = new LinkedHashMap<String, StatResolution>();
+        var requested = Set.<FactKey<?>>of(ActorFacts.HEALTH, ActorFacts.MAX_HEALTH, ActorFacts.MAX_HEALTH_BASE,
+                ActorFacts.ABSORPTION, ActorFacts.ALIVE, ActorFacts.DIMENSION, ActorFacts.X, ActorFacts.Y, ActorFacts.Z, ActorFacts.YAW, ActorFacts.PITCH);
+        var snapshot = compile(actor, captureReactionSources(actor), state, requested, observed, derivations);
+        var behavior = actor.body() instanceof net.minecraft.world.entity.Mob mob
+                ? cc.sighs.dndturn.platform.server.ai.AiDefinitions.definition(snapshot.definition(), mob) : null;
+        actor.verifyCurrent();
+        if (facts.state(actor.id()).revision() != state.revision()) throw new IllegalStateException("actor changed during character capture");
+        return new ActorViews.CharacterSheet(snapshot, state.persistent(), observed, derivations, behavior);
+    }
+    private boolean requiresExpandedCapture(LiveActorContext actor) {
+        if (AbilityAdapterRegistry.continuous().isEmpty()) return false;
+        // Native continuous sources can be dynamic. Their providers must still be sampled.
+        if (AbilityAdapterRegistry.definitions().all().stream().anyMatch(d -> d.activation() == AbilityDefinition.Activation.CONTINUOUS
+                && AbilityAdapterRegistry.hasNativeFacts(d.id()))) return true;
+        if (ActorDefinitions.capture(actor).intrinsicGrants().stream().anyMatch(g ->
+                AbilityAdapterRegistry.definitions().require(g.ability(), g.version()).activation() == AbilityDefinition.Activation.CONTINUOUS)) return true;
+        return ActorCompilation.bindings(actor.id(), actor.instance(), facts.state(actor.id()), AbilityAdapterRegistry.definitions())
+                .stream().anyMatch(b -> b.definition().activation() == AbilityDefinition.Activation.CONTINUOUS);
     }
     public FactSlice captureFacts(LiveActorContext input, ReadContract reads) {
+        return read(input, () -> captureFactsWithinRead(input, reads));
+    }
+    private FactSlice captureFactsWithinRead(LiveActorContext input, ReadContract reads) {
         var actor = context(input.body());
         actor.verifyCurrent();
         if (reads.keys().isEmpty()) return new FactSlice(Map.of(), Map.of());
         // Continuous contributions depend on the expanded grant graph. Keep that path
         // until its dependency closure can be obtained without discovering sources.
-        if (!AbilityAdapterRegistry.continuous().isEmpty())
+        if (requiresExpandedCapture(actor))
             return captureActor(actor, reads.keys()).facts().restrict(reads);
         var state = facts.state(actor.id());
         if (facts.fault(actor.id()) != null) throw new IllegalStateException("actor rules quarantined");
@@ -112,6 +160,9 @@ public final class MinecraftSnapshotCapture {
         return compile(actor, nativeSources);
     }
     public ActorSnapshot capture(LiveActorContext input, StateView state) {
+        return read(input, () -> captureWithinRead(input, state));
+    }
+    private ActorSnapshot captureWithinRead(LiveActorContext input, StateView state) {
         var actor = context(input.body());
         actor.verifyCurrent();
         var grants = new ArrayList<AbilityBinding>();
@@ -125,9 +176,12 @@ public final class MinecraftSnapshotCapture {
         return compile(actor, grants);
     }
     public ActorSnapshot capture(LiveActorContext input, AbilityDefinition definition) {
+        return read(input, () -> captureWithinRead(input, definition));
+    }
+    private ActorSnapshot captureWithinRead(LiveActorContext input, AbilityDefinition definition) {
         var actor = context(input.body());
         actor.verifyCurrent();
-        if (!AbilityAdapterRegistry.continuous().isEmpty()) return captureActor(actor);
+        if (requiresExpandedCapture(actor)) return captureActor(actor);
         var grants = AbilityAdapterRegistry.hasNativeFacts(definition.id())
                 ? AbilityAdapterRegistry.facts(definition.id()).checkedSources(actor).stream()
                     .map(e -> new AbilityBinding(definition, AbilityGrant.nativeGrant(actor.id(), e))).toList()
@@ -150,6 +204,10 @@ public final class MinecraftSnapshotCapture {
         return compile(actor, grants, state, Set.of());
     }
     private ActorSnapshot compile(LiveActorContext input, List<AbilityBinding> grants, ActorStates.State state, Set<FactKey<?>> requested) {
+        return compile(input, grants, state, requested, null, null);
+    }
+    private ActorSnapshot compile(LiveActorContext input, List<AbilityBinding> grants, ActorStates.State state,
+                                  Set<FactKey<?>> requested, NativeActorObservation observed, Map<String, StatResolution> derivations) {
         var actor = context(input.body());
         for (var effect : state.runtime().effects().values()) AbilityAdapterRegistry.effects().require(effect.definition());
         var definition = ActorDefinitions.capture(actor);
@@ -162,6 +220,8 @@ public final class MinecraftSnapshotCapture {
         bindings = new ArrayList<>(expanded.bindings());
         var reads = new HashSet<>(ActorFacts.DECISION.keys());
         reads.addAll(requested);
+        if (observed != null) for (var descriptor : definition.resources().values())
+            if (descriptor.capacityFact() != null) reads.add(new FactKey<>(descriptor.capacityFact(), Double.class));
         for (var binding : bindings) reads.addAll(binding.definition().reads().actorKeys());
         for (var binding : bindings) reads.addAll(AbilityAdapterRegistry.activations().reads(binding).actorKeys());
         for (var effect : state.runtime().effects().values()) for (var modifier : effect.definition().modifiers())
@@ -172,8 +232,19 @@ public final class MinecraftSnapshotCapture {
         var resources = ActorCompilation.resources(state, reads);
         reads.removeAll(resources.keys());
         var compiled = SnapshotCompiler.compile(actor.id(), actor.instance(), definition,
-                new ActorSnapshot.Revision(UUID.randomUUID(), state.revision(), CombatRules.RULES_REVISION),
-                MinecraftFactProviders.capture(actor, new ReadContract(reads)).merge(resources), bindings);
+                new ActorSnapshot.Revision(observed == null ? UUID.randomUUID() : observed.capture(), state.revision(), CombatRules.RULES_REVISION),
+                (observed == null ? MinecraftFactProviders.capture(actor, new ReadContract(reads))
+                        : MinecraftFactProviders.captureObserved(actor, new ReadContract(reads), observed)).merge(resources), bindings);
+        if (derivations != null) {
+            var keys = new LinkedHashSet<String>(List.of(ActorFacts.ARMOR_CLASS.id(), ActorFacts.DAMAGE_REDUCTION.id()));
+            for (var effect : state.runtime().effects().values()) for (var modifier : effect.definition().modifiers()) keys.add(modifier.stat().id());
+            for (var modifier : expanded.modifiers()) keys.add(modifier.stat().id());
+            for (var id : keys) {
+                var key = new FactKey<>(id, Double.class);
+                try { derivations.put(id, ActorCompilation.explain(state, id, compiled.facts().read(new ReadContract(Set.of(key)), key), expanded)); }
+                catch (FactSlice.MissingFact unavailable) { /* Unknown remains unknown, never an invented baseline. */ }
+            }
+        }
         return new ActorSnapshot(compiled.actor(), compiled.instance(), compiled.definition(), compiled.revision(),
                 ActorCompilation.apply(compiled.facts(), state, expanded.modifiers()), compiled.abilities(), effects(actor, state));
     }
@@ -200,7 +271,8 @@ public final class MinecraftSnapshotCapture {
                                             java.util.function.BiFunction<LiveActorContext, ReadContract, FactSlice> targetFacts) {
         var actor = context(input.body());
         actor.verifyCurrent();
-        if (!actor.id().equals(snapshot.actor()) || !actor.instance().equals(snapshot.instance()))
+        if (!actor.id().equals(snapshot.actor()) || !actor.instance().equals(snapshot.instance())
+                || facts.state(actor.id()).revision() != snapshot.revision().actorState())
             throw ActionFailure.source("actor instance replaced");
         var definition = AbilityAdapterRegistry.definitions().require(intent);
         var binding = snapshot.abilities().stream().filter(b -> b.id().equals(definition.id())
@@ -245,15 +317,14 @@ public final class MinecraftSnapshotCapture {
     }
     /** Native defense values sampled together before rule resolution. */
     public FactSlice defense(LivingEntity target) {
-        context(target).verifyCurrent();
-        double armor = target.getArmorValue(), toughness = target.getAttributeValue(Attributes.ARMOR_TOUGHNESS);
-        boolean shield = target.getMainHandItem().is(Items.SHIELD) || target.getOffhandItem().is(Items.SHIELD);
-        var state = facts.state(target.getUUID());
-        for (var effect : state.runtime().effects().values()) AbilityAdapterRegistry.effects().require(effect.definition());
-        var continuous = AbilityAdapterRegistry.continuous().isEmpty() ? List.<EffectDefinition.Modifier>of()
-                : AbilityAdapterRegistry.continuous().expand(captureActor(context(target)).abilities(), AbilityAdapterRegistry.definitions()).modifiers();
-        return new FactSlice(Map.of(RuleFacts.ARMOR, armor, RuleFacts.TOUGHNESS, toughness, RuleFacts.SHIELD, shield,
-                RuleFacts.RESOLVED_AC, ActorCompilation.stat(state, ActorFacts.ARMOR_CLASS.id(), CombatRules.armorClass(armor, shield), continuous),
-                RuleFacts.RESOLVED_REDUCTION, ActorCompilation.stat(state, ActorFacts.DAMAGE_REDUCTION.id(), CombatRules.damageReduction(toughness), continuous)), Map.of());
+        var reads = new ReadContract(Set.of(ActorFacts.ARMOR_EFFECTIVE, ActorFacts.TOUGHNESS_EFFECTIVE,
+                ActorFacts.HOLDING_SHIELD, ActorFacts.ARMOR_CLASS, ActorFacts.DAMAGE_REDUCTION));
+        var captured = captureFacts(context(target), reads);
+        return new FactSlice(Map.of(
+                RuleFacts.ARMOR, captured.read(reads, ActorFacts.ARMOR_EFFECTIVE),
+                RuleFacts.TOUGHNESS, captured.read(reads, ActorFacts.TOUGHNESS_EFFECTIVE),
+                RuleFacts.SHIELD, captured.read(reads, ActorFacts.HOLDING_SHIELD),
+                RuleFacts.RESOLVED_AC, captured.read(reads, ActorFacts.ARMOR_CLASS),
+                RuleFacts.RESOLVED_REDUCTION, captured.read(reads, ActorFacts.DAMAGE_REDUCTION)), Map.of());
     }
 }

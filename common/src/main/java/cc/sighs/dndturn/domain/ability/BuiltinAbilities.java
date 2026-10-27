@@ -45,7 +45,7 @@ public final class BuiltinAbilities {
             default -> AbilityDefinition.TargetPolicy.NATIVE_INTERACTION;
         };
         r.register(new AbilityDefinition(id, 1, label, kind, Set.of(targets),
-                AbilityDefinition.Activation.MANUAL, cost, RuleFacts.AVAILABILITY, id, policy));
+                AbilityDefinition.Activation.MANUAL, cost, RuleFacts.AVAILABILITY, id, policy, cc.sighs.dndturn.domain.ability.AbilityDefinition.Learning.UNAVAILABLE));
     }
     static { DEFINITIONS.freeze(); }
     public static AbilityDefinition require(String id) { return DEFINITIONS.require(id, 1); }

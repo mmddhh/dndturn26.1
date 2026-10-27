@@ -38,7 +38,7 @@ public abstract class PlayerBehavior extends MinecraftAbilityAdapter {
         if (!(actor.body() instanceof ServerPlayer player) || hand == null) return null;
         if (kind() == ActionIntent.Capability.USE_BLOCK) return GrantEvidence.basic(hand);
         var stack = player.getItemInHand(InteractionHand.valueOf(hand.name()));
-        return supportsItem(stack) ? GrantEvidence.equipment(hand, ActorEquipment.reference(actor, hand)) : null;
+        return supportsItem(stack) ? ActorEquipment.bind(actor, GrantEvidence.equipment(hand, ActorEquipment.reference(actor, hand))) : null;
     }
     @Override public final String unavailable(LiveActorContext actor, ActionIntent intent, StateView state) {
         var rejection = unavailable(actor.requirePlayer(), intent, state);

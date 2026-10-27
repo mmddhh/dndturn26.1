@@ -33,7 +33,7 @@ class AiControlModelTest {
     private AiDecisionContext context(AiDefinition d, boolean visible, boolean current, boolean hostile, boolean legal, Set<AiAffordance> tags) {
         var binding = new AbilityBinding(BuiltinAbilities.require("dndturn:intrinsic_melee"), AbilityGrant.nativeGrant(actor,
             GrantEvidence.intrinsic("test:melee", 1, actor, instance)));
-        var snapshot = new ActorSnapshot(actor, instance, new ActorDefinition("test:actor", 1, Set.of(), new FactSlice(Map.of(), Map.of())),
+        var snapshot = new ActorSnapshot(actor, instance, new ActorDefinition("test:actor", 1, Set.of(), new FactSlice(Map.of(), Map.of()), List.of(), ActorDefinition.Classification.unspecified(), Map.of()),
             new ActorSnapshot.Revision(UUID.randomUUID(), 0, CombatRules.RULES_REVISION), new FactSlice(Map.of(), Map.of()), List.of(binding));
         return new AiDecisionContext(snapshot, d, EncounterPhase.ACTIVE, true, "minecraft:overworld",
             new PerceptionSnapshot(List.of(new PerceptionSnapshot.ObservedActor(target, visible, current, true, true, 4,

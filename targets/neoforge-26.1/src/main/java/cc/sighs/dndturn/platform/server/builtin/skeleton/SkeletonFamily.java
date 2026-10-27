@@ -33,7 +33,7 @@ public final class SkeletonFamily {
             public int priority() { return 0; }
             public boolean matches(LiveActorContext actor) { return actor.body() instanceof AbstractSkeleton; }
             public ActorDefinition definition(LiveActorContext actor) {
-                return new ActorDefinition(GROUP, 1, Set.of(GROUP), new FactSlice(Map.of(), Map.of()));
+                return new ActorDefinition(GROUP, 1, Set.of(GROUP), new FactSlice(Map.of(), Map.of()), List.of(), ActorDefinition.Classification.unspecified(), Map.of());
             }
         });
         RangedAdapters.register(new RangedAdapters.Adapter("dndturn:skeleton_bow", 1,

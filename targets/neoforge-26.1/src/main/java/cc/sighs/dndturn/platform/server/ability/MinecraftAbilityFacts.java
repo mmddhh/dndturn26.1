@@ -13,6 +13,7 @@ import net.minecraft.world.phys.Vec3;
 /** Read-only native compatibility capture, independent of executor registration and rule definitions. */
 public interface MinecraftAbilityFacts {
     /** Explicit opt-in: the adapter must evaluate facet geometry, target facts and reach. */
+    default boolean supportsPersistentSource() { return false; }
     default boolean supportsBodyFacet() { return false; }
     GrantEvidence source(LiveActorContext actor, ActionIntent.Hand hand);
     default List<GrantEvidence> sources(LiveActorContext actor) {
@@ -27,7 +28,7 @@ public interface MinecraftAbilityFacts {
     }
     default List<GrantEvidence> checkedSources(LiveActorContext actor) {
         actor.verifyCurrent();
-        var values = List.copyOf(sources(actor));
+        var values = sources(actor).stream().map(source -> cc.sighs.dndturn.platform.server.actor.ActorEquipment.bind(actor, source)).toList();
         if (values.size() > 16 || new HashSet<>(values).size() != values.size())
             throw new IllegalStateException("grant enumeration exceeds contract");
         return values;

@@ -15,6 +15,14 @@ public final class ActorFacts {
     public static final FactKey<Double> SPEED_EFFECTIVE = number("minecraft:movement_speed/effective");
     public static final FactKey<Double> FOLLOW_BASE = number("minecraft:follow_range/base");
     public static final FactKey<Double> FOLLOW_EFFECTIVE = number("minecraft:follow_range/effective");
+    public static final FactKey<Double> HEALTH = number("minecraft:health");
+    public static final FactKey<Double> MAX_HEALTH = number("minecraft:max_health/effective");
+    public static final FactKey<Double> MAX_HEALTH_BASE = number("minecraft:max_health/base");
+    public static final FactKey<Double> ABSORPTION = number("minecraft:absorption");
+    public static final FactKey<Boolean> ALIVE = new FactKey<>("minecraft:alive", Boolean.class);
+    public static final FactKey<String> DIMENSION = new FactKey<>("minecraft:dimension", String.class);
+    public static final FactKey<Double> X = number("minecraft:position/x"), Y = number("minecraft:position/y"), Z = number("minecraft:position/z");
+    public static final FactKey<Double> YAW = number("minecraft:yaw"), PITCH = number("minecraft:pitch");
     public static final FactKey<Double> WIDTH = number("minecraft:body_width");
     public static final FactKey<Double> HEIGHT = number("minecraft:body_height");
     public static final FactKey<String> POSE = new FactKey<>("minecraft:pose", String.class);

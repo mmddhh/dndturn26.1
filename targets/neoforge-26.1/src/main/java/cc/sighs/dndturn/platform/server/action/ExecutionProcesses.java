@@ -17,6 +17,7 @@ public final class ExecutionProcesses {
         authority.restore(restored);
     }
     public Map<UUID, ProcessState> snapshot() { thread.run(); return authority.snapshot(); }
+    public List<ProcessState> activeFor(UUID actor, UUID instance) { thread.run(); return authority.activeFor(actor, instance); }
     public ProcessState find(UUID id) { thread.run(); return authority.find(id); }
     public ProcessState require(UUID id) { thread.run(); return authority.require(id); }
     public void open(UUID id, ProcessDefinition definition, ProcessState.Owner owner, UUID cause, UUID root,

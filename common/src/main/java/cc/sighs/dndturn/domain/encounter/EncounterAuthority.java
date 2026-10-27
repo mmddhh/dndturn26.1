@@ -484,6 +484,11 @@ public final class EncounterAuthority {
     public boolean isHostile(UUID encounterId, UUID source, UUID target) {
         return require(encounterId).hostile.contains(new Relation(source, target));
     }
+    public boolean pendingActionDebt(UUID encounterId, UUID actor) {
+        var member = require(encounterId).members.get(actor);
+        if (member == null) throw new IllegalArgumentException("not a member");
+        return member.preserveSpentActionOnNextTurn;
+    }
 
     /** Captured, current-instance platform facts. Missing entries mean unknown, never dead. */
     public record ExitPosition(boolean alive, double x, double z) {

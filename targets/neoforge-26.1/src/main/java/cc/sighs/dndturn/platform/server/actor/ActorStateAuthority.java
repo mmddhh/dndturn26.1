@@ -112,8 +112,8 @@ public final class ActorStateAuthority {
     public void observeInvocation(UUID operation, WorldOutcomeObservation observation) {
         thread(); available(); owner.observeInvocation(operation, observation); dirty = true;
     }
-    public ActorViews.CharacterSheet character(LiveActorContext actor, ReadContract visible) {
-        thread(); return ActorViews.character(snapshots.captureActor(actor), state(actor.id()), visible);
+    public ActorViews.CharacterSheet character(LiveActorContext actor) {
+        thread(); return snapshots.captureCharacter(actor);
     }
     public ActorViews.Spellbook spellbook(LiveActorContext actor) {
         thread(); return ActorViews.spellbook(snapshots.captureActor(actor), state(actor.id()), AbilityAdapterRegistry.definitions());
@@ -129,17 +129,16 @@ public final class ActorStateAuthority {
         if (member == null || !encounter.members().containsKey(observer.id()))
             throw new IllegalStateException("inspection membership");
         var policy = AbilityAdapterRegistry.inspection();
-        var nativeKeys = new HashSet<FactKey<?>>();
-        var ruleKeys = new HashSet<FactKey<?>>();
+        var keys = new HashSet<FactKey<?>>();
         for (var key : policy.reads().keys()) {
             if (key.equals(InspectionPolicy.DODGING) || key.equals(InspectionPolicy.DISENGAGED)) continue;
-            if (MinecraftFactProviders.owns(key)) nativeKeys.add(key); else ruleKeys.add(key);
+            keys.add(key);
         }
-        var facts = MinecraftFactProviders.capture(actor, new ReadContract(nativeKeys));
-        if (!ruleKeys.isEmpty()) facts = facts.merge(snapshots.captureFacts(actor, new ReadContract(ruleKeys)));
+        var facts = snapshots.captureFacts(actor, new ReadContract(keys));
         facts = facts.merge(new FactSlice(Map.of(InspectionPolicy.DODGING, member.dodging(),
                 InspectionPolicy.DISENGAGED, member.disengaged()), Map.of()));
-        return policy.project(new InspectionPolicy.Observer(observer.id(), actor.id()), actor.instance(), UUID.randomUUID(), facts);
+        var view = policy.project(new InspectionPolicy.Observer(observer.id(), actor.id()), actor.instance(), UUID.randomUUID(), facts);
+        return view;
     }
     /** Trusted integration command, never a packet handler or implicit query mutation. */
     public ActorStates.State command(LiveActorContext actor, ActorStates.Command command) {
@@ -149,8 +148,10 @@ public final class ActorStateAuthority {
         if (!draining) resumeReactions(actor);
         if (owner.receipt(command.operation()) != null) return owner.apply(command);
         for (var change : command.changes()) {
-            if (change instanceof ActorStates.Learn learn)
-                AbilityAdapterRegistry.definitions().require(learn.grant().ability(), learn.grant().version());
+            if (change instanceof ActorStates.Learn learn) {
+                var definition = AbilityAdapterRegistry.definitions().require(learn.grant().ability(), learn.grant().version());
+                definition.validateLearning(learn.grant().requiresPreparation());
+            }
             if (change instanceof ActorStates.Apply apply) {
                 AbilityAdapterRegistry.effects().require(apply.effect().definition());
                 for (var modifier : apply.effect().definition().modifiers()) if (MinecraftFactProviders.owns(new FactKey<>(modifier.stat().id(), Double.class)))

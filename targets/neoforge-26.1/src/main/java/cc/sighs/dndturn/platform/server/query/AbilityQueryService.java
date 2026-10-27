@@ -17,7 +17,7 @@ import java.util.*;
 public final class AbilityQueryService implements AutoCloseable {
     private MinecraftSnapshotCapture snapshots;
     private final Map<TargetIdentity, FactSlice> targets = new HashMap<>();
-    private record TargetIdentity(UUID actor, UUID instance) {}
+    private record TargetIdentity(UUID actor, UUID instance, long revision) {}
 
     public AbilityQueryService(MinecraftSnapshotCapture snapshots) {
         this.snapshots = Objects.requireNonNull(snapshots);
@@ -31,7 +31,7 @@ public final class AbilityQueryService implements AutoCloseable {
     private FactSlice targetFacts(LiveActorContext target, ReadContract reads) {
         target.verifyCurrent();
         if (reads.keys().isEmpty()) return new FactSlice(Map.of(), Map.of());
-        var key = new TargetIdentity(target.id(), target.instance());
+        var key = new TargetIdentity(target.id(), target.instance(), target.state().revision());
         var known = targets.getOrDefault(key, new FactSlice(Map.of(), Map.of()));
         var missing = new HashSet<>(reads.keys());
         missing.removeAll(known.keys());

@@ -1,6 +1,7 @@
 package cc.sighs.dndturn.application.inspection;
 
 import cc.sighs.dndturn.domain.fact.FactKey;
+import cc.sighs.dndturn.domain.fact.ActorFacts;
 import cc.sighs.dndturn.domain.fact.FactSlice;
 import cc.sighs.dndturn.domain.fact.ReadContract;
 import java.util.*;
@@ -30,6 +31,10 @@ public final class InspectionPolicy {
         register(TYPE, new ReadContract(Set.of(TYPE)), (observer, facts) -> true);
         register(DODGING, new ReadContract(Set.of(DODGING)), (observer, facts) -> facts.read(new ReadContract(Set.of(DODGING)), DODGING));
         register(DISENGAGED, new ReadContract(Set.of(DISENGAGED)), (observer, facts) -> facts.read(new ReadContract(Set.of(DISENGAGED)), DISENGAGED));
+        for (var key : List.of(ActorFacts.ARMOR_BASE, ActorFacts.ARMOR_EFFECTIVE,
+                ActorFacts.TOUGHNESS_BASE, ActorFacts.TOUGHNESS_EFFECTIVE,
+                ActorFacts.ARMOR_CLASS, ActorFacts.DAMAGE_REDUCTION, ActorFacts.HOLDING_SHIELD))
+            register(key, new ReadContract(Set.of(key)), (observer, facts) -> observer.observer().equals(observer.target()));
     }
     /** Trusted pure integrations only; each output has exactly one disclosure owner. */
     public synchronized void register(FactKey<?> output, ReadContract reads, BiPredicate<Observer, FactSlice> visible) {
@@ -60,6 +65,6 @@ public final class InspectionPolicy {
                 // Unknown facts disclose neither a fabricated value nor the hidden field name.
             }
         }
-        return new ActorViews.InspectionView(observer.target(), instance, capture, fields);
+        return new ActorViews.InspectionView(observer.target(), instance, capture, fields, 1);
     }
 }

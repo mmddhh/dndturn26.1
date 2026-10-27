@@ -9,6 +9,7 @@
 | [02_ROADMAP.md](02_ROADMAP.md) | 阶段状态、剩余任务、依赖与关闭条件 |
 | [03_PROMPTS.md](03_PROMPTS.md) | 基于当前事实执行单个切片的提示词 |
 | [04_TEST_POLICY.md](04_TEST_POLICY.md) | 长期不变量、测试维护及按影响运行政策 |
+| [05_ACTOR_DATA_MODEL.md](05_ACTOR_DATA_MODEL.md) | 角色数据所有权、原生事实分层及属性贡献解释合同 |
 
 根[README](../README.md)提供支持声明、构建与 AutoJS 调试入口；根[AGENTS](../AGENTS.md)维护长期工程约束，不积累阶段进度。
 
