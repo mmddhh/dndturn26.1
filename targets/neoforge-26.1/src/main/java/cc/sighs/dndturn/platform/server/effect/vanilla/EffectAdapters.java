@@ -9,7 +9,7 @@ import net.minecraft.world.entity.LivingEntity;
 
 /** Server-side semantic selection. Selecting an adapter never grants world execution authority. */
 public final class EffectAdapters {
-    public enum Tick { NONE, NATIVE_ROUND, HUNGER, SATURATION, NEEDS_ADAPTER }
+    public enum Tick { NONE, NATIVE_ROUND, HUNGER, SATURATION, OMEN, NEEDS_ADAPTER }
     public record Adapter(String id, int version, Predicate<MobEffect> matches, Set<String> overrides, Tick tick) {
         public Adapter {
             FactKey.requireId(id); Objects.requireNonNull(matches); Objects.requireNonNull(tick);
@@ -25,6 +25,7 @@ public final class EffectAdapters {
         register(new Adapter("dndturn:native_round_effect", 1, e -> e == MobEffects.REGENERATION.value()
                 || e == MobEffects.POISON.value() || e == MobEffects.WITHER.value()
                 || e == MobEffects.ABSORPTION.value() || e == MobEffects.INSTANT_HEALTH.value() || e == MobEffects.INSTANT_DAMAGE.value(), Set.of(), Tick.NATIVE_ROUND));
+        register(new Adapter("dndturn:omen", 1, e -> e == MobEffects.BAD_OMEN.value() || e == MobEffects.RAID_OMEN.value(), Set.of(), Tick.OMEN));
         register(new Adapter("dndturn:hunger", 1, e -> e == MobEffects.HUNGER.value(), Set.of(), Tick.HUNGER));
         register(new Adapter("dndturn:saturation", 1, e -> e == MobEffects.SATURATION.value(), Set.of(), Tick.SATURATION));
     }
@@ -71,6 +72,7 @@ public final class EffectAdapters {
     static boolean apply(Adapter adapter, ServerLevel level, LivingEntity actor, MobEffectInstance effect, int ticks) {
         return switch (adapter.tick()) {
             case NONE, NEEDS_ADAPTER -> true;
+            case OMEN -> VanillaEffectRoundController.omen(level, actor, effect);
             case NATIVE_ROUND -> effect.getEffect().value().applyEffectTick(level, actor, effect.getAmplifier());
             case HUNGER -> {
                 if (actor instanceof net.minecraft.world.entity.player.Player player)

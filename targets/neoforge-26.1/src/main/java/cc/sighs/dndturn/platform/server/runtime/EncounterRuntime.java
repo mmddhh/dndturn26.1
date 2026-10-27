@@ -127,6 +127,7 @@ public final class EncounterRuntime {
         public UUID encounterOf(UUID actor) { return engine.encounterOf(actor); }
         public UUID generation() { return generation; }
         public long clock() { return cumulativeServerTicks; }
+        public void completeWorldOutcome(Runnable completion) { lifecycle.completeWorldOutcome(completion); }
         public void changed() { persistence.changed(); }
     };
     public VanillaEffectRoundController vanillaEffects() { return vanillaEffects; }

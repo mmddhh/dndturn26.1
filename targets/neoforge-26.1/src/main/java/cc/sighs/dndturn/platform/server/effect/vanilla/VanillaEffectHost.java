@@ -5,4 +5,5 @@ public interface VanillaEffectHost extends ActorLifecycleHost {
     UUID generation();
     long clock();
     void changed();
+    void completeWorldOutcome(Runnable completion);
 }

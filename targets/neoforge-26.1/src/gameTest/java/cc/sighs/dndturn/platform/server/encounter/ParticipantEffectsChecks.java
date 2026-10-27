@@ -69,8 +69,10 @@ public final class ParticipantEffectsChecks {
     }
     public static void effects(GameTestHelper h) {
         var a=arena(h,125001);var player=a.player;var service=a.service;
+        boolean[] cancelOmenExpiry={false};
         boolean[] cancelExpiry={false},cancelDamage={false},cancelDeath={false},cancelHealing={false};
-        Consumer<MobEffectEvent.Expired> expiration=e->{if(e.getEntity()==player && e.getEffectInstance().getEffect().equals(MobEffects.REGENERATION)&&cancelExpiry[0])e.setCanceled(true);};
+        Consumer<MobEffectEvent.Expired> expiration=e->{if(e.getEntity()==player && e.getEffectInstance().getEffect().equals(MobEffects.REGENERATION)&&cancelExpiry[0])e.setCanceled(true);
+            if(e.getEntity()==player && e.getEffectInstance().is(MobEffects.RAID_OMEN) && cancelOmenExpiry[0])e.setCanceled(true);};
         Consumer<LivingIncomingDamageEvent> damage=e->{if(e.getEntity()==player && e.getSource().is(DamageTypes.WITHER)&&cancelDamage[0])e.setCanceled(true);};
         Consumer<LivingDeathEvent> death=e->{if(e.getEntity()==player && cancelDeath[0]){player.setHealth(1);e.setCanceled(true);}};
         Consumer<LivingHealEvent> healing=e->{if(e.getEntity()==player && cancelHealing[0])e.setCanceled(true);};
@@ -78,6 +80,7 @@ public final class ParticipantEffectsChecks {
         Runnable cleanup=()->{NeoForge.EVENT_BUS.unregister(expiration);NeoForge.EVENT_BUS.unregister(damage);NeoForge.EVENT_BUS.unregister(death);NeoForge.EVENT_BUS.unregister(healing);a.cleanup.run();};
         h.runAtTickTime(599,cleanup);
         int[] bodyTicks={0};
+        long[] rejectedOmenCallbacks={0};
         ActionProtocol.Request[] drink={null};
         h.startSequence().thenIdle(30).thenExecute(()->{
             service.lifecycle().requestStart(player,UUID.randomUUID());ready(h,a);
@@ -188,6 +191,57 @@ public final class ParticipantEffectsChecks {
             service.actions().request(player,drink[0]);
             h.assertTrue(player.getHealth()==4,"instant harm retry repeated damage");
         }).thenExecute(()->end(a)).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
+            player.setRaidOmenPosition(a.base.offset(100,0,0));
+            player.addEffect(new MobEffectInstance(MobEffects.RAID_OMEN,31));
+            end(a);
+            h.assertTrue(player.getEffect(MobEffects.RAID_OMEN).getDuration()==30,"raid omen fired before its final boundary");
+        }).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
+            cancelOmenExpiry[0]=true;
+            end(a);
+            h.assertTrue(player.getEffect(MobEffects.RAID_OMEN).getDuration()==0,"raid omen expiry cancellation lost");
+            service.persistIfChanged();
+            var saved=player.level().getServer().getDataStorage().computeIfAbsent(CombatSavedData.TYPE).envelope();
+            rejectedOmenCallbacks[0]=saved.turnSettlements().values().stream().flatMap(v->v.observations().stream())
+                .filter(v->"REJECTED_POSITION".equals(v.details().get("omen"))).count();
+            h.assertTrue(rejectedOmenCallbacks[0]==1,"out-of-field raid creation was not observed exactly once");
+        }).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
+            end(a);
+            h.assertTrue(player.getEffect(MobEffects.RAID_OMEN).getDuration()==0,"canceled omen restarted its timer");
+            service.persistIfChanged();
+            var saved=player.level().getServer().getDataStorage().computeIfAbsent(CombatSavedData.TYPE).envelope();
+            h.assertTrue(saved.turnSettlements().values().stream().flatMap(v->v.observations().stream())
+                .filter(v->"REJECTED_POSITION".equals(v.details().get("omen"))).count()==rejectedOmenCallbacks[0],
+                "canceled expiry replayed raid creation callback");
+            cancelOmenExpiry[0]=false;
+            player.removeEffect(MobEffects.RAID_OMEN); player.clearRaidOmenPosition();
+        }).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
+            // Native raid creation queries POIs over 64 blocks. Only the fixture loads those dependencies.
+            for(int x=(a.base.getX()>>4)-5;x<=(a.base.getX()>>4)+5;x++)
+                for(int z=(a.base.getZ()>>4)-5;z<=(a.base.getZ()>>4)+5;z++) h.getLevel().getChunk(x,z);
+            player.setRaidOmenPosition(a.base);
+            player.addEffect(new MobEffectInstance(MobEffects.RAID_OMEN,1));
+            end(a);
+            var raid=h.getLevel().getRaidAt(a.base);
+            h.assertTrue(raid!=null && player.getRaidOmenPosition()==null && !player.hasEffect(MobEffects.RAID_OMEN),
+                "final omen boundary did not create and consume native raid");
+            raid.stop();
+            var poi=h.getLevel().getPoiManager();
+            var home=h.getLevel().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.POINT_OF_INTEREST_TYPE)
+                .getOrThrow(net.minecraft.world.entity.ai.village.poi.PoiTypes.HOME);
+            poi.add(a.base,home);
+            h.assertTrue(poi.take(t->t.is(net.minecraft.world.entity.ai.village.poi.PoiTypes.HOME),(t,p)->p.equals(a.base),a.base,1).isPresent(),
+                "village fixture failed to occupy home POI");
+        }).thenWaitUntil(()->{
+            ready(h,a); h.assertTrue(h.getLevel().isVillage(a.base),"waiting for native village POI distance tracker");
+        }).thenExecute(()->{
+            player.addEffect(new MobEffectInstance(MobEffects.RAID_OMEN,31));
+            player.addEffect(new MobEffectInstance(MobEffects.BAD_OMEN,31));
+            end(a);
+            h.assertTrue(!player.hasEffect(MobEffects.BAD_OMEN) && player.getEffect(MobEffects.RAID_OMEN).getDuration()==600,
+                "bad omen conversion refreshed raid omen but settlement aged it again");
+            h.getLevel().getPoiManager().remove(a.base);
+            player.removeEffect(MobEffects.RAID_OMEN); player.clearRaidOmenPosition();
+        }).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
             player.setHealth(.5f);player.addEffect(new MobEffectInstance(MobEffects.WITHER,1));cancelDeath[0]=true;
             end(a);cancelDeath[0]=false;
             h.assertTrue(player.isAlive() && service.isMember(player.getUUID()),"canceled player death removed membership");

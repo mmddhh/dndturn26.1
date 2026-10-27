@@ -1392,6 +1392,27 @@ public final class EncounterAuthority {
     /** The currently reserved environment step, if any; used by the execution-deadline backstop. */
     public UUID authorizedEnvironmentStep(UUID encounterId) { return require(encounterId).authorizedEnvironmentStep; }
 
+    /** One observed environmental callback. The scheduler step, not its original actor, is the authority. */
+    public boolean beginEnvironmentEffect(OperationRecord.Snapshot snapshot, UUID step) {
+        Objects.requireNonNull(snapshot); Objects.requireNonNull(step);
+        var encounter = require(snapshot.encounterId());
+        var prior = encounter.operations.causes.get(snapshot.operationId());
+        if (prior != null) {
+            if (!prior.equals(snapshot)) throw new IllegalStateException("environment effect payload conflict");
+            return false;
+        }
+        if (snapshot.kind() != OperationRecord.Kind.ENVIRONMENT || snapshot.parentId() != null
+            || snapshot.source() == null || snapshot.sourceCell() == null
+            || encounter.phase != EncounterPhase.ENVIRONMENT || !step.equals(encounter.authorizedEnvironmentStep)
+            || !snapshot.owner().equals(currentId(encounter)) || encounter.members.containsKey(snapshot.owner())
+            || snapshot.encounterVersion() != encounter.version || !encounter.operations.pending.isEmpty()) return false;
+        long version = Math.addExact(encounter.version, 1);
+        encounter.operations.pending.put(snapshot.operationId(), snapshot);
+        encounter.operations.causes.put(snapshot.operationId(), snapshot);
+        encounter.version = version;
+        return true;
+    }
+
     /** Reserve one named simulation step; only one may execute at a time. */
     public boolean authorizeEnvironmentStep(UUID encounterId, UUID stepId) {
         Objects.requireNonNull(stepId);

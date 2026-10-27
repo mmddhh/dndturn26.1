@@ -14,7 +14,7 @@ public abstract class InstantEffectMixin {
     @WrapMethod(method="applyInstantenousEffect")
     private void dndturn$application(ServerLevel level, Entity source, Entity owner, LivingEntity target,
             int amplifier, double scale, Operation<Void> original) {
-        cc.sighs.dndturn.platform.server.runtime.VanillaEffectHooks.instant((MobEffect)(Object)this,level,target,amplifier,scale,
+        cc.sighs.dndturn.platform.server.runtime.VanillaEffectHooks.instant((MobEffect)(Object)this,level,source,target,amplifier,scale,
             () -> original.call(level,source,owner,target,amplifier,scale));
     }
 }

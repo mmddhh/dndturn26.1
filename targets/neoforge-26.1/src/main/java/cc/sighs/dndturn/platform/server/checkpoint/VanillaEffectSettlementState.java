@@ -37,9 +37,12 @@ public final class VanillaEffectSettlementState {
     public enum Phase { PREPARED, OBSERVED, UNKNOWN }
     public record Observation(String effect, int amplifier, RoundTime time, double scaledAmount,
                               float healthBefore, float healthAfter, float absorptionBefore, float absorptionAfter,
-                              boolean nativeAccepted, Phase phase) {
+                              boolean nativeAccepted, Phase phase, Map<String, String> details) {
         public Observation {
             Objects.requireNonNull(effect); Objects.requireNonNull(time); Objects.requireNonNull(phase);
+            details = Map.copyOf(details);
+            if (details.size()>16 || details.entrySet().stream().anyMatch(e -> e.getKey().length()>128 || e.getValue().length()>512))
+                throw new IllegalArgumentException("effect detail bound");
             if (effect.isBlank() || effect.length() > 128 || amplifier < 0 || amplifier > 255
                 || !Double.isFinite(scaledAmount) || scaledAmount < 0
                 || !Float.isFinite(healthBefore) || !Float.isFinite(healthAfter)

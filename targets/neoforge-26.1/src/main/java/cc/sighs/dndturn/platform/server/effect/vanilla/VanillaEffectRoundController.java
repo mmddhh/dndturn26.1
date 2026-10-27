@@ -53,9 +53,12 @@ public final class VanillaEffectRoundController {
             if (root.kind()==OperationRecord.Kind.ENVIRONMENT) {
                 var player=level.getServer().getPlayerList().getPlayer(root.owner());
                 var pos=target.blockPosition();
-                if (player==null || player.level()!=level || !level.hasChunkAt(pos)
-                    || !engine.stateView(root.encounterId()).region().containsBlock(pos.getX(),pos.getY(),pos.getZ())
-                    || !level.mayInteract(player,pos) || level.getServer().isUnderSpawnProtection(level,pos,player))
+                boolean environmental=engine.stateView(root.encounterId()).phase()==EncounterPhase.ENVIRONMENT
+                    && root.owner().equals(engine.stateView(root.encounterId()).current())
+                    && !engine.stateView(root.encounterId()).members().containsKey(root.owner());
+                if (!positionAllowed(root.encounterId(),level,pos)
+                    || !environmental && (player==null || player.level()!=level || !level.mayInteract(player,pos)
+                        || level.getServer().isUnderSpawnProtection(level,pos,player)))
                     throw new IllegalStateException("instant effect target left permitted footprint");
             }
             String id=BuiltInRegistries.MOB_EFFECT.getKey(effect).toString();
@@ -94,6 +97,111 @@ public final class VanillaEffectRoundController {
             }
         }
     }
+    private boolean positionAllowed(UUID domain, ServerLevel level, net.minecraft.core.BlockPos pos) {
+        var state=engine.stateView(domain);
+        if (!state.region().dimension().equals(level.dimension().identifier().toString()) || !level.hasChunkAt(pos)
+            || !level.isInWorldBounds(pos) || !level.getWorldBorder().isWithinBounds(pos)
+            || !state.region().containsBlock(pos.getX(),pos.getY(),pos.getZ())) return false;
+        var spawn=level.getRespawnData();
+        int radius=level.getServer() instanceof net.minecraft.server.dedicated.DedicatedServer dedicated ? dedicated.spawnProtectionRadius() : 0;
+        return level.dimension()!=spawn.dimension() || level.getServer().getPlayerList().getOps().isEmpty() || radius<=0
+            || Math.max(Math.abs((long)pos.getX()-spawn.pos().getX()),Math.abs((long)pos.getZ()-spawn.pos().getZ()))>radius;
+    }
+    public void cloud(AreaEffectCloud cloud, LivingEntity target, MobEffect effect, int amplifier, double scale,
+                      UUID domain, UUID step, Runnable nativeCall) {
+        if (step==null || cloud.level()!=target.level() || cloud.level().getEntity(cloud.getUUID())!=cloud
+            || !cloud.level().tickRateManager().runsNormally()) throw new IllegalStateException("cloud step unavailable");
+        var level=(ServerLevel)cloud.level();
+        var state=engine.stateView(domain);
+        var root=new OperationRecord.Snapshot(UUID.randomUUID(),null,domain,state.current(),cloud.getUUID(),target.getUUID(),
+            service.clock(),state.version(),cc.sighs.dndturn.platform.spatial.MinecraftCoordinates.cell(cloud.blockPosition()),
+            cc.sighs.dndturn.platform.spatial.MinecraftCoordinates.cell(target.blockPosition()),OperationRecord.Kind.ENVIRONMENT,service.generation());
+        if (!engine.beginEnvironmentEffect(root,step)) throw new IllegalStateException("cloud effect admission denied");
+        service.completeWorldOutcome(() -> {
+        try (var scope=applications(() -> root,List.of(target))) {
+            if (!positionAllowed(domain,level,cloud.blockPosition()) || !positionAllowed(domain,level,target.blockPosition())) {
+                engine.publish(domain,root.operationId(),0,OperationRecord.Outcome.REJECTED,"cloud position unavailable or protected",0,0,true);
+                return;
+            }
+            scope.invoke(effect,level,target,amplifier,scale,nativeCall);
+            engine.publish(domain,root.operationId(),0,OperationRecord.Outcome.COMPLETED,"native cloud application",0,0,true);
+        } catch (RuntimeException failure) {
+            cloud.getPersistentData().putBoolean("dndturn:native_effect_uncertain",true);
+            if (engine.pendingOperation(domain,root.operationId())!=null)
+                engine.publish(domain,root.operationId(),0,OperationRecord.Outcome.UNKNOWN,"cloud application uncertain; held without replay",0,0,true);
+            throw failure;
+        } finally { service.changed(); }
+        });
+    }
+    static boolean omen(ServerLevel level, LivingEntity actor, MobEffectInstance effect) {
+        var frame=CURRENT.get();
+        if (frame==null || frame.actor!=actor) throw new IllegalStateException("omen without turn boundary");
+        boolean raid=effect.is(MobEffects.RAID_OMEN);
+        if (raid && !frame.lastRound) return true;
+        var runtime=frame.runtime;
+        var root=frame.root;
+        UUID permit=UUID.randomUUID();
+        UUID operation=UUID.nameUUIDFromBytes((root.operationId()+"/omen/"+frame.effect)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        if (runtime.engine.resultFor(root.encounterId(),operation)!=null)
+            throw new IllegalStateException("omen callback already observed");
+        runtime.engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit,root.encounterId(),root.operationId(),root.owner(),
+            Set.of(actor.getUUID()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE),1,runtime.engine.stateView(root.encounterId()).round()));
+        var child=new OperationRecord.Snapshot(operation,root.operationId(),root.encounterId(),root.owner(),root.owner(),actor.getUUID(),
+            runtime.service.clock(),runtime.engine.stateView(root.encounterId()).version(),root.sourceCell(),
+            cc.sighs.dndturn.platform.spatial.MinecraftCoordinates.cell(actor.blockPosition()),OperationRecord.Kind.NATIVE_EFFECT,runtime.service.generation());
+        boolean admitted=false;
+        try {
+            if (!runtime.engine.beginOperation(child,permit)) throw new IllegalStateException("omen callback admission denied");
+            admitted=true;
+            boolean remains=omenNative(level,actor,effect,frame,raid);
+            boolean rejected=frame.details.values().stream().anyMatch(v -> v.startsWith("REJECTED_"));
+            runtime.engine.publish(root.encounterId(),operation,0,rejected ? OperationRecord.Outcome.REJECTED : OperationRecord.Outcome.COMPLETED,
+                frame.effect+" "+frame.details,0,0,true);
+            return remains;
+        } catch (RuntimeException failure) {
+            if (admitted && runtime.engine.pendingOperation(root.encounterId(),operation)!=null)
+                runtime.engine.publish(root.encounterId(),operation,0,OperationRecord.Outcome.UNKNOWN,
+                    frame.effect+" native outcome uncertain "+frame.details,0,0,true);
+            throw failure;
+        } finally { runtime.engine.revokeEffectPermit(root.encounterId(),permit); }
+    }
+    private static boolean omenNative(ServerLevel level,LivingEntity actor,MobEffectInstance effect,Frame frame,boolean raid) {
+        if (!(actor instanceof net.minecraft.server.level.ServerPlayer player) || player.isSpectator()) return true;
+        var pos=raid ? player.getRaidOmenPosition() : player.blockPosition();
+        if (pos==null) return true;
+        if (!frame.runtime.positionAllowed(frame.root.encounterId(),level,pos)) {
+            frame.details.put("omen","REJECTED_POSITION"); return !raid;
+        }
+        if (!raid) {
+            boolean remains=effect.getEffect().value().applyEffectTick(level,actor,effect.getAmplifier());
+            frame.accepted=!remains && actor.hasEffect(MobEffects.RAID_OMEN);
+            frame.details.put("omen",remains ? "NO_CONVERSION" : frame.accepted ? "CONVERTED_TO_RAID_OMEN" : "CONVERSION_NOT_APPLIED");
+            return remains;
+        }
+        // Vanilla POI search uses radius 64; all dependencies must already be loaded, but only its actual result is an effect destination.
+        int chunkRadius=Math.floorDiv(64,16)+1; // PoiManager.getInSquare scans this padded chunk square.
+        for(int x=(pos.getX()>>4)-chunkRadius;x<=(pos.getX()>>4)+chunkRadius;x++)
+            for(int z=(pos.getZ()>>4)-chunkRadius;z<=(pos.getZ()>>4)+chunkRadius;z++)
+            if (!level.hasChunk(x,z)) { frame.details.put("raid","REJECTED_UNLOADED_DEPENDENCY"); return false; }
+        var pois=level.getPoiManager().getInRange(t -> t.is(net.minecraft.tags.PoiTypeTags.VILLAGE),pos,64,
+            net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.IS_OCCUPIED).limit(4097).toList();
+        if (pois.size()>4096) { frame.details.put("raid","REJECTED_POI_BUDGET"); return false; }
+        var total=net.minecraft.world.phys.Vec3.ZERO;
+        for(var poi:pois) total=total.add(poi.getPos().getX(),poi.getPos().getY(),poi.getPos().getZ());
+        var center=pois.isEmpty()?pos:net.minecraft.core.BlockPos.containing(total.scale(1.0/pois.size()));
+        var previous=level.getRaidAt(center);
+        if (!frame.runtime.positionAllowed(frame.root.encounterId(),level,center)
+            || previous!=null && !frame.runtime.positionAllowed(frame.root.encounterId(),level,previous.getCenter())) {
+            frame.details.put("raid","REJECTED_CENTER"); return false;
+        }
+        var actual=level.getRaids().createOrExtendRaid(player,pos);
+        frame.accepted=actual!=null;
+        frame.details.put("raid",actual==null ? "NATIVE_REFUSED" : previous==actual ? "EXTENDED" : "CREATED");
+        if (actual!=null) frame.details.put("raid_center",actual.getCenter().toShortString());
+        player.clearRaidOmenPosition();
+        return false;
+    }
     private static String food(LivingEntity target) {
         return target instanceof net.minecraft.world.entity.player.Player player
             ? player.getFoodData().getFoodLevel()+"/"+player.getFoodData().getSaturationLevel() : "not_applicable";
@@ -116,7 +224,8 @@ public final class VanillaEffectRoundController {
         final RoundTime time;
         final int period;
         DamageSource damageSource;
-        boolean invoked, accepted, incomingObserved;
+        boolean invoked, accepted, incomingObserved, lastRound;
+        final Map<String,String> details=new LinkedHashMap<>();
         double amount;
         int priorInvulnerability;
         Frame(VanillaEffectRoundController runtime, OperationRecord.Snapshot root, LivingEntity actor,
@@ -274,9 +383,13 @@ public final class VanillaEffectRoundController {
         capture(actor);
         var observations=new ArrayList<Observation>(); evidence(root,Phase.PREPARED,observations);
         try {
-            for(var effect:List.copyOf(actor.getActiveEffects())) {
+            var boundary=List.copyOf(actor.getActiveEffects());
+            var captured=new IdentityHashMap<MobEffectInstance,List<Timer>>();
+            for(var effect:boundary) captured.put(effect,captureEffect(actor,effect));
+            for(var effect:boundary) {
                 if(!actor.isAlive()) break;
                 if(actor.getEffect(effect.getEffect())!=effect) continue;
+                if (!unchanged(effect,captured.get(effect))) { captureEffect(actor,effect); continue; }
                 settleEffect(actor,effect,root,observations);
             }
             if(actor.isAlive() && actor instanceof Mob mob) settleFire(mob,root,observations);
@@ -284,6 +397,16 @@ public final class VanillaEffectRoundController {
         } catch(RuntimeException failure) {
             evidence(root,Phase.UNKNOWN,observations); throw failure;
         } finally { CURRENT.remove(); }
+    }
+    private static boolean unchanged(MobEffectInstance effect,List<Timer> timers) {
+        var values=chain(effect);
+        if (values.size()!=timers.size()) return false;
+        for(int i=0;i<values.size();i++) {
+            var current=values.get(i); var timer=timers.get(i);
+            if (!timer.instance().equals(((EffectTimerAccess)current).dndturn$timerInstance())
+                || timer.expectedNativeTicks()!=current.getDuration() || timer.amplifier()!=current.getAmplifier()) return false;
+        }
+        return true;
     }
     private void settleEffect(LivingEntity actor,MobEffectInstance effect,OperationRecord.Snapshot root,List<Observation> observations) {
         var timers=captureEffect(actor,effect); var initial=timers.getFirst();
@@ -293,6 +416,7 @@ public final class VanillaEffectRoundController {
                 :effect.getEffect().equals(MobEffects.REGENERATION)?50:0;
             int period=basePeriod==0?1:Math.max(1,basePeriod>>effect.getAmplifier());
             var frame=new Frame(this,root,actor,key(effect),effect.getAmplifier(),initial.duration().time(),period);
+            frame.lastRound=initial.duration().rounds()==1;
             float health=actor.getHealth(),absorption=actor.getAbsorptionAmount();
             CURRENT.set(frame);
             try {
@@ -300,13 +424,13 @@ public final class VanillaEffectRoundController {
                 remains=EffectAdapters.apply(EffectAdapters.resolve(effect.getEffect().value()),
                     (ServerLevel)actor.level(),actor,effect,initial.duration().time().ticks());
                 observations.add(new Observation(frame.effect,frame.amplifier,frame.time,frame.amount,health,actor.getHealth(),
-                    absorption,actor.getAbsorptionAmount(),frame.accepted,Phase.OBSERVED));
+                    absorption,actor.getAbsorptionAmount(),frame.accepted,Phase.OBSERVED,frame.details));
                 evidence(root,Phase.PREPARED,observations);
             } catch(RuntimeException failure) {
                 observations.add(new Observation(frame.effect,frame.amplifier,frame.time,frame.amount,health,actor.getHealth(),
-                    absorption,actor.getAbsorptionAmount(),frame.accepted,Phase.UNKNOWN)); throw failure;
+                    absorption,actor.getAbsorptionAmount(),frame.accepted,Phase.UNKNOWN,frame.details)); throw failure;
             } finally { CURRENT.remove(); }
-            if(remains && actor.getEffect(effect.getEffect())==effect) {
+            if(actor.getEffect(effect.getEffect())==effect) {
                 // Native callbacks can replace/refresh a timer. Never overwrite a changed instance or chain.
                 var after=chain(effect);
                 if(after.size()!=timers.size()) { captureEffect(actor,effect); return; }
@@ -314,6 +438,10 @@ public final class VanillaEffectRoundController {
                     || timers.get(i).expectedNativeTicks()!=after.get(i).getDuration() || timers.get(i).amplifier()!=after.get(i).getAmplifier()) {
                     captureEffect(actor,effect); return;
                 }
+                if (!remains) {
+                    ((EffectTimerAccess)effect).dndturn$duration(0);
+                    captureEffect(actor,effect);
+                } else {
                 var advanced=new ArrayList<Timer>();
                 for(int i=0;i<after.size();i++) {
                     var duration=timers.get(i).duration().endTurn(); var current=after.get(i);
@@ -329,6 +457,7 @@ public final class VanillaEffectRoundController {
                 save(actor.getUUID(),effects,owner.fire());
                 ((LivingEffectRoundAccess)actor).dndturn$effectUpdated(effect,promoted,null);
                 remains=effect.isInfiniteDuration() || effect.getDuration()>0;
+                }
             }
         }
         int expiringDuration=effect.getDuration(), expiringAmplifier=effect.getAmplifier();
@@ -357,10 +486,10 @@ public final class VanillaEffectRoundController {
                 }
             }
             observations.add(new Observation(frame.effect,0,frame.time,frame.amount,health,actor.getHealth(),absorption,
-                actor.getAbsorptionAmount(),frame.accepted,Phase.OBSERVED));
+                actor.getAbsorptionAmount(),frame.accepted,Phase.OBSERVED,frame.details));
         } catch(RuntimeException failure) {
             observations.add(new Observation(frame.effect,0,frame.time,frame.amount,health,actor.getHealth(),absorption,
-                actor.getAbsorptionAmount(),frame.accepted,Phase.UNKNOWN));throw failure;
+                actor.getAbsorptionAmount(),frame.accepted,Phase.UNKNOWN,frame.details));throw failure;
         } finally { CURRENT.remove(); }
     }
     public static void heal(LivingEntity target,float nativeAmount) {

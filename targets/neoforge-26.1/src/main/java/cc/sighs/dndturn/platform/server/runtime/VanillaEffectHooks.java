@@ -8,10 +8,20 @@ import net.minecraft.world.effect.MobEffectInstance;
 /** Resolves the server instance only at the Minecraft effect tick seam. */
 public final class VanillaEffectHooks {
     private VanillaEffectHooks() {}
-    public static void instant(net.minecraft.world.effect.MobEffect effect, ServerLevel level, LivingEntity target,
+    public static void instant(net.minecraft.world.effect.MobEffect effect, ServerLevel level, Entity source, LivingEntity target,
             int amplifier, double scale, Runnable nativeCall) {
         if (cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController.instant(effect,level,target,amplifier,scale,nativeCall)) return;
         var runtime=ServerRuntime.existingEncounter(level.getServer());
+        if (runtime!=null && source instanceof net.minecraft.world.entity.AreaEffectCloud cloud
+            && cc.sighs.dndturn.platform.server.world.CloudOrigins.tagged(cloud)) {
+            if (!cc.sighs.dndturn.platform.server.world.CloudOrigins.confirmed(cloud,runtime.cloudEvidence())
+                || !runtime.controlFacts().cloudTargetAllowed(cloud,target)) return;
+            var domain=runtime.canonicalOutcomeEncounter(cc.sighs.dndturn.platform.server.world.CloudOrigins.domain(cloud));
+            if (runtime.world().regions().containsKey(domain)) {
+                runtime.vanillaEffects().cloud(cloud,target,effect,amplifier,scale,domain,
+                    runtime.world().environmentStepFor(cloud),nativeCall); return;
+            }
+        }
         if (runtime!=null && runtime.isMember(target.getUUID())) throw new IllegalStateException("instant effect requires a bound application");
         nativeCall.run();
     }

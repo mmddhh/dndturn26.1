@@ -1,6 +1,8 @@
 package cc.sighs.dndturn.domain.encounter;
 
 import java.util.*;
+import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
+import cc.sighs.dndturn.domain.spatial.GridCell;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -27,6 +29,37 @@ class EnvironmentParticipantTest {
         UUID step = UUID.randomUUID(); engine.authorizeEnvironmentStep(id, step); engine.commitEnvironmentStep(id, step);
         assertEquals(List.of(member, TurnParticipant.environment(id).id()), engine.stateView(id).order());
         assertEquals(member, engine.stateView(id).current());
+    }
+    @Test void nativeCallbackRequiresCurrentEnvironmentStepAndFiniteTargetPermit() {
+        var engine=new EncounterAuthority(new Random(1),30,3);
+        UUID id=UUID.randomUUID(), actor=UUID.randomUUID(), source=UUID.randomUUID(), step=UUID.randomUUID();
+        var region=EncounterRegion.generate("test:world",new EncounterRegion.Discovery(-4,-4,-4,4,4,4),
+            List.of(new EncounterRegion.Anchor(actor,new EncounterRegion.Point(0,0,0))),3,1);
+        engine.beginCandidate(id,region,Set.of(actor));
+        engine.endTurn(id,actor);
+        var cell=new GridCell(0,0,0);
+        var environment=TurnParticipant.environment(id).id();
+        var root=new OperationRecord.Snapshot(UUID.randomUUID(),null,id,environment,source,actor,
+            1,engine.stateView(id).version(),cell,cell,OperationRecord.Kind.ENVIRONMENT);
+        assertFalse(engine.beginEnvironmentEffect(root,step));
+        engine.authorizeEnvironmentStep(id,step);
+        root=new OperationRecord.Snapshot(root.operationId(),null,id,environment,source,actor,
+            1,engine.stateView(id).version(),cell,cell,root.kind());
+        assertFalse(engine.beginEnvironmentEffect(root,UUID.randomUUID()));
+        assertTrue(engine.beginEnvironmentEffect(root,step));
+        assertFalse(engine.beginEnvironmentEffect(root,step));
+        UUID permit=UUID.randomUUID();
+        engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit,id,root.operationId(),environment,
+            Set.of(actor),Set.of(EncounterPhase.ENVIRONMENT),1,engine.stateView(id).round()));
+        var child=new OperationRecord.Snapshot(UUID.randomUUID(),root.operationId(),id,environment,environment,actor,
+            1,engine.stateView(id).version(),cell,cell,OperationRecord.Kind.NATIVE_EFFECT);
+        assertTrue(engine.beginOperation(child,permit));
+        engine.publish(id,child.operationId(),0,OperationRecord.Outcome.COMPLETED,"native",0,0,true);
+        engine.publish(id,root.operationId(),0,OperationRecord.Outcome.COMPLETED,"cloud",0,0,true);
+        assertFalse(engine.beginEnvironmentEffect(root,step));
+        assertEquals(0,engine.environmentTime(id));
+        assertTrue(engine.commitEnvironmentStep(id,step));
+        assertEquals(1,engine.environmentTime(id));
     }
     @Test void permanentLastSeatConsumesOneCapturedBudgetPerRoundAndSurvivesRestore() {
         UUID encounter = UUID.randomUUID(), first = UUID.randomUUID(), second = UUID.randomUUID();

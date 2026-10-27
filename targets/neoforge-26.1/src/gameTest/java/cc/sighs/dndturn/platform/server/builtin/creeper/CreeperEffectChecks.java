@@ -49,6 +49,7 @@ public final class CreeperEffectChecks {
             creeper.discard(); player.discard();
             for (long key : forced) { var c = ChunkPos.unpack(key); level.setChunkForced(c.x(),c.z(),false); } forced.clear();
         };
+        UUID[] cloudDomain={null};
         h.runAtTickTime(399,cleanup);
         h.startSequence().thenIdle(20).thenExecute(() -> {
             // The field admits a mob with an actual directed lock; a passive creeper no longer joins.
@@ -100,6 +101,7 @@ public final class CreeperEffectChecks {
             };
             net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(cancel);
             creeper.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.SPEED,120));
+            creeper.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.INSTANT_HEALTH,120));
             try { service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version()); }
             finally { net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(cancel); }
             h.assertTrue(creeper.isRemoved(),"Creeper native explosion did not remove source: " + states.invocations(actor.id()));
@@ -158,8 +160,19 @@ public final class CreeperEffectChecks {
             h.assertTrue(restored.invocation(invocation.getFirst().operation()).status() == TriggeredExecutionRecord.Status.COMPLETED,
                     "trigger checkpoint lost completion evidence");
             h.assertTrue(CreeperAbilities.fuse(states.state(actor.id())) == null,"fuse not consumed");
-            cleanup.run();
-        }).thenSucceed();
+            cloudDomain[0]=service.encounterOf(player.getUUID());
+            player.setHealth(10); player.getFoodData().setFoodLevel(10);
+            player.setPos(cloud.position()); player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        }).thenWaitUntil(() -> {
+            if (persistent) return;
+            var state=service.state(cloudDomain[0]);
+            if (player.getUUID().equals(state.current()))
+                service.combat().endTurn(cloudDomain[0],player,UUID.randomUUID(),state.version());
+            var results=service.lifecycle().results(cloudDomain[0],0,256).results();
+            h.assertTrue(results.stream().anyMatch(r -> r.snapshot().kind()==cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Kind.NATIVE_EFFECT
+                && r.reason().contains("scale=0.5") && r.reason().contains("health=10.0->12.0")),
+                "native cloud did not apply one half-strength heal through environmental authorization: health="+player.getHealth());
+        }).thenExecute(() -> { if (!persistent) cleanup.run(); }).thenSucceed();
     }
     private static void verifyRestart(GameTestHelper h, Path marker) {
         var properties = new Properties();
@@ -182,6 +195,10 @@ public final class CreeperEffectChecks {
                     }
                     var cloud = level.getEntity(UUID.fromString(properties.getProperty("cloud")));
                     h.assertTrue(CreeperClouds.confirmed(cloud,service.cloudEvidence()),"saved cloud lost its confirmed source");
+                    boolean instant=false;
+                    for(var effect:((cc.sighs.dndturn.platform.mixin.server.effect.CreeperCloudAccess)cloud).dndturn$potionContents().getAllEffects())
+                        if(effect.is(net.minecraft.world.effect.MobEffects.INSTANT_HEALTH)) instant=true;
+                    h.assertTrue(instant,"saved cloud lost its native instant payload");
                     h.assertTrue(level.getEntity(UUID.fromString(properties.getProperty("actor"))) == null,"exploded source returned after restart");
                     System.out.println("DNDTURN_TRIGGER_RESTART_VERIFY_PASS pending=PENDING started=UNKNOWN completed=COMPLETED");
                     loader.discard(); level.setChunkForced(chunk.x(),chunk.z(),false);

@@ -29,13 +29,13 @@ public final class CreeperClouds {
     static boolean confirmed(Entity cloud, cc.sighs.dndturn.platform.server.world.CloudOrigins.Evidence service) {
         try {
             var body = (AreaEffectCloud)cloud;
-            if (!(body instanceof AreaEffectCloud) || !Float.isFinite(body.getRadius()) || body.getRadius() > 2.5F
+            if (cloud.getPersistentData().getBooleanOr("dndturn:native_effect_uncertain",false) || !(body instanceof AreaEffectCloud) || !Float.isFinite(body.getRadius()) || body.getRadius() > 2.5F
                     || body.getRadius() < 0 || body.getDuration() < 0 || body.getDuration() > 300 || body.getWaitTime() != 10
                     || body.getDurationOnUse() != 0 || body.getRadiusOnUse() != -.5F
                     || body.getRadiusPerTick() != -2.5F / 300) return false;
             int count = 0;
             for (var effect : ((CreeperCloudAccess)body).dndturn$potionContents().getAllEffects())
-                if (++count > 32 || (effect.getEffect().value().isInstantenous() || !EffectAdapters.supported(effect))) return false;
+                if (++count > 32 || !EffectAdapters.supported(effect)) return false;
             var tag = cloud.getPersistentData();
             UUID actor = UUID.fromString(tag.getStringOr(ACTOR, "")), operation = UUID.fromString(tag.getStringOr(OPERATION, ""));
             var invocation = service.invocation(operation);
