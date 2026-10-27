@@ -236,13 +236,22 @@ public final class EncounterProtocol {
         }
     }
 
+    /** Display facts only; instant receipts never authorize another application. */
+    public record EffectNotice(String id, int level, int ticks, long rounds, boolean instant, String support) {
+        public EffectNotice {
+            if (id == null || !id.matches("[a-z0-9_.-]+:[a-z0-9_./-]+") || id.length() > 128
+                || level < 1 || level > 256 || ticks < -1 || rounds < -1 || support == null || support.length() > 32)
+                throw new IllegalArgumentException("invalid effect projection");
+        }
+    }
+
     /** Current participant state only; result history is never broadcast every tick. */
     public record EncounterState(UUID generation, UUID encounterId, long sessionSequence,
                                  boolean active, long version,
                                  EncounterPhase phase, long round, UUID current, long regionVersion,
                                  int movementTicks, boolean action, boolean reaction,
                                  int environmentRemaining, boolean moving, UUID movementOperationId, List<MemberNotice> members, int resultCount, boolean interactive,
-                                 long projectionRevision, int movementTicksPerTurn, ExitNotice exit)
+                                 long projectionRevision, int movementTicksPerTurn, ExitNotice exit, List<EffectNotice> effects)
         implements CustomPacketPayload {
         public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
                               boolean active, long version, EncounterPhase phase, long round, UUID current,
@@ -252,7 +261,7 @@ public final class EncounterProtocol {
                               int movementTicksPerTurn) {
             this(generation, encounterId, sessionSequence, active, version, phase, round, current,
                 regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
-                movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn, null);
+                movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn, null, List.of());
         }
         public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
                               boolean active, long version, EncounterPhase phase, long round, UUID current,
@@ -274,6 +283,8 @@ public final class EncounterProtocol {
         }
         public EncounterState {
             members = List.copyOf(members);
+            effects = List.copyOf(effects);
+            if (effects.size() > 256) throw new IllegalArgumentException("effect projection limit");
             if (resultCount < 0 || projectionRevision < 0 || movementTicksPerTurn < 0)
                 throw new IllegalArgumentException("invalid projection count or movement budget");
         }
@@ -333,6 +344,12 @@ public final class EncounterProtocol {
                     buffer.writeDouble(state.exit().nearestDistance());
                     buffer.writeDouble(state.exit().requiredDistance());
                 }
+                buffer.writeInt(state.effects().size());
+                for (var effect : state.effects()) {
+                    ByteBufCodecs.stringUtf8(128).encode(buffer, effect.id());
+                    buffer.writeInt(effect.level()); buffer.writeInt(effect.ticks()); buffer.writeLong(effect.rounds());
+                    buffer.writeBoolean(effect.instant()); ByteBufCodecs.stringUtf8(32).encode(buffer, effect.support());
+                }
                 buffer.writeInt(state.resultCount());
                 buffer.writeInt(state.members().size());
                 for (MemberNotice member : state.members()) {
@@ -369,6 +386,12 @@ public final class EncounterProtocol {
                 ExitNotice exit = buffer.readBoolean() ? new ExitNotice(
                     ActionFailure.Code.valueOf(ByteBufCodecs.stringUtf8(64).decode(buffer)),
                     buffer.readDouble(), buffer.readDouble()) : null;
+                int effectCount = buffer.readInt();
+                if (effectCount < 0 || effectCount > 256) throw new IllegalArgumentException("effect projection limit");
+                List<EffectNotice> effects = new ArrayList<>(effectCount);
+                for (int i = 0; i < effectCount; i++) effects.add(new EffectNotice(
+                    ByteBufCodecs.stringUtf8(128).decode(buffer), buffer.readInt(), buffer.readInt(), buffer.readLong(),
+                    buffer.readBoolean(), ByteBufCodecs.stringUtf8(32).decode(buffer)));
                 int resultCount = buffer.readInt();
                 int size = buffer.readInt();
                 if (size < 0 || size > 4096) throw new IllegalArgumentException("invalid roster size");
@@ -379,7 +402,7 @@ public final class EncounterProtocol {
                     buffer.readBoolean(), buffer.readBoolean()));
                 return new EncounterState(generation, encounterId, sessionSequence, active, version,
                     phase, round, current, regionVersion, movementTicks, action, reaction,
-                    environmentRemaining, moving, movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn, exit);
+                    environmentRemaining, moving, movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn, exit, effects);
             });
 
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }

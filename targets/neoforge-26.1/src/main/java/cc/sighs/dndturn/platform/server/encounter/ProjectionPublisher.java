@@ -26,6 +26,7 @@ public final class ProjectionPublisher {
     private final CombatSubscriptions subscriptions;
     private final Map<UUID, Long> sessionSequences = new HashMap<>();
     private final Map<UUID, Long> projectionRevisions = new HashMap<>();
+    private final Map<UUID, List<EncounterProtocol.EffectNotice>> publishedEffects = new HashMap<>();
     private long nextSessionSequence;
     public ProjectionPublisher(MinecraftServer server, EncounterAuthority engine, UUID generation,
                                java.util.function.Function<UUID, Entity> resolve) {
@@ -46,12 +47,21 @@ public final class ProjectionPublisher {
     }
     public long nextRevision(UUID encounter) { return Math.addExact(projectionRevisions.getOrDefault(encounter, 0L), 1); }
     public void flush() { subscriptions.flush(); }
-    public void leave(UUID actor) { subscriptions.leave(actor); }
-    public void retainOnline(Set<UUID> actors) { subscriptions.retainOnline(actors); }
+    public void leave(UUID actor) { subscriptions.leave(actor); publishedEffects.remove(actor); }
+    public void retainOnline(Set<UUID> actors) { subscriptions.retainOnline(actors); publishedEffects.keySet().retainAll(actors); }
     public void body(ServerPlayer player, boolean paused, boolean movement) { subscriptions.body(player, paused, movement); }
-    public void close() { subscriptions.clear(); sessionSequences.clear(); projectionRevisions.clear(); }
+    public void close() { publishedEffects.clear(); subscriptions.clear(); sessionSequences.clear(); projectionRevisions.clear(); }
+    public boolean effectsChanged(StateView state,
+                                  java.util.function.Function<ServerPlayer, List<EncounterProtocol.EffectNotice>> query) {
+        for (UUID member : state.members().keySet()) {
+            var player = server.getPlayerList().getPlayer(member);
+            if (player != null && !query.apply(player).equals(publishedEffects.get(member))) return true;
+        }
+        return false;
+    }
     public void publish(StateView state, java.util.function.Function<UUID, UUID> movementOperation, boolean ready,
-                        java.util.function.Function<ServerPlayer, EncounterAuthority.ExitAssessment> exitQuery) {
+                        java.util.function.Function<ServerPlayer, EncounterAuthority.ExitAssessment> exitQuery,
+                        java.util.function.Function<ServerPlayer, List<EncounterProtocol.EffectNotice>> effectQuery) {
         long projectionRevision = Math.addExact(projectionRevisions.getOrDefault(state.id(), 0L), 1);
         List<EncounterProtocol.MemberNotice> roster = new ArrayList<>(state.members().values().stream()
             .sorted(java.util.Comparator.comparingInt(MemberView::initiative).reversed()
@@ -72,6 +82,7 @@ public final class ProjectionPublisher {
             if (player == null) continue;
             MemberView member = entry.getValue();
             var exit = exitQuery.apply(player);
+            var effects = effectQuery.apply(player);
             subscriptions.publish(player, new EncounterProtocol.EncounterState(generation,
                 state.id(), sessionSequences.getOrDefault(state.id(), 0L), true,
                 state.version(), state.phase(), state.round(),
@@ -82,11 +93,13 @@ public final class ProjectionPublisher {
                     ? movementOperation.apply(player.getUUID()) : null, roster,
                 engine.resultPage(state.id(), 0, 1).total(), ready, projectionRevision,
                 engine.movementTicksPerTurn(state.id()), new EncounterProtocol.ExitNotice(exit.code(),
-                    Double.isFinite(exit.nearestEnemyDistance()) ? exit.nearestEnemyDistance() : -1, exit.requiredDistance())));
+                    Double.isFinite(exit.nearestEnemyDistance()) ? exit.nearestEnemyDistance() : -1, exit.requiredDistance()), effects));
+            publishedEffects.put(player.getUUID(), effects);
         }
     }
 
     public void clear(ServerPlayer player, UUID encounterId, long version) {
+        publishedEffects.remove(player.getUUID());
         long revision = projectionRevisions.merge(encounterId, 1L, Math::addExact);
         subscriptions.publish(player, new EncounterProtocol.EncounterState(
             generation, encounterId, sessionSequences.getOrDefault(encounterId, 0L), false,

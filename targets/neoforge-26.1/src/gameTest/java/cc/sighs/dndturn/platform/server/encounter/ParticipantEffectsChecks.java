@@ -172,7 +172,16 @@ public final class ParticipantEffectsChecks {
             h.assertTrue(player.getHealth()==14 && player.getMainHandItem().is(net.minecraft.world.item.Items.GLASS_BOTTLE),"instant healing or bottle consumption lost");
             service.actions().request(player,drink[0]);
             h.assertTrue(player.getHealth()==14 && !service.state(id).members().get(player.getUUID()).action(),"instant retry repeated healing or refunded action");
-        }).thenExecute(()->end(a)).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
+            var display=service.vanillaEffects().display(player);
+            h.assertTrue(display.stream().filter(e->e.instant() && e.id().equals("minecraft:instant_health")).count()==1,
+                "instant application/retry lost or duplicated display receipt");
+        }).thenExecute(()->{
+            end(a);
+            h.assertTrue(service.vanillaEffects().display(player).stream().anyMatch(e->e.instant() && e.id().equals("minecraft:instant_health")),
+                "owner turn end cleared instant display before environment boundary");
+        }).thenWaitUntil(()->ready(h,a)).thenExecute(()->{
+            h.assertTrue(service.vanillaEffects().display(player).stream().noneMatch(e->e.instant()),
+                "environment turn completion retained instant display");
             player.setHealth(10); player.invulnerableTime=0;
             var potion=new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
             potion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.HARMING));

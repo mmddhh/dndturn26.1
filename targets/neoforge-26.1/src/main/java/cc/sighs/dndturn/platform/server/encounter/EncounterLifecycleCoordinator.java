@@ -853,7 +853,7 @@ public final class EncounterLifecycleCoordinator {
         for (ServerLevel level : server.getAllLevels()) { Entity entity = level.getEntity(id); if (entity != null) return entity; }
         return null;
     }
-    private void sync(StateView state) { projections.publish(state, movement::playerOperation, !recovering(state.id()), player -> assessExit(player, state.id())); }
+    private void sync(StateView state) { projections.publish(state, movement::playerOperation, !recovering(state.id()), player -> assessExit(player, state.id()), vanillaEffects::display); }
     private void clear(UUID member, UUID encounter, long version) { var player = server.getPlayerList().getPlayer(member); if (player != null) projections.clear(player, encounter, version); }
     private static EncounterRegion.Point pointOf(Entity entity) { Vec3 center = entity.getBoundingBox().getCenter(); return new EncounterRegion.Point(center.x, center.y, center.z); }
 

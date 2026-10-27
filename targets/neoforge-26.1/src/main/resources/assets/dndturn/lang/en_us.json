@@ -128,5 +128,15 @@
   "dndturn.inspection.field.dndturn.sheet/remaining_rounds": "Remaining rounds (-1 infinite)",
   "dndturn.inspection.effect_support.native": "Native time",
   "dndturn.inspection.effect_support.managed": "Managed",
-  "dndturn.inspection.effect_support.needs_adapter": "Special callbacks need an adapter"
+  "dndturn.inspection.effect_support.needs_adapter": "Special callbacks need an adapter",
+  "dndturn.effects.instant": "Instant · shown until this round’s environment turn ends",
+  "dndturn.effects.infinite": "Infinite duration",
+  "dndturn.effects.rounds": "%s turns remaining",
+  "dndturn.effects.level": "Level %s",
+  "dndturn.effects.native_time": "Native time remaining: %s s (advances by turns)",
+  "dndturn.effects.beneficial": "Beneficial effect",
+  "dndturn.effects.other": "Harmful or neutral effect",
+  "dndturn.effects.support.managed": "Settles at your turn end",
+  "dndturn.effects.support.needs_adapter": "Special callbacks need an adapter",
+  "dndturn.effects.support.native": "Native timing"
 }

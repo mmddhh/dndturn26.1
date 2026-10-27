@@ -29,6 +29,8 @@ public final class VanillaEffectRoundController {
     private final GroupEffects groupEffects = new GroupEffects();
     private final Map<UUID, Owner> owners = new HashMap<>();
     private final Map<UUID, Settlement> settlements = new LinkedHashMap<>();
+    // Display receipts are not active effects and never replay native callbacks on restore.
+    private final Map<UUID, Map<String, cc.sighs.dndturn.platform.network.EncounterProtocol.EffectNotice>> instantDisplays = new HashMap<>();
     private final Set<UUID> restored = new HashSet<>();
     private static final ThreadLocal<ApplicationScope> APPLICATION = new ThreadLocal<>();
     public final class ApplicationScope implements AutoCloseable {
@@ -82,6 +84,11 @@ public final class VanillaEffectRoundController {
                 admitted=true;
                 CURRENT.set(new Frame(VanillaEffectRoundController.this,child,target,id,amplifier,new RoundTime(1),1));
                 nativeCall.run();
+                if (engine.encounterOf(target.getUUID()) != null) {
+                    var displays = instantDisplays.computeIfAbsent(target.getUUID(), ignored -> new LinkedHashMap<>());
+                    if (displays.size() < 128 || displays.containsKey(id)) displays.put(id,
+                        new cc.sighs.dndturn.platform.network.EncounterProtocol.EffectNotice(id, amplifier + 1, 0, 1, true, "MANAGED"));
+                }
                 engine.publish(root.encounterId(),operation,0,OperationRecord.Outcome.COMPLETED,
                     id+" amplifier="+amplifier+" scale="+scale+" health="+before+"->"+target.getHealth()
                         +" absorption="+absorption+"->"+target.getAbsorptionAmount()+" food="+foodBefore+"->"+food(target),0,
@@ -251,6 +258,19 @@ public final class VanillaEffectRoundController {
                     ? cc.sighs.dndturn.domain.effect.EffectSnapshot.NativeSupport.NEEDS_ADAPTER
                     : cc.sighs.dndturn.domain.effect.EffectSnapshot.NativeSupport.MANAGED);
     }
+    public void environmentTurnEnded(UUID encounter) {
+        for (UUID member : engine.stateView(encounter).members().keySet()) instantDisplays.remove(member);
+    }
+    public List<cc.sighs.dndturn.platform.network.EncounterProtocol.EffectNotice> display(LivingEntity actor) {
+        var result = new ArrayList<cc.sighs.dndturn.platform.network.EncounterProtocol.EffectNotice>();
+        actor.getActiveEffects().stream().sorted(Comparator.comparing(VanillaEffectRoundController::key)).limit(128).forEach(effect -> {
+            var value = describe(actor, effect);
+            result.add(new cc.sighs.dndturn.platform.network.EncounterProtocol.EffectNotice(key(effect),
+                effect.getAmplifier() + 1, effect.getDuration(), value.remainingRounds(), effect.getEffect().value().isInstantenous(), value.support().name()));
+        });
+        result.addAll(instantDisplays.getOrDefault(actor.getUUID(), Map.of()).values());
+        return List.copyOf(result);
+    }
     public Map<UUID, Owner> owners() { return Map.copyOf(owners); }
     public Map<UUID, Settlement> settlements() { return Map.copyOf(settlements); }
     public void restore(Map<UUID, Owner> saved, Map<UUID, Settlement> evidence) {
@@ -370,7 +390,7 @@ public final class VanillaEffectRoundController {
             for (var current:chain(effect)) ((EffectTimerAccess)current).dndturn$suppressLifecycle(false);
         forget(actor.getUUID()); // native timers already represent remaining rounds * captured base
     }
-    public void forget(UUID owner) { groupEffects.forget(owner); if(owners.remove(owner)!=null) service.changed(); restored.remove(owner); }
+    public void forget(UUID owner) { instantDisplays.remove(owner); groupEffects.forget(owner); if(owners.remove(owner)!=null) service.changed(); restored.remove(owner); }
     private void evidence(OperationRecord.Snapshot root,Phase phase,List<Observation> observations) {
         settlements.put(root.operationId(),new Settlement(root.operationId(),root.encounterId(),root.owner(),POLICY,VERSION,phase,observations));
         service.changed();

@@ -30,6 +30,7 @@ public final class TacticalOverlay {
     private static final int INITIATIVE_DESIGN_HEIGHT = 54;
     private static Document document;
     private static MovementRing movementRing;
+    private static PlayerEffects playerEffects;
     private static long refreshGeneration = -1;
     private static UUID encounterId;
     private static int retryDelay;
@@ -83,8 +84,16 @@ public final class TacticalOverlay {
     public static void hideVanillaHotbar(net.neoforged.neoforge.client.event.RenderGuiLayerEvent.Pre event) {
         if (!hudVisible()) return;
         if (event.getName().equals(net.neoforged.neoforge.client.gui.VanillaGuiLayers.HOTBAR)
-            || event.getName().equals(net.neoforged.neoforge.client.gui.VanillaGuiLayers.SELECTED_ITEM_NAME))
+            || event.getName().equals(net.neoforged.neoforge.client.gui.VanillaGuiLayers.SELECTED_ITEM_NAME)
+            || event.getName().equals(net.neoforged.neoforge.client.gui.VanillaGuiLayers.EFFECTS))
             event.setCanceled(true);
+    }
+
+    public static void extractEffects(net.minecraft.client.gui.GuiGraphicsExtractor graphics) {
+        if (playerEffects != null && hudVisible() && !ConsentOverlay.isOpen()
+            && OverlayUi.prepareForDraw(document)) {
+            try (var ignored = Document.withContext(document)) { playerEffects.extract(graphics); }
+        }
     }
 
     public static UUID selectedTarget() { return ClientTacticalPlan.inspected(); }
@@ -118,6 +127,7 @@ public final class TacticalOverlay {
         if (encounterId == null) return;
         cancelGesture(); ClientControl.documentClosed(document);
         encounterId = null;
+        if (playerEffects != null) playerEffects.clear();
         clearMembers();
         clearBehaviors();
         if (document != null && document.isActive()) {
@@ -172,6 +182,7 @@ public final class TacticalOverlay {
         projectionPending = false;
         boolean myTurn = state.interactive() && viewer.equals(state.current()) && state.phase() != EncounterPhase.ENVIRONMENT;
         movementRing.update(state.movementTicks(), state.movementTicksPerTurn());
+        playerEffects.update(state.effects());
         text("environment", "环境 " + state.environmentRemaining());
         updateMembers(state);
         text("investigate", ClientInspection.label("open"));
@@ -282,6 +293,7 @@ public final class TacticalOverlay {
         }
         Element hotbar = document.getElementById("hotbar");
         movementRing = new MovementRing(document, document.getElementById("end"));
+        playerEffects = new PlayerEffects(document);
         for (int i = 0; i < 9; i++) {
             final int index = i;
             Element button = document.createElement("button");
@@ -604,6 +616,7 @@ public final class TacticalOverlay {
         TacticalButton.layout(document.getElementById("end"), 23 * dockScale, 4.5 * dockScale, dockScale,
             "position: absolute; left: " + (grid + 20 * dockScale) + "px; top: " + (DOCK_SLOTS_TOP + SLOT_SIZE - 11.5) * dockScale + "px");
         movementRing.layout(dockScale);
+        playerEffects.layout(left, top, DOCK_DESIGN_HEIGHT * dockScale, dockScale);
         attribute("utilities", "style", scaledBox(SLOT_SIZE * 9 + 7, DOCK_DESIGN_HEIGHT - 14, 50.5, 11.5, dockScale)
             + "; gap: " + 1.5 * dockScale + "px");
         for (String id : List.of("behavior-hand", "cancel-plan", "inventory-toggle", "exit"))

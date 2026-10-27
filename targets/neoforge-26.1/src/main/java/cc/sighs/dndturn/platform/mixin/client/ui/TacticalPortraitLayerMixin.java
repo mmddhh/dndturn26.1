@@ -16,5 +16,6 @@ public abstract class TacticalPortraitLayerMixin {
     private static void dndturn$portraits(GuiGraphicsExtractor graphics,
                                         ApricityUiPipRenderState.FloatingItemBatch items, CallbackInfo ci) {
         ParticipantPortraits.extract(graphics);
+        cc.sighs.dndturn.platform.client.ui.TacticalOverlay.extractEffects(graphics);
     }
 }

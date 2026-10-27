@@ -48,6 +48,7 @@ public final class WorldSimulationCoordinator implements RegionalScheduledTicks.
         boolean exitedRegion(Entity entity, UUID encounter);
         void reconcileMovement(Entity entity);
         void sync(StateView state);
+        void environmentTurnEnded(UUID encounter);
         void syncBodyStateTransitions();
         void stop(UUID encounter);
     }
@@ -180,7 +181,9 @@ public final class WorldSimulationCoordinator implements RegionalScheduledTicks.
         UUID encounterId = environment.complete(level);
         if (encounterId != null) {
             environmentStepStartedAt.remove(encounterId);
-            host.sync(engine.stateView(encounterId));
+            var state = engine.stateView(encounterId);
+            if (state.phase() != EncounterPhase.ENVIRONMENT) host.environmentTurnEnded(encounterId);
+            host.sync(state);
             host.syncBodyStateTransitions();
         }
     }

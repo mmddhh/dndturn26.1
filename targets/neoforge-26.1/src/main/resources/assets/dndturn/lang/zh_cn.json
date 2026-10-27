@@ -128,5 +128,15 @@
   "dndturn.inspection.field.dndturn.sheet/remaining_rounds": "剩余回合（-1 为无限）",
   "dndturn.inspection.effect_support.native": "原生计时",
   "dndturn.inspection.effect_support.managed": "已托管",
-  "dndturn.inspection.effect_support.needs_adapter": "特殊回调需适配"
+  "dndturn.inspection.effect_support.needs_adapter": "特殊回调需适配",
+  "dndturn.effects.instant": "即时 · 显示至本轮环境回合结束",
+  "dndturn.effects.infinite": "无限时长",
+  "dndturn.effects.rounds": "剩余 %s 回合",
+  "dndturn.effects.level": "等级 %s",
+  "dndturn.effects.native_time": "原生剩余时长：%s 秒（战术中按回合推进）",
+  "dndturn.effects.beneficial": "增益效果",
+  "dndturn.effects.other": "负面或中性效果",
+  "dndturn.effects.support.managed": "按自身回合结算",
+  "dndturn.effects.support.needs_adapter": "特殊回调需适配",
+  "dndturn.effects.support.native": "原生计时"
 }

@@ -237,7 +237,9 @@ public final class RepairGameTests {
         // A non-default server budget must survive the wire; clients cannot assume 28 or a local peak.
         var projection = new EncounterProtocol.EncounterState(UUID.randomUUID(), encounter, 3, true, 7,
             EncounterPhase.ACTIVE, 2, member, 1, 18, true, true, 20, false, null,
-            List.of(), 0, true, 9, 36, new EncounterProtocol.ExitNotice(ActionFailure.Code.EXIT_TOO_CLOSE, 12.5, 20));
+            List.of(), 0, true, 9, 36, new EncounterProtocol.ExitNotice(ActionFailure.Code.EXIT_TOO_CLOSE, 12.5, 20),
+            List.of(new EncounterProtocol.EffectNotice("minecraft:speed", 2, 60, 2, false, "MANAGED"),
+                new EncounterProtocol.EffectNotice("minecraft:instant_health", 1, 0, 1, true, "MANAGED")));
         var projectionBuffer = io.netty.buffer.Unpooled.buffer();
         try {
             EncounterProtocol.EncounterState.STREAM_CODEC.encode(projectionBuffer, projection);

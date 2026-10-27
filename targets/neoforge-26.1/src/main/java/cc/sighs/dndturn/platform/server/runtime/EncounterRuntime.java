@@ -273,6 +273,7 @@ public final class EncounterRuntime {
             public boolean blocked(UUID encounter) { return closing || persistence.recoveryFailed() || encounter != null && lifecycle.recovering(encounter); }
             public boolean exitedRegion(Entity entity, UUID encounter) { return EncounterRuntime.this.exitedRegion(entity, encounter); }
             public void reconcileMovement(Entity entity) { movement.reconcileMobMovementStep(entity); }
+            public void environmentTurnEnded(UUID encounter) { vanillaEffects.environmentTurnEnded(encounter); }
             public void sync(StateView state) { EncounterRuntime.this.sync(state); }
             public void syncBodyStateTransitions() { EncounterRuntime.this.syncBodyStateTransitions(); }
             public void stop(UUID encounter) { EncounterRuntime.this.stop(encounter); }
@@ -407,6 +408,7 @@ public final class EncounterRuntime {
             if(lifecycle.recovering(id)) continue;
             for(UUID member:engine.stateView(id).members().keySet())
                 if(resolve(member) instanceof LivingEntity living) vanillaEffects.capture(living);
+            if (projections.effectsChanged(engine.stateView(id), vanillaEffects::display)) sync(engine.stateView(id));
         }
         persistence.persistIfChanged(engine, cumulativeServerTicks, this::captureCheckpoint);
     }
@@ -558,7 +560,7 @@ public final class EncounterRuntime {
     }
 
     private void sync(StateView state) {
-        projections.publish(state, movement::playerOperation, !lifecycle.recovering(state.id()), player -> lifecycle.assessExit(player, state.id()));
+        projections.publish(state, movement::playerOperation, !lifecycle.recovering(state.id()), player -> lifecycle.assessExit(player, state.id()), vanillaEffects::display);
     }
 
     private void clear(UUID member, UUID encounterId, long version) {
