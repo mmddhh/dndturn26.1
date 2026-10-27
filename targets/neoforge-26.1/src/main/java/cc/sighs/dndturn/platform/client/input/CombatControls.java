@@ -140,6 +140,9 @@ public final class CombatControls {
         for (KeyMapping mapping : game.options.keyMappings)
             if (!isAction(mapping) && mapping.matches(event.getKeyEvent())) clear(mapping);
         if (toggle) clear(END_TURN);
+        if (tactical && CAMERA_UP.matches(event.getKeyEvent())
+            && CAMERA_UP.isActiveAndMatches(InputConstants.getKey(event.getKeyEvent()))
+            && END_TURN.matches(event.getKeyEvent())) clear(END_TURN);
         if (event.getAction() == GLFW.GLFW_REPEAT)
             for (KeyMapping mapping : new KeyMapping[]{START, EXIT, MOVE, ATTACK, DASH, DODGE,
                     DISENGAGE, END_TURN, INVENTORY}) while (mapping.consumeClick()) { }
@@ -206,6 +209,7 @@ public final class CombatControls {
         }
         for (KeyMapping mapping : Minecraft.getInstance().options.keyMappings)
             if (!isAction(mapping) && mapping.getKey().equals(code)) clear(mapping);
+        if (CAMERA_UP.isActiveAndMatches(code) && END_TURN.getKey().equals(code)) clear(END_TURN);
         return true;
     }
 

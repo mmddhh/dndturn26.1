@@ -35,7 +35,7 @@
   "key.dndturn.rotate_right": "镜头向右旋转",
   "key.dndturn.camera_home": "镜头回到受控角色",
   "key.dndturn.camera_preset": "切换俯视预设",
-  "key.dndturn.camera_up": "镜头上升",
+  "key.dndturn.camera_up": "短按结束回合 / 长按超过250ms提升视角",
   "key.dndturn.camera_down": "镜头下降",
   "dndturn.inspection.section.overview": "概览",
   "dndturn.inspection.section.attributes": "属性与贡献",

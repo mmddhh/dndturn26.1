@@ -35,7 +35,7 @@
   "key.dndturn.rotate_right": "Orbit camera right",
   "key.dndturn.camera_home": "Focus controlled character",
   "key.dndturn.camera_preset": "Toggle overhead preset",
-  "key.dndturn.camera_up": "Raise tactical camera",
+  "key.dndturn.camera_up": "Tap to end turn / hold over 250ms to raise camera",
   "key.dndturn.camera_down": "Lower tactical camera",
   "dndturn.inspection.section.overview": "Overview",
   "dndturn.inspection.section.attributes": "Attributes",

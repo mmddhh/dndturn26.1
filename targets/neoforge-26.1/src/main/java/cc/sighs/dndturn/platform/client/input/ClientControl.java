@@ -40,6 +40,9 @@ public final class ClientControl {
     private static Entity cameraOwner;
     private static final cc.sighs.dndturn.platform.client.camera.CameraRig rig = new cc.sighs.dndturn.platform.client.camera.CameraRig();
     private static long frameTime, revision;
+    private static final long CAMERA_HOLD_NANOS = 250_000_000L;
+    private static long cameraUpPressedAt;
+    private static EncounterProtocol.EncounterState cameraUpOrigin;
     private static boolean restoreGrab;
     private static final Set<KeyMapping> cameraKeys = new HashSet<>();
     private static final Set<InputConstants.Key> heldKeys = new HashSet<>();
@@ -91,6 +94,7 @@ public final class ClientControl {
     }
 
     private static void transition() {
+        cameraUpOrigin = null;
         revision++; frameTime = 0; mouseX = Double.NaN; cameraKeys.clear();
         suppressedKeys.addAll(heldKeys);
         gestures.replaceAll((button, gesture) -> new Gesture(gesture.owner, null, -1, gesture.x, gesture.y));
@@ -135,6 +139,10 @@ public final class ClientControl {
         }
         for (KeyMapping mapping : movementKeys()) {
             if (!mapping.matches(event)) continue;
+            if (mapping == CombatControls.cameraUpKey()) {
+                if (action == GLFW.GLFW_RELEASE || mapping.isActiveAndMatches(code)) cameraUpInput(action);
+                continue;
+            }
             if (action == GLFW.GLFW_RELEASE) cameraKeys.remove(mapping);
             if (action == GLFW.GLFW_PRESS && recipient == Recipient.CAMERA
                 && mapping.isActiveAndMatches(InputConstants.getKey(event))
@@ -144,6 +152,24 @@ public final class ClientControl {
                 cameraKeys.add(mapping);
         }
         return true;
+    }
+    private static void cameraUpInput(int action) {
+        if (action == GLFW.GLFW_PRESS && recipient == Recipient.CAMERA && cameraUpOrigin == null) {
+            cameraUpOrigin = ClientCombatState.encounter();
+            cameraUpPressedAt = System.nanoTime();
+        } else if (action == GLFW.GLFW_RELEASE) {
+            boolean tap = sameCameraUpSession() && recipient == Recipient.CAMERA
+                && System.nanoTime() - cameraUpPressedAt <= CAMERA_HOLD_NANOS;
+            cameraUpOrigin = null;
+            if (tap) CombatControls.requestFromUi(EncounterProtocol.IntentKind.END_TURN);
+        }
+    }
+    private static boolean sameCameraUpSession() {
+        var current = ClientCombatState.encounter();
+        return cameraUpOrigin != null && current != null
+            && cameraUpOrigin.generation().equals(current.generation())
+            && cameraUpOrigin.encounterId().equals(current.encounterId())
+            && cameraUpOrigin.sessionSequence() == current.sessionSequence();
     }
     private static KeyMapping[] movementKeys() {
         var o = Minecraft.getInstance().options;
@@ -196,6 +222,11 @@ public final class ClientControl {
             binding = CombatControls.mouseBinding(button, action);
             InputConstants.Key code = InputConstants.Type.MOUSE.getOrCreate(button);
             for (KeyMapping key : movementKeys()) if (key.getKey().equals(code)) {
+                if (key == CombatControls.cameraUpKey()) {
+                    cameraUpInput(action);
+                    binding = true;
+                    continue;
+                }
                 if (action == GLFW.GLFW_RELEASE) cameraKeys.remove(key);
                 else if (gesture.owner == Recipient.CAMERA && !binding) cameraKeys.add(key);
                 binding = true;
@@ -282,7 +313,8 @@ public final class ClientControl {
         }
         var o = Minecraft.getInstance().options;
         double f = axis(o.keyUp, o.keyDown), l = axis(o.keyLeft, o.keyRight);
-        rig.pan(f, l, axis(CombatControls.cameraUpKey(), CombatControls.cameraDownKey()), seconds, cameraKeys.contains(o.keySprint),
+        double up = sameCameraUpSession() && now - cameraUpPressedAt > CAMERA_HOLD_NANOS ? 1 : 0;
+        rig.pan(f, l, up - (cameraKeys.contains(CombatControls.cameraDownKey()) ? 1 : 0), seconds, cameraKeys.contains(o.keySprint),
             axis(CombatControls.rotateRightKey(), CombatControls.rotateLeftKey()));
         TerrainCutaway.update(rig.position(), rig.focus());
     }
