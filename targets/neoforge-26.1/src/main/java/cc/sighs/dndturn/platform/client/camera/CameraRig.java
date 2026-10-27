@@ -8,11 +8,17 @@ public final class CameraRig {
     private Vec3 position, focus;
     private double distance = 12;
     private float yaw, pitch;
+    private Vec3 geometryFocus, desiredPosition;
+    private double geometryDistance;
+    private float geometryYaw, geometryPitch;
+    private BlockPos[] boomSamples = new BlockPos[0];
+    private Vec3[] boomPositions = new Vec3[0];
     public Vec3 position() { return position; }
     public Vec3 focus() { return focus; }
     public float yaw() { return yaw; }
     public float pitch() { return pitch; }
-    public void reset() { position = null; focus = null; }
+    public void reset() { position = null; focus = null; geometryFocus = null; desiredPosition = null;
+        boomSamples = new BlockPos[0]; boomPositions = new Vec3[0]; }
     public void start(Vec3 focus) { this.focus = focus; yaw = 0; pitch = 55; distance = 12; updateRig(); }
     public void focus(Vec3 value) { focus = value; updateRig(); }
     public void preset() { pitch = pitch < 65 ? 78 : 55; updateRig(); }
@@ -22,6 +28,7 @@ public final class CameraRig {
     }
     public void pan(double forwardAxis, double leftAxis, double verticalAxis, double seconds, boolean sprint, double rotation) {
         yaw = Mth.wrapDegrees(yaw + (float)(rotation * seconds * 90));
+        if (forwardAxis == 0 && leftAxis == 0 && verticalAxis == 0) { updateRig(); return; }
         Vec3 forward = Vec3.directionFromRotation(0, yaw);
         Vec3 left = new Vec3(forward.z, 0, -forward.x).normalize();
         Vec3 delta = forward.scale(forwardAxis).add(left.scale(leftAxis)).add(0, verticalAxis, 0);
@@ -37,21 +44,33 @@ public final class CameraRig {
         for (int i = 1; i <= steps; i++)
             if (!world.hasChunkAt(BlockPos.containing(focus.add(delta.scale((double)i / steps))))) return;
         focus = focus.add(delta);
-        updateRig();
     }
     private void updateRig() {
         if (focus == null) return;
         var mc = Minecraft.getInstance();
-        Vec3 desired = focus.subtract(forward().scale(distance));
-        // Terrain is cut away by the renderer. Only the loaded-world boundary limits the boom.
+        if (!focus.equals(geometryFocus) || distance != geometryDistance || yaw != geometryYaw || pitch != geometryPitch) {
+            geometryFocus = focus; geometryDistance = distance; geometryYaw = yaw; geometryPitch = pitch;
+            desiredPosition = focus.subtract(forward().scale(distance));
+            Vec3 boom = desiredPosition.subtract(focus);
+            int count = Math.max(1, (int)Math.ceil(distance * 2));
+            boomPositions = new Vec3[count + 1];
+            boomSamples = new BlockPos[count + 1];
+            boomPositions[0] = focus;
+            for (int i = 1; i <= count; i++) {
+                boomPositions[i] = focus.add(boom.scale((double)i / count));
+                boomSamples[i] = BlockPos.containing(boomPositions[i]);
+            }
+        }
+        Vec3 desired = desiredPosition;
+        // Recheck loading without reallocating geometry; unloaded columns can recover while stationary.
         if (mc.level != null && mc.player != null) {
-            Vec3 boom = desired.subtract(focus);
-            for (int i = 1, count = Math.max(1, (int)Math.ceil(distance * 2)); i <= count; i++) {
-                Vec3 point = focus.add(boom.scale((double)i / count));
-                if (!mc.level.hasChunkAt(BlockPos.containing(point))) {
-                    desired = focus.add(boom.scale((double)(i - 1) / count));
-                    break;
-                }
+            int lastX = Integer.MIN_VALUE, lastZ = Integer.MIN_VALUE;
+            for (int i = 1; i < boomSamples.length; i++) {
+                BlockPos point = boomSamples[i];
+                int x = point.getX() >> 4, z = point.getZ() >> 4;
+                if (x == lastX && z == lastZ) continue;
+                if (!mc.level.hasChunkAt(point)) { desired = boomPositions[i - 1]; break; }
+                lastX = x; lastZ = z;
             }
         }
         position = desired;

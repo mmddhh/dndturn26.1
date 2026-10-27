@@ -1,7 +1,6 @@
 package cc.sighs.dndturn.platform.client.camera;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
@@ -22,21 +21,16 @@ import net.minecraft.world.phys.Vec3;
 /** Owns only visual cells. Workers receive immutable values, never the live camera/world. */
 public final class TerrainCutaway {
     private static volatile CutawayMask requested = new CutawayMask(new Object(), Map.of());
-    private static final Map<Long, Set<Long>> displayed = new ConcurrentHashMap<>();
+    private static final Map<Long, CutawayMask.Cells> displayed = new ConcurrentHashMap<>();
     private static ClientLevel level;
     private static long lastUpdate;
+    private static final CutawayMask.Updates updates = new CutawayMask.Updates();
     private TerrainCutaway() {}
 
     public static CutawayStampAccess.Stamp capture(int x, int y, int z) {
         CutawayMask mask = requested;
         long section = SectionPos.asLong(x, y, z);
-        var local = new java.util.HashMap<Long, Set<Long>>();
-        for (int dz = -1; dz <= 1; dz++) for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
-            long neighbor = SectionPos.offset(section, dx, dy, dz);
-            Set<Long> cells = mask.cells(neighbor);
-            if (!cells.isEmpty()) local.put(neighbor, cells);
-        }
-        return new CutawayStampAccess.Stamp(new CutawayMask(mask.worldIdentity(), local), section);
+        return new CutawayStampAccess.Stamp(mask.local(section), section);
     }
 
     public static synchronized void forget(SectionRenderDispatcher.RenderSection section) {
@@ -46,7 +40,7 @@ public final class TerrainCutaway {
         }
     }
     public static boolean hidden(BlockPos pos) {
-        return displayed.getOrDefault(SectionPos.asLong(pos), Set.of()).contains(pos.asLong());
+        return !displayed.isEmpty() && displayed.getOrDefault(SectionPos.asLong(pos), CutawayMask.Cells.EMPTY).contains(pos);
     }
 
     public static void filterBreaking(net.minecraft.client.renderer.state.level.LevelRenderState state) {
@@ -60,6 +54,7 @@ public final class TerrainCutaway {
         requested = new CutawayMask(new Object(), Map.of());
         displayed.clear();
         lastUpdate = 0;
+        updates.reset();
     }
 
     public static synchronized void update(Vec3 camera, Vec3 focus) {
@@ -68,16 +63,19 @@ public final class TerrainCutaway {
         long now = System.nanoTime();
         if (now - lastUpdate < 100_000_000L) return;
         lastUpdate = now;
-        publish(requested.move(camera, focus, pos -> level.isInsideBuildHeight(pos) && level.hasChunkAt(pos)));
+        publish(updates.update(requested, camera, focus, level::hasChunkAt,
+            pos -> level.isInsideBuildHeight(pos) && level.hasChunkAt(pos)));
     }
 
     public static synchronized void clear() {
         reconcileWorld();
         if (!requested.sections().isEmpty()) publish(new CutawayMask(requested.worldIdentity(), Map.of()));
         lastUpdate = 0;
+        updates.reset();
     }
 
     private static void publish(CutawayMask next) {
+        if (requested == next) return;
         var changed = requested.changedSections(next);
         requested = next;
         if (level == null) return;
@@ -96,7 +94,7 @@ public final class TerrainCutaway {
                 return mesh;
             }
             SectionMesh old = install.get();
-            Set<Long> cells = stamp.mask().cells(stamp.section());
+            CutawayMask.Cells cells = stamp.mask().cells(stamp.section());
             if (cells.isEmpty()) displayed.remove(stamp.section());
             else displayed.put(stamp.section(), cells);
             return old;

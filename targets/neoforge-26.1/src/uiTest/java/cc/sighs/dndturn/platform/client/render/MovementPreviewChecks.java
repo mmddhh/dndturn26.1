@@ -58,12 +58,47 @@ public final class MovementPreviewChecks {
         require(mask.move(eye, focus, p -> false).sections().isEmpty(), "cutaway retained unloaded cells");
         require(empty.sections().isEmpty() && mask.hides(edge), "published cutaway snapshot was mutated");
         require(!mask.matches(new cc.sighs.dndturn.platform.client.camera.CutawayMask(new Object(), mask.sections()), 0), "old-world mesh accepted");
-        long cell = new net.minecraft.core.BlockPos(15, 15, 15).asLong();
-        var boundary = new cc.sighs.dndturn.platform.client.camera.CutawayMask(world, java.util.Map.of(0L, java.util.Set.of(cell)));
+        var boundary = new cc.sighs.dndturn.platform.client.camera.CutawayMask(world, java.util.Map.of(0L, singleCell(15, 15, 15)));
         require(empty.changedSections(boundary).contains(net.minecraft.core.SectionPos.asLong(1, 1, 1)), "cutaway failed to invalidate diagonal AO neighbor");
         require(!empty.matches(boundary, net.minecraft.core.SectionPos.asLong(1, 0, 0)), "stale neighboring mesh accepted");
         require(empty.matches(boundary, net.minecraft.core.SectionPos.asLong(4, 0, 0)), "unrelated mask update invalidated remote mesh");
+        // Snapshot storage and precise invalidation are independent of the renderer / GPU.
+        long[] words = new long[64]; words[0] = 1;
+        var immutable = new cc.sighs.dndturn.platform.client.camera.CutawayMask.Cells(words);
+        words[0] = 0;
+        require(immutable.contains(net.minecraft.core.BlockPos.ZERO), "bitmap retained writable caller storage");
+        for (int x : new int[] {0, 8, 15}) for (int y : new int[] {0, 8, 15}) for (int z : new int[] {0, 8, 15}) {
+            long section = net.minecraft.core.SectionPos.asLong(-2, -1, 3);
+            var one = new cc.sighs.dndturn.platform.client.camera.CutawayMask(world, java.util.Map.of(section, singleCell(x, y, z)));
+            var expected = new java.util.HashSet<Long>();
+            var pos = new net.minecraft.core.BlockPos(-32 + x, -16 + y, 48 + z);
+            for (int ox = -1; ox <= 1; ox++) for (int oy = -1; oy <= 1; oy++) for (int oz = -1; oz <= 1; oz++)
+                expected.add(net.minecraft.core.SectionPos.asLong(pos.offset(ox, oy, oz)));
+            require(empty.changedSections(one).equals(expected) && one.changedSections(empty).equals(expected), "bitmap changed boundary propagation");
+            require(one.local(section).hides(pos) && one.local(section).matches(one, section), "local bitmap lookup changed cells");
+        }
+        var updates = new cc.sighs.dndturn.platform.client.camera.CutawayMask.Updates();
+        int[] probes = {0};
+        java.util.function.Predicate<net.minecraft.core.BlockPos> loaded = p -> { probes[0]++; return true; };
+        var first = updates.update(empty, eye, focus, p -> true, loaded);
+        int count = probes[0];
+        require(updates.update(first, eye, focus, p -> true, loaded) == first && probes[0] == count, "stationary mask rescanned cells");
+        var unloaded = updates.update(first, eye, focus, p -> false, p -> false);
+        require(unloaded.sections().isEmpty(), "stationary unload retained hidden cells");
+        var reloaded = updates.update(unloaded, eye, focus, p -> true, loaded);
+        require(reloaded.hides(edge) && probes[0] > count, "stationary reload failed to rebuild mask");
+        count = probes[0]; updates.reset();
+        updates.update(reloaded, eye, focus, p -> true, loaded);
+        require(probes[0] > count, "reset retained update cache");
+        var newWorld = new cc.sighs.dndturn.platform.client.camera.CutawayMask(new Object(), java.util.Map.of());
+        require(updates.update(newWorld, eye, focus, p -> true, loaded).worldIdentity() == newWorld.worldIdentity(), "cache crossed world identity");
         System.out.println("Movement preview geometry and budget checks passed");
+    }
+    private static cc.sighs.dndturn.platform.client.camera.CutawayMask.Cells singleCell(int x, int y, int z) {
+        long[] words = new long[64];
+        int bit = (y << 8) | (z << 4) | x;
+        words[bit >>> 6] = 1L << (bit & 63);
+        return new cc.sighs.dndturn.platform.client.camera.CutawayMask.Cells(words);
     }
     private static boolean close(double a,double b) { return Math.abs(a-b)<1e-8; }
     private static void require(boolean ok,String message) { if (!ok) throw new AssertionError(message); }
