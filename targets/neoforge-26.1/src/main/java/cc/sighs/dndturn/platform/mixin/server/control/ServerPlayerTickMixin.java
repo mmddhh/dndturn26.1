@@ -1,7 +1,6 @@
 package cc.sighs.dndturn.platform.mixin.server.control;
 
 import cc.sighs.dndturn.platform.server.runtime.ActorLifecycleHooks;
-import cc.sighs.dndturn.platform.server.runtime.MinecraftCombatRuntime;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,11 +14,5 @@ public abstract class ServerPlayerTickMixin {
     private void dndturn$observeActorStep(CallbackInfo callback) {
         var player = (ServerPlayer) (Object) this;
         ActorLifecycleHooks.simulated(player);
-    }
-    @Inject(method = "doTick", at = @At("HEAD"), cancellable = true)
-    private void dndturn$pauseBodyTick(CallbackInfo callback) {
-        if (MinecraftCombatRuntime.isBodyPaused((ServerPlayer) (Object) this)) {
-            callback.cancel();
-        }
     }
 }

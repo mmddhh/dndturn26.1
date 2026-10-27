@@ -17,6 +17,7 @@ final class CursorFacingChecks {
         var channel = (EmbeddedChannel)player.connection.getConnection().channel();
         drainCorrections(channel);
         Vec3 stationary = player.position();
+        verifyRejectedPrediction(helper, player, channel);
         for (int i = 0; i < 3; i++) {
             player.connection.handleMovePlayer(new ServerboundMovePlayerPacket.PosRot(stationary, 35, 15, false, false));
             helper.assertTrue(drainCorrections(channel) == null, "unchanged position started a correction loop");
@@ -50,6 +51,52 @@ final class CursorFacingChecks {
         player.connection.handleAcceptTeleportPacket(new ServerboundAcceptTeleportationPacket(correction.id()));
         player.connection.handleMovePlayer(new ServerboundMovePlayerPacket.PosRot(stationary, 95, -35, false, false));
         helper.assertTrue(drainCorrections(channel) == null, "second acknowledgement restarted correction loop");
+    }
+
+    private static void verifyRejectedPrediction(GameTestHelper helper, ServerPlayer player, EmbeddedChannel channel) {
+        var boat = net.minecraft.world.entity.EntityType.OAK_BOAT.create(player.level(),
+            net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+        helper.assertTrue(boat != null, "vehicle fixture missing");
+        Vec3 body = player.position();
+        boat.setPos(body);
+        player.level().addFreshEntity(boat);
+        try {
+            helper.assertTrue(player.startRiding(boat, true, false), "vehicle fixture could not mount");
+            Vec3 vehicleBefore = boat.position();
+            Vec3 riderBefore = player.position();
+            drainCorrections(channel);
+            player.connection.handleMoveVehicle(new net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket(
+                vehicleBefore.add(3, 0, 0), 60, 0, true));
+            helper.assertTrue(player.position().equals(riderBefore) && boat.position().equals(vehicleBefore),
+                "rejected vehicle movement moved rider or vehicle");
+            channel.runPendingTasks();
+            boolean corrected = false;
+            Object packet;
+            while ((packet = channel.readOutbound()) != null) {
+                if (packet instanceof net.minecraft.network.protocol.game.ClientboundMoveVehiclePacket) corrected = true;
+                io.netty.util.ReferenceCountUtil.release(packet);
+            }
+            helper.assertTrue(corrected, "rejected vehicle prediction received no correction");
+            player.stopRiding();
+            player.setPos(body);
+            var dismount = drainCorrections(channel);
+            if (dismount != null)
+                player.connection.handleAcceptTeleportPacket(new ServerboundAcceptTeleportationPacket(dismount.id()));
+            player.connection.handleInteract(new net.minecraft.network.protocol.game.ServerboundInteractPacket(
+                boat.getId(), net.minecraft.world.InteractionHand.MAIN_HAND, Vec3.ZERO, false));
+            channel.runPendingTasks();
+            boolean inventory = false;
+            while ((packet = channel.readOutbound()) != null) {
+                if (packet instanceof net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket) inventory = true;
+                io.netty.util.ReferenceCountUtil.release(packet);
+            }
+            helper.assertTrue(inventory && !player.isPassenger(), "rejected interaction lost inventory correction or mounted vehicle");
+        } finally {
+            player.stopRiding();
+            player.setPos(body);
+            boat.discard();
+            drainCorrections(channel);
+        }
     }
 
     private static ClientboundPlayerPositionPacket drainCorrections(EmbeddedChannel channel) {

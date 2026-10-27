@@ -69,6 +69,9 @@ public abstract class ServerGamePacketListenerMixin {
             if (packet.hasPosition() && (packet.getX(player.getX()) != player.getX()
                 || packet.getY(player.getY()) != player.getY()
                 || packet.getZ(player.getZ()) != player.getZ())) dndturn$correctMovement();
+            // Static restored members may predate chunk delivery. Vanilla normally
+            // retries pairing here, even for an unchanged position reminder.
+            MovementInputHooks.refreshTracking(player);
             callback.cancel();
         }
         else if (player.level().getServer().isSameThread()) {
@@ -76,6 +79,7 @@ public abstract class ServerGamePacketListenerMixin {
             if (!MovementInputHooks.prepare(player, packet,
                 dndturn$correctionPending)) {
                 dndturn$correctMovement();
+                MovementInputHooks.refreshTracking(player);
                 callback.cancel();
                 return;
             }
@@ -96,7 +100,13 @@ public abstract class ServerGamePacketListenerMixin {
 
     @Inject(method = "handleMoveVehicle", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V", shift = At.Shift.AFTER), cancellable = true)
     private void dndturn$moveVehicle(ServerboundMoveVehiclePacket packet, CallbackInfo callback) {
-        if (dndturn$pauseOtherInput()) callback.cancel();
+        if (!dndturn$pauseOtherInput()) return;
+        // Keep vanilla's malformed-packet disconnect before rejecting valid movement.
+        if (Double.isNaN(packet.position().x()) || Double.isNaN(packet.position().y())
+            || Double.isNaN(packet.position().z()) || !Float.isFinite(packet.yRot())
+            || !Float.isFinite(packet.xRot())) return;
+        MovementInputHooks.rejectVehicleMove(player);
+        callback.cancel();
     }
 
     @Inject(method = "handlePlayerCommand", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V", shift = At.Shift.AFTER), cancellable = true)
@@ -140,7 +150,10 @@ public abstract class ServerGamePacketListenerMixin {
 
     @Inject(method = "handleInteract", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V", shift = At.Shift.AFTER), cancellable = true)
     private void dndturn$interact(ServerboundInteractPacket packet, CallbackInfo callback) {
-        if (dndturn$pauseOtherInput()) callback.cancel();
+        if (dndturn$pauseOtherInput()) {
+            VanillaInputPolicy.correctInventory(player);
+            callback.cancel();
+        }
     }
 
     @Inject(method = "handleSetCarriedItem", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V", shift = At.Shift.AFTER), cancellable = true)

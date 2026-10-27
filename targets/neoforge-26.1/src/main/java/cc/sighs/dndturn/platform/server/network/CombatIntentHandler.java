@@ -25,8 +25,8 @@ public final class CombatIntentHandler {
             enqueue(context, player -> net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
                 ServerRuntime.encounters(player.level().getServer()).actions().selectAndDiscover(player, payload))));
         registrar.playToServer(ActionProtocol.Request.TYPE, ActionProtocol.Request.CODEC, (payload, context) ->
-            enqueue(context, player -> ServerRuntime.encounters(player.level().getServer()).actions().request(player, payload)));
-        registrar.playToServer(ConsentReply.TYPE, ConsentReply.STREAM_CODEC, (payload, context) -> enqueue(context, player -> {
+            enqueueInput(context, player -> ServerRuntime.encounters(player.level().getServer()).actions().request(player, payload)));
+        registrar.playToServer(ConsentReply.TYPE, ConsentReply.STREAM_CODEC, (payload, context) -> enqueueInput(context, player -> {
             EncounterRuntime service = ServerRuntime.encounters(player.level().getServer());
             try { service.lifecycle().respondToConsent(player, payload); }
             catch (RuntimeException failure) {
@@ -35,7 +35,15 @@ public final class CombatIntentHandler {
             }
         }));
         registrar.playToServer(CombatIntent.TYPE, CombatIntent.STREAM_CODEC,
-            (payload, context) -> enqueue(context, player -> handleIntent(player, payload)));
+            (payload, context) -> enqueueInput(context, player -> handleIntent(player, payload)));
+    }
+
+    private static void enqueueInput(net.neoforged.neoforge.network.handling.IPayloadContext context,
+                                     java.util.function.Consumer<ServerPlayer> command) {
+        enqueue(context, player -> {
+            player.resetLastActionTime();
+            command.accept(player);
+        });
     }
 
     private static void enqueue(net.neoforged.neoforge.network.handling.IPayloadContext context,
