@@ -22,7 +22,7 @@ final class EncounterSnapshots {
             List<EncounterStateSnapshot.MemberState> members = new ArrayList<>();
             for (Member member : encounter.members.values()) members.add(new EncounterStateSnapshot.MemberState(
                 member.id, member.initiative, member.tieBreak, member.eligibleRound,
-                member.economy.movementTicks(), member.economy.hasAction(),
+                member.economy.movementTicks(), member.movementBudget, member.economy.hasAction(),
                 member.economy.hasReaction(), member.dodging, member.disengaged,
                 member.preserveSpentActionOnNextTurn));
             List<EncounterStateSnapshot.Hostility> hostile = encounter.hostile.stream()
@@ -84,10 +84,13 @@ final class EncounterSnapshots {
                 encounter.boundaryPriority = new InitiativeRoll(state.boundaryInitiative(),
                     state.boundaryTieBreak());
             for (EncounterStateSnapshot.MemberState value : state.members()) {
+                int budget = value.movementTicksPerTurn() > 0 ? value.movementTicksPerTurn() : state.movementTicksPerTurn();
                 if (value.id() == null || value.eligibleRound() < 0 || value.movementTicks() < 0
+                    || value.movementTicks() > budget
                     || value.eligibleRound() > state.round() && value.eligibleRound() - state.round() != 1)
                     throw new IllegalArgumentException("invalid member snapshot");
-                Member member = new Member(value.id(), value.movementTicks());
+                Member member = new Member(value.id(), budget);
+                member.economy.restoreMovement(value.movementTicks());
                 member.initiative = value.initiative();
                 member.tieBreak = value.tieBreak();
                 member.eligibleRound = value.eligibleRound();

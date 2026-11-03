@@ -24,6 +24,7 @@ import cc.sighs.dndturn.domain.encounter.operation.ActionFailure;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
+import cc.sighs.dndturn.platform.server.actor.MobMovementBudgets;
 import cc.sighs.dndturn.platform.projection.PresentationIdentity;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
 import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
@@ -463,7 +464,7 @@ public final class EncounterLifecycleCoordinator {
             throw new IllegalStateException("spawn outside encounter");
         UUID existing = engine.encounterOf(mob.getUUID());
         if (existing != null && !existing.equals(encounter)) throw new IllegalStateException("spawn already belongs to another encounter");
-        if (engine.join(encounter, mob.getUUID())) {
+        if (engine.join(encounter, mob.getUUID(), MobMovementBudgets.of(mob))) {
             vanillaEffects.capture(mob);
             persistence.changed();
             sync(engine.stateView(encounter));
@@ -599,8 +600,10 @@ public final class EncounterLifecycleCoordinator {
         // Session settings must exist before beginCandidate fires the turn-start observer, because
         // that observer re-anchors the field through settingsFor.
         capturedSettings.put(encounterId, captured);
-        engine.beginCandidate(encounterId, region, members,
-            config.time());
+        Map<UUID, Integer> budgets = new HashMap<>();
+        for (UUID id : members) budgets.put(id, movementBudget(id));
+        engine.beginCandidate(encounterId, region, members, budgets,
+            config.time().ticks());
         for (Map.Entry<UUID, UUID> relation : initialHostility.entrySet()) {
             engine.setHostile(encounterId, relation.getKey(), relation.getValue(), true);
             engine.setHostile(encounterId, relation.getValue(), relation.getKey(), true);
@@ -918,10 +921,10 @@ public final class EncounterLifecycleCoordinator {
         // A player's participation still requires the consent / attack-intrusion paths.
         if (targetDomain == null && target instanceof ServerPlayer) return;
         boolean changed = false;
-        if (sourceDomain == null && engine.join(domain, mob.getUUID())) {
+        if (sourceDomain == null && engine.join(domain, mob.getUUID(), MobMovementBudgets.of(mob))) {
             vanillaEffects.capture(mob); changed = true;
         }
-        if (targetDomain == null && engine.join(domain, target.getUUID())) {
+        if (targetDomain == null && engine.join(domain, target.getUUID(), MobMovementBudgets.of(target))) {
             vanillaEffects.capture(target); changed = true;
         }
         if (!engine.isHostile(domain, mob.getUUID(), target.getUUID())
@@ -941,7 +944,7 @@ public final class EncounterLifecycleCoordinator {
         if (attackerId.equals(targetId)) return false;
         UUID encounterId = engine.encounterOf(targetId);
         if (encounterId == null || recovering(encounterId) || engine.encounterOf(attackerId) != null) return false;
-        if (!engine.join(encounterId, attackerId)) return false;
+        if (!engine.join(encounterId, attackerId, movementBudget(attackerId))) return false;
         engine.setHostile(encounterId, attackerId, targetId, true);
         engine.setHostile(encounterId, targetId, attackerId, true);
         persistence.changed();
@@ -1143,6 +1146,14 @@ public final class EncounterLifecycleCoordinator {
     public void close() {
         stopping.clear(); pendingStops.clear(); recoveryPending.clear();
         turnStartedAt.clear(); pendingDeaths.clear(); completedPlayerDeaths.clear(); departuresDuringWorldOutcome.clear();
+    }
+
+    private int movementBudget(UUID id) {
+        for (ServerLevel level : server.getAllLevels()) {
+            Entity entity = level.getEntity(id);
+            if (entity != null) return MobMovementBudgets.of(entity);
+        }
+        return MobMovementBudgets.of((Entity) null);
     }
 
     private void endIfNoPlayersRemain(UUID encounterId) {

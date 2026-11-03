@@ -187,6 +187,10 @@ public final class ClientTacticalPlan {
     private static boolean itemSelected;
     private static boolean useItem;
     public static boolean itemUseTargeting() { return useItem && phase == Phase.TARGETING && !arming; }
+    /** Lever/button targeting uses the block outline so non-colliding interactive blocks remain selectable. */
+    public static boolean blockUseTargeting() {
+        return !useItem && phase == Phase.TARGETING && !arming && "dndturn:block".equals(behavior);
+    }
     public static net.minecraft.world.level.ClipContext.Fluid cursorFluids() {
         var player = Minecraft.getInstance().player;
         if (!itemUseTargeting() || player == null) return net.minecraft.world.level.ClipContext.Fluid.NONE;

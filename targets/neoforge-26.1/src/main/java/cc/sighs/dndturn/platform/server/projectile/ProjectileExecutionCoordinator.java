@@ -18,6 +18,7 @@ import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 import cc.sighs.dndturn.platform.server.entity.MinecraftProjectiles;
 import cc.sighs.dndturn.platform.server.action.TacticalLaunchContext;
 import cc.sighs.dndturn.platform.server.actor.ActorStateAuthority;
+import cc.sighs.dndturn.platform.server.actor.MobMovementBudgets;
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
 import cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope;
@@ -490,7 +491,8 @@ public final class ProjectileExecutionCoordinator {
             return true;
         }
         if (owner instanceof LivingEntity living && !living.isDeadOrDying()
-            && shooterDomain == null && owner.level() == level) engine.join(encounterId, ownerId);
+            && shooterDomain == null && owner.level() == level)
+            engine.join(encounterId, ownerId, MobMovementBudgets.of(owner));
         UUID operationId = arrowOperationId(arrow.getUUID(), target.getUUID());
         OperationRecord.Result previous = engine.resultFor(encounterId, operationId);
         if (previous != null) {

@@ -85,6 +85,7 @@ public final class EncounterAuthority {
     }
     static final class Member {
         final UUID id;
+        final int movementBudget;
         final ActionEconomy economy;
         int initiative;
         int tieBreak;
@@ -92,7 +93,7 @@ public final class EncounterAuthority {
         boolean dodging;
         boolean disengaged;
         boolean preserveSpentActionOnNextTurn;
-        Member(UUID id, int movementTicks) { this.id = id; economy = new ActionEconomy(movementTicks); }
+        Member(UUID id, int movementTicks) { this.id = id; this.movementBudget = movementTicks; economy = new ActionEconomy(movementTicks); }
         MemberView view() { return new MemberView(id, initiative, tieBreak, economy.movementTicks(),
             economy.hasAction(), economy.hasReaction(), dodging, disengaged, eligibleRound); }
     }
@@ -366,11 +367,21 @@ public final class EncounterAuthority {
     public UUID beginCandidate(UUID id, EncounterRegion region, Set<UUID> members,
                                int movementBudget, int environmentBudget) {
         Objects.requireNonNull(region);
-        return createCandidate(id, region, members, movementBudget, environmentBudget);
+        Map<UUID, Integer> budgets = new HashMap<>();
+        for (UUID member : members) budgets.put(member, movementBudget);
+        return createCandidate(id, region, members, movementBudget, budgets, environmentBudget);
+    }
+
+    /** Candidate creation with per-member movement budgets; encounter round time stays the session budget. */
+    public UUID beginCandidate(UUID id, EncounterRegion region, Set<UUID> members,
+                               Map<UUID, Integer> movementBudgets, int environmentBudget) {
+        Objects.requireNonNull(region);
+        Objects.requireNonNull(movementBudgets);
+        return createCandidate(id, region, members, environmentBudget, movementBudgets, environmentBudget);
     }
 
     private UUID createCandidate(UUID id, EncounterRegion region, Set<UUID> members,
-                                 int movementBudget, int environmentBudget) {
+                                 int movementBudget, Map<UUID, Integer> movementBudgets, int environmentBudget) {
         Objects.requireNonNull(id); Objects.requireNonNull(members);
         if (members.isEmpty() || encounters.containsKey(id) || closedEncounters.containsKey(id))
             throw new IllegalArgumentException("candidate id/members");
@@ -378,7 +389,7 @@ public final class EncounterAuthority {
             || member.equals(TurnParticipant.environment(id).id())) throw new IllegalStateException("member occupied or reserved");
         Encounter encounter = new Encounter(id, region, movementBudget, environmentBudget);
         members.stream().sorted().forEach(member -> encounter.members.put(member,
-            new Member(member, encounter.movementTicksPerTurn)));
+            new Member(member, movementBudgets.getOrDefault(member, encounter.movementTicksPerTurn))));
         reroll(encounter);
         encounters.put(id, encounter);
         for (UUID member : members) membership.put(member, id);
@@ -387,6 +398,11 @@ public final class EncounterAuthority {
     }
 
     public boolean join(UUID encounterId, UUID member) {
+        Encounter encounter = require(encounterId);
+        return join(encounterId, member, encounter.movementTicksPerTurn);
+    }
+
+    public boolean join(UUID encounterId, UUID member, int movementBudget) {
         Objects.requireNonNull(member);
         Encounter encounter = require(encounterId);
         if (member.equals(encounter.environment.id())) throw new IllegalArgumentException("environment is not an entity member");
@@ -394,7 +410,7 @@ public final class EncounterAuthority {
         long eligibleRound = Math.addExact(encounter.round, 1);
         long nextVersion = Math.addExact(encounter.version, 1);
         long nextStructuralRevision = Math.addExact(encounter.structuralRevision, 1);
-        Member joined = new Member(member, encounter.movementTicksPerTurn);
+        Member joined = new Member(member, movementBudget);
         joined.eligibleRound = eligibleRound;
         applyRoll(joined, sampleRoll());
         encounter.members.put(member, joined);
@@ -968,6 +984,16 @@ public final class EncounterAuthority {
                 && encounter.operations.stepResults.getOrDefault(operation.operationId(), Map.of()).isEmpty());
     }
 
+    /** Refund the action of a sustained use interrupted before it produced an effect. */
+    public boolean refundUseAction(UUID encounterId, UUID owner) {
+        Encounter encounter = encounters.get(encounterId);
+        if (encounter == null) return false;
+        Member member = encounter.members.get(owner);
+        if (member == null || !member.economy.refundAction()) return false;
+        encounter.version = Math.addExact(encounter.version, 1);
+        return true;
+    }
+
     /** Register a projectile's first causal attack during an authorized environment step. */
     public boolean beginCausalProjectileAttack(ProjectileOrigin origin, OperationRecord.Snapshot snapshot) {
         Objects.requireNonNull(origin);
@@ -1205,6 +1231,7 @@ public final class EncounterAuthority {
         if (encounter.phase != EncounterPhase.ACTIVE && encounter.phase != EncounterPhase.CANDIDATE) return false;
         if (encounter.phase == EncounterPhase.CANDIDATE && snapshot.kind() != OperationRecord.Kind.ATTACK
             && snapshot.kind() != OperationRecord.Kind.END_TURN && snapshot.kind() != OperationRecord.Kind.MOVE
+            && snapshot.kind() != OperationRecord.Kind.DASH
             && snapshot.kind() != OperationRecord.Kind.PLAN && !planStep) return false;
         if ((!planStep && !encounter.operations.pending.isEmpty()) || snapshot.source() == null || !snapshot.source().equals(snapshot.owner())
             || snapshot.kind() == OperationRecord.Kind.DAMAGE || snapshot.kind() == OperationRecord.Kind.NATIVE_EFFECT || snapshot.kind() == OperationRecord.Kind.INTERRUPT
@@ -1222,7 +1249,7 @@ public final class EncounterAuthority {
         if (snapshot.kind() == OperationRecord.Kind.PLAN && abilities.require(snapshot.intent()).cost().requiresAction()
             && !member.economy.hasAction()) return false;
         if (snapshot.kind() == OperationRecord.Kind.DASH)
-            Math.addExact(member.economy.movementTicks(), encounter.movementTicksPerTurn);
+            Math.addExact(member.economy.movementTicks(), member.movementBudget);
         long nextVersion = Math.addExact(encounter.version, 1);
         Map<UUID, InitiativeRoll> initiativeRolls = encounter.phase == EncounterPhase.CANDIDATE
             && snapshot.kind() == OperationRecord.Kind.ATTACK ? sampleInitiatives(encounter) : Map.of();
@@ -1230,7 +1257,7 @@ public final class EncounterAuthority {
             && operationCost(encounter, snapshot).commitPoint() == ActionCost.CommitPoint.LEGAL_ATTACK) member.economy.spendAction();
         if (snapshot.kind() == OperationRecord.Kind.DODGE) member.dodging = true;
         if (snapshot.kind() == OperationRecord.Kind.DISENGAGE) member.disengaged = true;
-        if (snapshot.kind() == OperationRecord.Kind.DASH) member.economy.addMovement(encounter.movementTicksPerTurn);
+        if (snapshot.kind() == OperationRecord.Kind.DASH) member.economy.addMovement(member.movementBudget);
         boolean activated = encounter.phase == EncounterPhase.CANDIDATE && snapshot.kind() == OperationRecord.Kind.ATTACK;
         if (activated) {
             encounter.hostile.add(new Relation(snapshot.owner(), snapshot.target()));
@@ -1610,7 +1637,7 @@ public final class EncounterAuthority {
         encounter.environmentStepAuthorized = false;
     }
     private void beginMemberTurn(Encounter encounter, Member member) {
-        member.economy.reset(encounter.movementTicksPerTurn);
+        member.economy.reset(member.movementBudget);
         if (member.preserveSpentActionOnNextTurn) {
             member.economy.spendAction();
             member.preserveSpentActionOnNextTurn = false;

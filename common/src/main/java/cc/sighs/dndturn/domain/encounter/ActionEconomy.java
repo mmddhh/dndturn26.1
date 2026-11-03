@@ -30,9 +30,22 @@ public final class ActionEconomy {
         movementTicks = Math.addExact(movementTicks, ticks);
     }
 
+    /** Restore the remaining movement of a persisted member without changing its turn budget. */
+    public void restoreMovement(int ticks) {
+        if (ticks < 0 || ticks > movementTicks) throw new IllegalArgumentException("invalid remaining movement");
+        movementTicks = ticks;
+    }
+
     public boolean spendAction() {
         if (!action) return false;
         action = false;
+        return true;
+    }
+
+    /** Return a spent action after an interrupted sustained use; never stacks above one. */
+    public boolean refundAction() {
+        if (action) return false;
+        action = true;
         return true;
     }
 

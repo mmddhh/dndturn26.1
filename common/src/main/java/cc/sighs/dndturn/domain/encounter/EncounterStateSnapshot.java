@@ -39,7 +39,7 @@ public record EncounterStateSnapshot(int movementTicksPerTurn, int environmentTi
     }
 
     public record MemberState(UUID id, int initiative, int tieBreak, long eligibleRound,
-                              int movementTicks, boolean action, boolean reaction,
+                              int movementTicks, int movementTicksPerTurn, boolean action, boolean reaction,
                               boolean dodging, boolean disengaged,
                               boolean preserveSpentActionOnNextTurn) {}
 

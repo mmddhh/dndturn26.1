@@ -831,6 +831,7 @@ public final class ActionExecutionCoordinator {
         if (processes.find(execution.root.operationId()) != null)
             processes.requestCancel(execution.root.operationId());
         LivingEntity player = resolve(owner);
+        boolean sustainedUse = player != null && player.isUsingItem();
         if (player != null && execution.ownerInstance.equals(instance(player))) try { execution.behavior.requestCancel(this, actorStates.context(player), execution); }
         catch (RuntimeException failure) {
             execution.releaseFailure = "cancel request failed: " + failure.getClass().getSimpleName();
@@ -841,6 +842,8 @@ public final class ActionExecutionCoordinator {
             && engine.pendingOperation(execution.root.encounterId(), execution.action) != null) {
             engine.publish(execution.root.encounterId(), execution.action, execution.actionStep++, OperationRecord.Outcome.INTERRUPTED,
                 reason == null ? "interrupted" : reason, 0, 0, true);
+            if (sustainedUse)
+                engine.refundUseAction(execution.root.encounterId(), execution.root.owner());
             execution.action = null;
         }
         finish(player, execution, OperationRecord.Outcome.INTERRUPTED, reason == null ? "interrupted" : reason);

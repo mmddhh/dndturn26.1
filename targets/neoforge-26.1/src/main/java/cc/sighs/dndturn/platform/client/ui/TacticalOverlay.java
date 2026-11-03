@@ -199,7 +199,7 @@ public final class TacticalOverlay {
             m.id().equals(selectedTarget()) && m.kind() == TurnParticipant.Kind.ENTITY));
         enabled("move", myTurn && state.movementTicks() > 0);
         for (String id : List.of("attack", "dash", "dodge", "disengage"))
-            enabled(id, myTurn && (id.equals("attack") || state.phase() == EncounterPhase.ACTIVE)
+            enabled(id, myTurn && (id.equals("attack") || id.equals("dash") || state.phase() == EncounterPhase.ACTIVE)
                 && state.action() && !state.moving()
                 );
         renderBehaviors();

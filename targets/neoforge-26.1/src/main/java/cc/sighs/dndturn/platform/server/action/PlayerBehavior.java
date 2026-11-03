@@ -86,9 +86,15 @@ public abstract class PlayerBehavior extends MinecraftAbilityAdapter {
             destination = new Vec3(target.x() + t.x(), target.y() + t.y(), target.z() + t.z());
             if (eye.distanceToSqr(destination) > Math.pow(player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE), 2)) return false;
         }
+        if (intent.target().kind() == ActionIntent.TargetKind.BLOCK) {
+            BlockPos wanted = MinecraftCoordinates.pos(target);
+            var solid = player.level().clip(new ClipContext(eye, destination, ClipContext.Block.COLLIDER, fluids(player, intent), player));
+            if (solid.getType() == HitResult.Type.MISS || solid.getBlockPos().equals(wanted)) return true;
+            var outline = player.level().clip(new ClipContext(eye, destination, ClipContext.Block.OUTLINE, fluids(player, intent), player));
+            return outline.getType() == HitResult.Type.BLOCK && outline.getBlockPos().equals(wanted);
+        }
         var hit = player.level().clip(new ClipContext(eye, destination, ClipContext.Block.COLLIDER, fluids(player, intent), player));
-        return hit.getType() == HitResult.Type.MISS || intent.target().kind() == ActionIntent.TargetKind.BLOCK
-            && hit.getBlockPos().equals(MinecraftCoordinates.pos(target));
+        return hit.getType() == HitResult.Type.MISS;
     }
     public static InteractionHand hand(ActionIntent intent) { return InteractionHand.valueOf(intent.hand().name()); }
     public static ItemStack stack(ServerPlayer player, ActionIntent intent) { return player.getItemInHand(hand(intent)); }
