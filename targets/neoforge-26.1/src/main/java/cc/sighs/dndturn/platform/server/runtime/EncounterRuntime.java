@@ -363,6 +363,7 @@ public final class EncounterRuntime {
             projectiles.restore(saved);
             movement.restoreLeaseEvidence(saved.leases());
             vanillaEffects.restore(saved.participantEffects(),saved.turnSettlements());
+            cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().restore(saved.encounterContent());
 
         }
         if (!persistence.recoveryFailed()) for (UUID encounterId : engine.encounterIds()) {
@@ -411,6 +412,8 @@ public final class EncounterRuntime {
             if (projections.effectsChanged(engine.stateView(id), vanillaEffects::display)) sync(engine.stateView(id));
         }
         persistence.persistIfChanged(engine, cumulativeServerTicks, this::captureCheckpoint);
+        cc.sighs.dndturn.platform.server.character.EncounterContentCache.server()
+            .retain(engine.encounterIds());
     }
 
     private CombatPersistenceEnvelope captureCheckpoint(EncounterStateSnapshot rules) {
@@ -424,7 +427,8 @@ public final class EncounterRuntime {
             lifecycle.pendingMerges().values().stream()
                 .map(EncounterStateSnapshot.MergePlanState::capture).toList(),
             starts, exits, leases, projectiles.quarantines(), lifecycle.exitAuthorizations().snapshot(), persistence.checkpoints(), lifecycle.mergeBindings(), projectiles.abilities(), persistence.audits(),
-            vanillaEffects.owners(),vanillaEffects.settlements(), processes.snapshot());
+            vanillaEffects.owners(),vanillaEffects.settlements(), processes.snapshot(),
+            cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().snapshot());
     }
 
     private void persistNow() {

@@ -61,6 +61,7 @@ public final class MinecraftCombatRuntime {
             formal.advancePersistenceClock();
             formal.persistIfChanged();
         }
+        cc.sighs.dndturn.platform.server.character.CharacterOptions.offer(event.getServer());
     }
 
     public static boolean isFormalEntitySimulationPaused(Entity entity) {
@@ -77,6 +78,7 @@ public final class MinecraftCombatRuntime {
 
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            cc.sighs.dndturn.platform.server.character.CharacterOptions.forget(player.getUUID());
             MinecraftServer server = player.level().getServer();
             EncounterRuntime formal = ServerRuntime.existingEncounter(server);
             if (formal != null) {
@@ -169,6 +171,7 @@ public final class MinecraftCombatRuntime {
     }
 
     public static void onServerStarted(ServerStartedEvent event) {
+        cc.sighs.dndturn.platform.server.character.CharacterContentService.load(event.getServer());
         ServerRuntime.start(event.getServer());
     }
 
@@ -187,6 +190,9 @@ public final class MinecraftCombatRuntime {
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
+        cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().clear();
+        cc.sighs.dndturn.platform.server.character.CharacterOptions.clear();
+        cc.sighs.dndturn.platform.server.character.CharacterContentService.clear();
         ServerRuntime.release(event.getServer());
     }
 

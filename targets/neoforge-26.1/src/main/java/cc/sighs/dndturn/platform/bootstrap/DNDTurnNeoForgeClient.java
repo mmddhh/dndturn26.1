@@ -38,6 +38,18 @@ public final class DNDTurnNeoForgeClient {
 
     private static void registerPayloads(RegisterClientPayloadHandlersEvent event) {
         event.register(InspectionProtocol.Reply.TYPE, ClientInspection::receive);
+        event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.Options.TYPE,
+            cc.sighs.dndturn.platform.client.ui.CharacterOverlay::receiveOptions);
+        event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.Open.TYPE,
+            cc.sighs.dndturn.platform.client.ui.CharacterCreationScreen::receiveOpen);
+        event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.Sheet.TYPE,
+            cc.sighs.dndturn.platform.client.ui.CharacterSheetScreen::receiveSheet);
+        event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.AsiOpen.TYPE,
+            cc.sighs.dndturn.platform.client.ui.CharacterAsiScreen::receiveOpen);
+        event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.SubclassOpen.TYPE,
+            cc.sighs.dndturn.platform.client.ui.CharacterSubclassScreen::receiveOpen);
+        event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.Reply.TYPE,
+            cc.sighs.dndturn.platform.client.ui.CharacterCreationScreen::receiveReply);
         event.register(ActionProtocol.Options.TYPE, ClientTacticalPlan::receiveOptions);
         event.register(ActionProtocol.Projection.TYPE, ClientTacticalPlan::receive);
         event.register(EncounterProtocol.BodyState.TYPE, cc.sighs.dndturn.platform.client.ClientSession::receive);

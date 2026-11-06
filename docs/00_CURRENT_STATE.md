@@ -314,3 +314,53 @@ JDK25 + Java17 toolchain、target Gradle 9.8 的 `build --offline` 最终通过�
 使用隔离 `build/camera-live` 专服和真实客户端、本机 25587 与 AutoJS 后台 GLFW 输入，已验证升降/WASD/QE、约 32 格缩放、身体及规则修订不随镜头改变、隐藏墙后地面拾取、箱子/水隐藏而真实状态保留、跨区段后旧墙恢复、Home 返回和 F8 退出后掩码/显示恢复。截图 `client/screenshots/cutaway-optimized.png` 已查看，切面可见且保留原光照。初次输入断言被场景水流推人干扰，清除隔离场景水流后重跑通过；临时脚本尝试反射静态字段受 Rhino 限制失败，最终改用公开接口核验，不计作通过证据。测试客户端与专服正常关闭。
 
 未执行优化前后整客户端帧时间/GC/构网过期率对照、真实加载边界卸载/重载实机注入、复杂地形长时间高负载、双客户端、前台连续人工操作及第三方渲染兼容。加载变化由既有几何层检查与临时对照覆盖；不能据纯计算加速关闭 P3/P7 或声称异步构网瓶颈已解决。
+
+## 原版 Mob 攻击档案接线
+
+基线 `dev_` / `0c8bc07`，进入时工作区已有未提交的 `AttackProfile`、`CombatRules` 攻击加值重载和 `MobAttackProfiles`。本轮只把档案接入既有执行链，未自动提交或发布。
+
+- `AttackResolution.Input` 增加带范围校验的 `attackBonus`；纯解释仍只读取已捕获骰值，`resolve` 用该加值重算命中与总值。
+- `DamageResolution.resolveAttack` 增加 bonus/profile 重载：档案存在时用同一攻击随机源掷伤害骰；玩家与未映射的标准近战/箭攻击者保持全局 +5 和原伤害输入。既有 6 参调用仍按 +5 处理。
+- 近战（含场外介入）与远程发射轨迹按非玩家实体读取档案；投射命中按档案重掷伤害。发射已捕获骰值时，从捕获 trace 的 `rollTotal - selectedDie` 复原同一加值，避免射手离场后改用默认加值而改变命中结论；射手实例不可解析时无法再读档案，伤害按发射时捕获的原生箭伤兜底。
+- 伤害类型仍只是档案标签，没有抗性/易伤消费；未映射的标准近战/箭保留原生 `attack_damage` 兜底；箭的特殊效果、附魔、穿透等既有拒绝边界不变。
+- 设计数据里另有 9 条不走 `AttackProfile` 的攻击：苦力怕爆炸已有专门适配；女巫药水、恶魂火球、潜影贝子弹、守卫者/远古守卫者光束、唤魔者尖牙/召唤、凋灵、末影龙仍缺专用能力、充能/豁免/效果适配。不能把“数据已录入”当作运行时已覆盖。
+
+验证：target Gradle 9.8 / JDK25 toolchain 的 26.1 `compileJava --offline --console plain` 通过（含 `:common:compileJava`），日志 `targets/neoforge-26.1/build/attackprofile-compile.log`。首次运行因 workspace 沙箱拒绝 Gradle 写用户目录原生库而无法启动，授权后完成；未运行 common 测试、GameTest、真实客户端/双客户端或普通专服续战，未验证伤害类型/抗性、未映射物种、存档恢复及具体输出数值。
+
+## 玩家 5e 角色底层（进行中）
+
+本轮开始落玩家专用角色基础，尚不构成可玩角色系统，目标仍在进行中。
+
+- 新增 `domain.character`：六维/修正值、27 点购点、XP/等级/熟练、种族/职业定义、`Progression`、`CharacterState`、`CharacterCreation`、玩家 HP/AC 纯规则。HP 按 `1 级生命骰最大 + CON`、之后每级 `(生命骰 + 1) / 2 + CON` 的期望值；AC 按无甲/轻/中/重甲及盾牌规则。
+- `ActorPersistentState` 增加 `CharacterState`，`ActorStates.Character` 变更走现有 reducer/revision；`ActorSavedData` 注册该变更。非玩家/缺省为 empty。
+- 新增 `ContentSnapshot` 与平台 `CharacterContentLoader`：内置 `dndturn-content/defaults.json`（12 职业、9 基础种族）覆盖默认值，世界目录 `dndturn-content/classes/*.json`、`races/*.json` 可按 id 覆盖内置内容；单文件失败整份拒绝。`CharacterContentService` 在服务器启动时加载，`/dndturn content reload` 生成新快照。子职业/特性/法术/状态 JSON 尚未实现。
+- 新增 `EncounterContent`/`EncounterContentCache`：在遭遇创建、生成物加入、敌对拉入、近战介入和箭矢加入时，为参与者记录当时的 `ContentSnapshot`、职业/种族定义、`CharacterState`、`ActorDefinition` id/version 与 Mob 攻击档案；同一遭遇后续加入者复用该遭遇已固定的快照。该内容随 `CombatPersistenceEnvelope` 保存并在恢复时装载；关闭/结束的遭遇会从缓存清理。近战/远程/投射命中优先使用缓存里的攻击档案，缓存缺失时才回退当前档案。
+- 新增 `/dndturn character create <class> <race> <str> <dex> <con> <int> <wis> <cha>`：服务端复验职业/种族、27 点购点、重复创建，写入 `ActorStates.Character`，并按职业生命骰期望值设置玩家最大生命。`/dndturn character xp add <n>` 按 XP 表升级、登记待选 ASI 并重算最大生命；`/dndturn character show` 输出角色摘要。
+- 角色创建 UI 已改为迁移 classes 的 `class_creation.html/css/js`，由 `CharacterCreationScreen extends ApricityScreen` 承载；服务端用 `CharacterProtocol.Open` 请求客户端打开，创建页通过隐藏 `class-payload` 回传 JSON，服务端解析后仍走 `PlayerCharacterService` 复验。旧的自绘 `CharacterOverlay` 不再是主入口。
+- 角色创建页迁移仍受两项外部条件影响：AUI 1.2.9 jar 下载超时，当前构建仍用缓存中的 1.2.8；已加入 `dev.latvian.mods:rhino:2101.2.7-build.82`，否则 classes 页面脚本会被 AUI 跳过，只剩空壳。子种族/子职业已从页面 payload 写入 `Progression`，种族加值按页面选择值应用；classes 的起始装备尚未接服务端，装备列表暂不发放。
+- 新增 `/dndturn character sheet`：用同一个 classes 页面进入 `sheet` 模式，服务端生成职业/子职业/等级/XP/熟练/六维/负重/AC/HP 的 JSON；只读，不把页面值当规则事实。
+- 新增 `/dndturn character asi`：迁移 classes 的 `asi.html/js`，服务端生成待选属性与当前值，提交 `+2` 或 `+1/+1` 后写入 `ActorStates.Character`，并重算 CON 改变后的最大生命；页面数据由服务端复验。
+- 新增 `/dndturn character subclass`：迁移 classes 的 `subclass.html/js` 与职业子职表；到达选择等级且尚未选择时打开，服务端校验职业/等级/子职 id 后写回 `Progression.subclassId`。子职目前只存 id，特性尚未执行。
+- 新增 `C` 键（默认，可在“DNDTurn Tactical”分类重绑）作为角色入口：没有角色时打开创建页，已有角色时打开角色卡；服务端通过 `CharacterProtocol.RequestUi` 决定发 `Open` 还是 `Sheet`，不再必须输入命令。角色卡内已有 ASI/子职业入口按钮，按 `pendingAsi` 与 `subclassAvailable` 显示。
+- 开始搭建怪物能力数据底座：新增 `MobDefinition` / `MobAction` / `DamageComponent` / `DamageType` / `MovementMode`。`ContentSnapshot` 现在包含 `mobs`，默认 `dndturn-content/default-mobs.json` 与世界 `dndturn-content/mobs/*.json` 可加载；HP/AC 明确不进入 `MobDefinition`，运行时仍取原生最大生命与原生护甲，速度值直接作为 tick 预算。当前只有 Ghast 的默认样例，尚未接执行/AI/伤害消费。
+- 未提供数据的第三方 Mob 使用默认模板：六维全 10、原生 HP/AC、30 tick 地面速度、+5 命中、10 点钝击近战；现有 `MobAttackProfiles.DEFAULT` 已接入近战/普通箭的 fallback，`MobDefinition.fallback(entityId)` 供后续能力/AI 使用。
+- 新增 `DefenseProfile` 与 `DamagePacket`：多段伤害逐段消费抗性/免疫/易伤，为下一步接 `DamageTrace` 做基础；尚未替换现有 `AttackProfile`。
+- 迁移 classes 的 iron 起始装备并扩展到完整 iron 表；复用 classes 的物品模型，创建页提交时按 `equipment` 列表发放到背包，物品满时掉落。玩家 AC 的 `PlayerArmorRules` 增加对应套装映射；这不包含 classes 的实时投掷、攻击间隔或 Better Combat 兼容。
+- 装备目录扩展到完整 iron 表：37 种武器 + 3 种弹药 + 12 类护甲 × 4 槽；独立 `DNDTurn 装备` 创造页；每个物品带伤害骰/护甲 AC/词条 lore。26.1 使用 `assets/dndturn/items/*.json` 定义模型，classes 的字符串装备数组也按 20 发箭/弩矢发放。物品注册 id 必须保留 `iron_` 前缀，否则模型和起始装备 id 不匹配；显示名采用 classes 的原始名称（铁制不额外加“铁”）。tooltip 的伤害类型、武器词条、护甲类别、力量要求和潜行劣势均使用翻译键。
+- 子职/ASI 页面在窗口 resize 后会重建 Document；客户端现在每次 tick 在 `choice-data` 为空时重新注入数据，避免 resize 后空白。子职名称复用 classes 的 `subclass.dndclasses.*.name` 翻译键。
+- 玩家近战现在优先使用迁移后的武器骰/词条：`PlayerWeaponRules` 提供 attack bonus、伤害骰、STR/DEX/finesse、versatile 选择；未识别武器或未创建角色仍回退原逻辑。
+- iron 长弓/短弓/轻弩/手弩/重弩改用 `BowItem` / `CrossbowItem`，`dndturn:iron_arrow`/`iron_bolt` 加入 `minecraft:arrows` 标签；箭矢命中时按发射者 `origin.weaponId()` 使用 `PlayerWeaponRules`，不再只按原版弓/弩放行。
+- 26.1 的装备物品模型使用 `assets/dndturn/items/*.json` 定义，物品加入创造模式 `COMBAT` 页；classes 的起始装备 payload 实际是字符串数组，发放逻辑同时接受字符串和 `{id,count}` 对象。
+- 自动角色页发送跳过 GameTest 专用服务器，避免测试客户端没有该载荷注册时触发 `character_open` 发送异常。
+- 角色卡内的 ASI/子职业按钮通过 `SheetAction` 请求服务端打开对应页面，服务端仍走同一套 `CharacterAsi` / `CharacterSubclass` 校验；命令入口保留但不能绕过校验。
+- 角色创建 UI 验收入口：新玩家进入世界应自动打开，或执行 `/dndturn character ui`；提交后用 `/dndturn character show` 检查职业/等级/XP/HP/AC/六维；再次登录不应自动打开，重复提交应被服务端拒绝。玩家 AC 当前按整套原版护甲映射，尚未接 dndclasses 盔甲物品。
+- 新增玩家 AC 接线：`PlayerArmorRules` 只在玩家已创建角色时接管 AC，按整套原版护甲映射轻/中/重甲、DEX 上限和盾牌 +2；未创建角色、非玩家或缺整套时仍回退原生 AC。近战/远程/投射命中已使用该 AC。
+- 新增 `SavingThrow` 与 `CharacterRules.savingThrowBonus`/`spellSaveDc`：d20+属性+熟练对 DC，自然 1/20 不自动成败；尚未接入法术/状态执行。
+- `CharacterProjection` 的 OVERVIEW/ATTRIBUTES 增加职业/种族/等级/XP/熟练/六维与修正值；保留 `PROFICIENCIES / CONCENTRATION / RESISTANCE_TABLE` 未支持声明。
+- 验证：`:common:test` 通过（129 项）；26.1 `compileJava`/`compileGameTestJava` 通过；`verifyUiProjection` 无窗口检查通过；`dndturn:combat_ui_protocol`、`dndturn:combat_save_values`、`dndturn:creeper_effect` 单独运行通过；全量 68 项 GameTest 中 `character_creation` 未列为失败，但全量仍有 19 项既有/批次失败（如 navigation、environment_tnt、candidate 系列），未逐项归因。
+
+### 当前断点
+
+- `character_creation` 已在 GameTest 注册表出现，但单独 `-PgameTestSelection=dndturn:character_creation` 仍报 “found no tests”；全量运行时未出现在失败列表。该选择器行为仍需排查，不能据此声称该测试独立通过。
+- 角色创建 UI 只做了无窗口检查/协议启动验证，尚未有真实客户端键鼠截图证据；`character.html` 的内联布局在 AUI 中的实际缩放/滚动仍需实机确认。
+- 未完成：子职业/特性/法术/状态 JSON、完整角色卡 AUI、职业特性与资源、短长休、法术环位/准备/专注、14 状态/豁免执行、12 职业/9 种族子职业内容、实机验证。

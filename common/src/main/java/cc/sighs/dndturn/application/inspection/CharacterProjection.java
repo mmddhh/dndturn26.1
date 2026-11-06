@@ -1,6 +1,8 @@
 package cc.sighs.dndturn.application.inspection;
 
 import cc.sighs.dndturn.domain.actor.NativeActorObservation;
+import cc.sighs.dndturn.domain.character.Ability;
+import cc.sighs.dndturn.domain.character.CharacterState;
 import cc.sighs.dndturn.domain.encounter.StateView;
 import cc.sighs.dndturn.domain.ability.ProcessState;
 import cc.sighs.dndturn.domain.effect.EffectSnapshot;
@@ -44,10 +46,27 @@ public final class CharacterProjection {
                     rows.add("behavior_source", sheet.behavior().provenance().source() + " | " + sheet.behavior().provenance().provider());
                 }
                 rows.add("rules", actor.revision().ruleset()); rows.add("revision", actor.revision().actorState());
-                rows.add("unsupported", "ABILITY_SCORES / PROFICIENCIES / CONCENTRATION / RESISTANCE_TABLE");
+                CharacterState character = sheet.persistent().character();
+                if (character.created()) {
+                    var progression = character.progression();
+                    rows.add("class", progression.classId());
+                    rows.add("subclass", progression.subclassId());
+                    rows.add("race", progression.raceId());
+                    rows.add("level", progression.level());
+                    rows.add("experience", progression.experience());
+                    rows.add("proficiency", progression.proficiencyBonus());
+                    rows.add("pending_asi", progression.pendingAsi());
+                }
+                rows.add("unsupported", "PROFICIENCIES / CONCENTRATION / RESISTANCE_TABLE");
             }
             case ATTRIBUTES -> {
                 rows.add("coverage", body.attributeCoverage());
+                CharacterState character = sheet.persistent().character();
+                if (character.created()) {
+                    for (Ability ability : Ability.values())
+                        rows.add("ability", ability.id() + " | " + character.abilities().score(ability)
+                            + " (" + character.abilities().modifier(ability) + ")");
+                }
                 new TreeMap<>(body.attributes()).forEach((id, value) -> {
                     rows.add("attribute", id + " | " + value.base() + " → " + value.effective());
                     if (!value.complete()) rows.add("limited", id);

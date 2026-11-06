@@ -76,6 +76,7 @@ public final class EffectWave {
             return new Key("effect", effect.key());
         }
         if (change instanceof ActorStates.Resource resource) return new Key("resource", resource.key());
+        if (change instanceof ActorStates.Character) return new Key("character", "all");
         if (change instanceof ActorStates.Learn learn) return new Key("grant", learn.grant().id());
         if (change instanceof ActorStates.Forget forget) return new Key("grant", forget.grant());
         if (change instanceof ActorStates.Prepare) return new Key("prepare", "all");

@@ -16,6 +16,7 @@ import cc.sighs.dndturn.domain.encounter.operation.DamageTrace;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.encounter.operation.ProjectileOrigin;
 import cc.sighs.dndturn.domain.fact.RuleFacts;
+import cc.sighs.dndturn.domain.resolution.AttackProfile;
 import cc.sighs.dndturn.domain.resolution.AttackResolution;
 import cc.sighs.dndturn.domain.resolution.CombatRules;
 import cc.sighs.dndturn.domain.resolution.RuleResolver;
@@ -26,6 +27,9 @@ import cc.sighs.dndturn.platform.server.action.AbilityExecutor;
 import cc.sighs.dndturn.platform.server.action.ActionExecutionCoordinator;
 import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.actor.ActorStateAuthority;
+import cc.sighs.dndturn.platform.server.actor.MobAttackProfiles;
+import cc.sighs.dndturn.platform.server.character.EncounterContentCache;
+import cc.sighs.dndturn.platform.server.character.PlayerArmorRules;
 import cc.sighs.dndturn.platform.server.damage.DamageReceivers;
 import cc.sighs.dndturn.platform.server.damage.MeleeAdapters;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
@@ -383,7 +387,17 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             && !engine.hasAttemptedAttack(encounterId, actor.getUUID())
             && receiver.unawareOf(target, actor);
         var plan = planParent == null ? null : engine.pendingOperation(encounterId, planParent);
-        double directMeleeDamage = plan != null ? 0 : actor instanceof ServerPlayer
+        // Native mob profiles replace both the global bonus and the native attack attribute input.
+        // Created players use the migrated classes weapon dice/properties instead of vanilla attack damage.
+        AttackProfile profile;
+        if (actor instanceof ServerPlayer player) {
+            profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profile(player,
+                actorStates.state(player.getUUID()).persistent().character());
+        } else {
+            profile = EncounterContentCache.server().attackProfile(encounterId, actor.getUUID());
+            if (profile == null) profile = MobAttackProfiles.of(actor);
+        }
+        double directMeleeDamage = plan != null || profile != null ? 0 : actor instanceof ServerPlayer
             ? actor.getMainHandItem().getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY)
                 .compute(Attributes.ATTACK_DAMAGE, 0.0, EquipmentSlot.MAINHAND)
             : MeleeAdapters.server().attacker(actor).intrinsicDamage().applyAsDouble(actor);
@@ -400,7 +414,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         int reduction = RuleResolver.reduction(defenseFacts);
         AttackResolution.validateDamage(weaponDamage,
                 AttackResolution.defense(defenseFacts));
-        int ac = RuleResolver.armorClass(defenseFacts);
+        int ac = armorClass(target, defenseFacts);
         var origin = actor.blockPosition();
         var destination = target.blockPosition();
         OperationRecord.Snapshot root = host.operationSnapshot(operationId, planParent,
@@ -415,7 +429,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         // Candidate activation can deliver an actor turn boundary. Rebind facts after that rule mutation.
         defenseFacts = actorStates.snapshots().defense(target);
         reduction = RuleResolver.reduction(defenseFacts);
-        ac = RuleResolver.armorClass(defenseFacts);
+        ac = armorClass(target, defenseFacts);
         AttackResolution.validateDamage(weaponDamage,
                 new AttackResolution.Defense(ac, reduction));
         if (plan != null && actorStates.snapshots().capture(actorStates.context(actor), AbilityAdapterRegistry.definitions().require(plan.intent()))
@@ -427,11 +441,13 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         host.swing(actor, encounterId, operationId, net.minecraft.world.InteractionHand.MAIN_HAND);
         CombatRules.RollMode rollMode = CombatRules.mode(openingAdvantage,
             state.members().get(targetId).dodging());
-        var damagePlan = damageResolution.resolveAttack(encounterId, ac, reduction, weaponDamage, rollMode, null);
+        var damagePlan = damageResolution.resolveAttack(encounterId, ac, reduction, weaponDamage, rollMode, null,
+            profile == null ? CombatRules.ATTACK_BONUS : profile.attackBonus(), profile);
+        double baseDamage = damagePlan.input().baseDamage();
         CombatRules.AttackRoll roll = damagePlan.roll();
         if (!roll.hit()) {
             DamageTrace trace = attackTrace(operationId, targetId, rollMode, roll, ac,
-                weaponDamage, reduction, 0, false, 0, 0,
+                baseDamage, reduction, 0, false, 0, 0,
                 damageEvidence(actor, state, DamageTrace.Stage.MISS, null, List.of()));
             OperationRecord.Result result = engine.publish(encounterId, operationId, 0,
                 OperationRecord.Outcome.COMPLETED, "miss: die=" + roll.die() + " AC=" + ac, 0, 0, true, trace);
@@ -441,7 +457,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         int tacticalDamage = damagePlan.damage();
         if (tacticalDamage == 0 && !effects.observeZeroDamage()) {
             DamageTrace trace = attackTrace(operationId, targetId, rollMode, roll, ac,
-                weaponDamage, reduction, 0, false, 0, 0,
+                baseDamage, reduction, 0, false, 0, 0,
                 damageEvidence(actor, state, DamageTrace.Stage.ZERO_DAMAGE, null, List.of()));
             OperationRecord.Result result = engine.publish(encounterId, operationId, 0,
                 OperationRecord.Outcome.COMPLETED, "hit with zero tactical damage", 0, 0, true, trace);
@@ -481,7 +497,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
                 : healthLoss > 0 || absorptionLoss > 0 ? OperationRecord.Outcome.PARTIAL
                 : OperationRecord.Outcome.REJECTED;
             DamageTrace trace = attackTrace(operationId, targetId, rollMode, roll, ac,
-                weaponDamage, reduction, tacticalDamage, accepted, absorptionLoss, healthLoss,
+                baseDamage, reduction, tacticalDamage, accepted, absorptionLoss, healthLoss,
                 damageEvidence(actor, state, accepted ? DamageTrace.Stage.VANILLA_ACCEPTED
                     : DamageTrace.Stage.VANILLA_REJECTED, observed,
                     equipmentChanges(equipmentBefore, equipmentSnapshot(actor, target))));
@@ -527,16 +543,31 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         }
     }
 
+    private int armorClass(LivingEntity target, cc.sighs.dndturn.domain.fact.FactSlice defenseFacts) {
+        int player = PlayerArmorRules.armorClass(target,
+            actorStates.state(target.getUUID()).persistent().character());
+        return player >= 0 ? player : RuleResolver.armorClass(defenseFacts);
+    }
+
     public DamageTrace rangedTrace(LivingEntity player, UUID targetId, UUID operation, boolean opening) {
         var state = engine.stateView(engine.encounterOf(player.getUUID()));
         LivingEntity target = (LivingEntity) player.level().getEntity(targetId);
         var defenseFacts = actorStates.snapshots().defense(target);
-        int ac = RuleResolver.armorClass(defenseFacts);
+        int ac = armorClass(target, defenseFacts);
         var mode = CombatRules.mode(opening, state.members().get(targetId).dodging());
         int reduction = RuleResolver.reduction(defenseFacts);
         // The launch intent captures the roll; actual projectile base damage is captured at insertion.
+        AttackProfile profile;
+        if (player instanceof ServerPlayer shooter) {
+            profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profile(shooter,
+                actorStates.state(shooter.getUUID()).persistent().character());
+        } else {
+            profile = EncounterContentCache.server().attackProfile(state.id(), player.getUUID());
+            if (profile == null) profile = MobAttackProfiles.of(player);
+        }
         double base = 0;
-        var plan = damageResolution.resolveAttack(state.id(), ac, reduction, base, mode, null);
+        var plan = damageResolution.resolveAttack(state.id(), ac, reduction, base, mode, null,
+            profile == null ? CombatRules.ATTACK_BONUS : profile.attackBonus(), profile);
         var roll = plan.roll();
         return attackTrace(operation, targetId, mode, roll, ac, base, reduction,
             plan.damage(), false, 0, 0, null);

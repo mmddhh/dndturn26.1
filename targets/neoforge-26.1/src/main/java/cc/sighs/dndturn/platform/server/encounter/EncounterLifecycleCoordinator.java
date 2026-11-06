@@ -25,6 +25,7 @@ import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
 import cc.sighs.dndturn.platform.server.actor.MobMovementBudgets;
+import cc.sighs.dndturn.platform.server.character.EncounterContentCache;
 import cc.sighs.dndturn.platform.projection.PresentationIdentity;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
 import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
@@ -465,6 +466,7 @@ public final class EncounterLifecycleCoordinator {
         UUID existing = engine.encounterOf(mob.getUUID());
         if (existing != null && !existing.equals(encounter)) throw new IllegalStateException("spawn already belongs to another encounter");
         if (engine.join(encounter, mob.getUUID(), MobMovementBudgets.of(mob))) {
+            EncounterContentCache.server().capture(encounter, mob, actorStates);
             vanillaEffects.capture(mob);
             persistence.changed();
             sync(engine.stateView(encounter));
@@ -604,6 +606,10 @@ public final class EncounterLifecycleCoordinator {
         for (UUID id : members) budgets.put(id, movementBudget(id));
         engine.beginCandidate(encounterId, region, members, budgets,
             config.time().ticks());
+        for (UUID member : members) {
+            Entity entity = resolve(member);
+            if (entity != null) EncounterContentCache.server().capture(encounterId, entity, actorStates);
+        }
         for (Map.Entry<UUID, UUID> relation : initialHostility.entrySet()) {
             engine.setHostile(encounterId, relation.getKey(), relation.getValue(), true);
             engine.setHostile(encounterId, relation.getValue(), relation.getKey(), true);
@@ -922,9 +928,11 @@ public final class EncounterLifecycleCoordinator {
         if (targetDomain == null && target instanceof ServerPlayer) return;
         boolean changed = false;
         if (sourceDomain == null && engine.join(domain, mob.getUUID(), MobMovementBudgets.of(mob))) {
+            EncounterContentCache.server().capture(domain, mob, actorStates);
             vanillaEffects.capture(mob); changed = true;
         }
         if (targetDomain == null && engine.join(domain, target.getUUID(), MobMovementBudgets.of(target))) {
+            EncounterContentCache.server().capture(domain, target, actorStates);
             vanillaEffects.capture(target); changed = true;
         }
         if (!engine.isHostile(domain, mob.getUUID(), target.getUUID())
@@ -945,6 +953,8 @@ public final class EncounterLifecycleCoordinator {
         UUID encounterId = engine.encounterOf(targetId);
         if (encounterId == null || recovering(encounterId) || engine.encounterOf(attackerId) != null) return false;
         if (!engine.join(encounterId, attackerId, movementBudget(attackerId))) return false;
+        if (resolve(attackerId) instanceof LivingEntity attacker)
+            EncounterContentCache.server().capture(encounterId, attacker, actorStates);
         engine.setHostile(encounterId, attackerId, targetId, true);
         engine.setHostile(encounterId, targetId, attackerId, true);
         persistence.changed();

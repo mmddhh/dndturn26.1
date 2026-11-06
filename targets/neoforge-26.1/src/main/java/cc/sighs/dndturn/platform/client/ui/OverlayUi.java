@@ -32,11 +32,15 @@ public final class OverlayUi {
             reloadPending = false;
             refresh(TacticalOverlay.document());
             refresh(ConsentOverlay.document());
+            refresh(CharacterOverlay.document());
         }
         TacticalOverlay.ensureDocument();
         ConsentOverlay.ensureDocument();
+        CharacterOverlay.ensureDocument();
+        CharacterOverlay.tick();
         syncVisibility(TacticalOverlay.document());
         syncVisibility(ConsentOverlay.document());
+        syncVisibility(CharacterOverlay.document());
     }
 
     private static void refresh(Document document) {
@@ -83,11 +87,14 @@ public final class OverlayUi {
         if (document == null) return false;
         if (document == TacticalOverlay.document()) return TacticalOverlay.isOpen() && TacticalOverlay.hudVisible();
         if (document == ConsentOverlay.document()) return ConsentOverlay.visible();
+        if (document == CharacterOverlay.document()) return CharacterOverlay.visible();
         return true;
     }
 
     public static boolean stylesReady(Document document) {
-        if (document == null || document != TacticalOverlay.document() && document != ConsentOverlay.document()) return true;
+        if (document == null || document != TacticalOverlay.document() && document != ConsentOverlay.document()
+            && document != CharacterOverlay.document()) return true;
+        if (document == CharacterOverlay.document()) return document.CSSCache.containsKey("#character-shell");
         // Both templates load tactical.css asynchronously. This rule is in that stylesheet,
         // not the global defaults or consent's inline styles; no elapsed-frame heuristic.
         return document.CSSCache.containsKey("#end-control");
@@ -96,14 +103,16 @@ public final class OverlayUi {
     public static boolean prepareForDraw(Document document) {
         boolean tactical = document != null && document == TacticalOverlay.document();
         boolean consent = document != null && document == ConsentOverlay.document();
-        if (!tactical && !consent) return true;
+        boolean character = document != null && document == CharacterOverlay.document();
+        if (!tactical && !consent && !character) return true;
         if (!document.isActive() || !visible(document)) return false;
         if (!stylesReady(document)) return false;
         try (var ignored = Document.withContext(document)) {
             syncVisibility(document);
             document.applyViewport(false);
             if (tactical) TacticalOverlay.prepareFrame();
-            else ConsentOverlay.prepareFrame();
+            else if (consent) ConsentOverlay.prepareFrame();
+            else CharacterOverlay.prepareFrame();
             if (!document.isActive()) return false;
             // Finish all DOM mutations before committing styles, paint nodes and geometry.
             // Base.drawOverlayDocument reads the viewport before its normal style commit.

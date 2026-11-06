@@ -41,6 +41,7 @@ public final class CombatControls {
     private static final KeyMapping CAMERA_DOWN = key("camera_down", GLFW.GLFW_KEY_LEFT_SHIFT);
     private static final KeyMapping HOME = key("camera_home", GLFW.GLFW_KEY_HOME);
     private static final KeyMapping PRESET = key("camera_preset", GLFW.GLFW_KEY_O);
+    private static final KeyMapping CHARACTER = key("character", GLFW.GLFW_KEY_C);
     private static boolean exitRetryPending;
     private static boolean exitAfterStart;
     private static long lastExitVersion;
@@ -66,6 +67,7 @@ public final class CombatControls {
         event.register(END_TURN);
         event.register(INVENTORY);
         event.register(HOME); event.register(PRESET);
+        event.register(CHARACTER);
         event.register(ROTATE_LEFT);
         event.register(ROTATE_RIGHT);
         event.register(CAMERA_UP);
@@ -112,6 +114,11 @@ public final class CombatControls {
         if (!ClientControl.key(event.getKeyEvent(), event.getAction())) return;
         Minecraft game = Minecraft.getInstance();
         if (game.player == null || game.screen != null || !game.isWindowActive() || ClientControl.modal()) return;
+        if (event.getAction() == GLFW.GLFW_PRESS
+            && CHARACTER.isActiveAndMatches(InputConstants.getKey(event.getKeyEvent()))) {
+            ClientPacketDistributor.sendToServer(new cc.sighs.dndturn.platform.network.CharacterProtocol.RequestUi());
+            return;
+        }
         boolean tactical = ClientCombatState.encounter() != null;
         if (tactical && event.getAction() == GLFW.GLFW_PRESS) {
             for (int i = 0; i < game.options.keyHotbarSlots.length; i++)

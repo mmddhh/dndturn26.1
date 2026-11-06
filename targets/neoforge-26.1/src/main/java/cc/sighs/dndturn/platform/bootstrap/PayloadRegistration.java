@@ -7,6 +7,12 @@ public final class PayloadRegistration {
     public static void register(RegisterPayloadHandlersEvent event) {
         var registrar = event.registrar("dndturn");
         event.registrar("dndturn").playToClient(InspectionProtocol.Reply.TYPE, InspectionProtocol.Reply.CODEC);
+        registrar.playToClient(CharacterProtocol.Options.TYPE, CharacterProtocol.Options.CODEC);
+        registrar.playToClient(CharacterProtocol.Open.TYPE, CharacterProtocol.Open.CODEC);
+        registrar.playToClient(CharacterProtocol.Sheet.TYPE, CharacterProtocol.Sheet.CODEC);
+        registrar.playToClient(CharacterProtocol.AsiOpen.TYPE, CharacterProtocol.AsiOpen.CODEC);
+        registrar.playToClient(CharacterProtocol.SubclassOpen.TYPE, CharacterProtocol.SubclassOpen.CODEC);
+        registrar.playToClient(CharacterProtocol.Reply.TYPE, CharacterProtocol.Reply.CODEC);
         registrar.playToClient(ActionProtocol.Options.TYPE, ActionProtocol.Options.CODEC);
         registrar.playToClient(ActionProtocol.Projection.TYPE, ActionProtocol.Projection.CODEC);
         registrar.playToClient(BodyState.TYPE, BodyState.STREAM_CODEC);

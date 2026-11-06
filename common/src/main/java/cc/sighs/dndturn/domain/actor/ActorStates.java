@@ -1,5 +1,6 @@
 package cc.sighs.dndturn.domain.actor;
 
+import cc.sighs.dndturn.domain.character.CharacterState;
 import cc.sighs.dndturn.domain.encounter.operation.Intervention;
 
 import cc.sighs.dndturn.domain.effect.EffectDefinition;
@@ -28,7 +29,7 @@ public final class ActorStates {
         }
         public static State empty() { return new State(0, ActorPersistentState.empty(), ActorRuntimeState.empty()); }
     }
-    public sealed interface Change extends RuleEmission permits Learn, Forget, Prepare, Resource, Apply, Remove, AddStacks, ConsumeStacks, RefreshDuration, Advance, Death {}
+    public sealed interface Change extends RuleEmission permits Learn, Forget, Prepare, Resource, Character, Apply, Remove, AddStacks, ConsumeStacks, RefreshDuration, Advance, Death {}
     public record AddStacks(UUID effect, int count) implements Change {
         public AddStacks { Objects.requireNonNull(effect); if (count < 1 || count > 64) throw new IllegalArgumentException("stack delta"); }
     }
@@ -43,6 +44,9 @@ public final class ActorStates {
     public record Prepare(Set<UUID> grants) implements Change { public Prepare { grants = Set.copyOf(grants); } }
     public record Resource(ResourceKey key, double delta, boolean create) implements Change {
         public Resource { Objects.requireNonNull(key); if (!Double.isFinite(delta)) throw new IllegalArgumentException("resource delta"); }
+    }
+    public record Character(CharacterState state) implements Change {
+        public Character { Objects.requireNonNull(state); }
     }
     public record Apply(EffectInstance effect) implements Change { public Apply { Objects.requireNonNull(effect); } }
     public record Remove(UUID effect) implements Change { public Remove { Objects.requireNonNull(effect); } }
@@ -419,6 +423,7 @@ public final class ActorStates {
         var grants = new LinkedHashMap<>(before.persistent().grants());
         var prepared = new HashSet<>(before.persistent().prepared());
         var resources = new LinkedHashMap<>(before.persistent().resources());
+        var character = before.persistent().character();
         var effects = new LinkedHashMap<>(before.runtime().effects());
         var clocks = new HashMap<>(before.clocks());
         for (var change : changes) {
@@ -440,6 +445,8 @@ public final class ActorStates {
                 double value = resources.getOrDefault(resource.key().id(), 0.0) + resource.delta();
                 if (!Double.isFinite(value) || value < 0) throw new IllegalArgumentException("resource unavailable");
                 resources.put(resource.key().id(), value);
+            } else if (change instanceof Character next) {
+                character = next.state();
             } else if (change instanceof Apply apply) {
                 var incoming = apply.effect();
                 var identity = effects.get(incoming.id());
@@ -498,7 +505,7 @@ public final class ActorStates {
             } else if (change instanceof Death) effects.values().removeIf(c -> !c.definition().surviveDeath());
             else throw new IllegalArgumentException("unknown actor change");
         }
-        return new State(Math.addExact(before.revision(), 1), new ActorPersistentState(grants, prepared, resources), new ActorRuntimeState(effects), clocks);
+        return new State(Math.addExact(before.revision(), 1), new ActorPersistentState(grants, prepared, resources, character), new ActorRuntimeState(effects), clocks);
     }
     private static EffectInstance requireEffect(Map<UUID, EffectInstance> effects, UUID id) {
         var value = effects.get(id);

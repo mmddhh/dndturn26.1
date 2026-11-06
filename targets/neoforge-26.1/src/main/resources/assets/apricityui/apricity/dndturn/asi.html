@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="aui-font-mode" content="web">
+  <meta name="aui-viewport" content="mode=browser">
+  <meta name="aui-mouse-events" content="intercept">
+  <title>Ability Score Improvement</title>
+  <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+  <link rel="stylesheet" href="choice.css">
+</head>
+<body class="choice-page">
+  <div class="nebula"></div>
+  <div class="stars"></div>
+  <div class="scan"></div>
+  <div class="choice-shell">
+    <h1 class="choice-title"><translation>screen.dndclasses.asi.title</translation></h1>
+    <p class="choice-sub"><translation>screen.dndclasses.asi.hint</translation></p>
+    <div class="mode-row">
+      <button id="mode-plus2" class="mode-btn active" type="button"><translation>screen.dndclasses.asi.mode_plus2</translation></button>
+      <button id="mode-plus1" class="mode-btn" type="button"><translation>screen.dndclasses.asi.mode_plus1</translation></button>
+    </div>
+    <div id="ability-list" class="choice-grid"></div>
+    <div style="margin-top:18px">
+      <button id="asi-confirm" class="confirm-btn" type="button" disabled><translation>screen.dndclasses.asi.confirm</translation></button>
+    </div>
+    <div id="asi-msg" class="choice-msg"></div>
+  </div>
+  <input id="choice-data" type="hidden" value="">
+  <input id="choice-payload" type="hidden" value="">
+  <script src="asi.js"></script>
+</body>
+</html>

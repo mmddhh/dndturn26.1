@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="aui-viewport" content="mode=gui,zoom=0.8,user-scalable=false">
+  <meta name="aui-mouse-events" content="intercept">
+  <link rel="stylesheet" href="character.css">
+</head>
+<body>
+  <div id="character-shell">
+    <header id="character-header">
+      <div>
+        <h1>创建角色</h1>
+        <p>THE ADVENTURER'S TOME · 选择职业、种族并分配属性</p>
+      </div>
+      <div id="character-badge">27 POINT BUY</div>
+    </header>
+
+    <main id="character-columns">
+      <section id="character-class-card" class="character-card">
+        <h2>职业</h2>
+        <div id="character-classes" class="character-list"></div>
+      </section>
+      <section id="character-race-card" class="character-card">
+        <h2>种族</h2>
+        <div id="character-races" class="character-list"></div>
+      </section>
+      <section id="character-ability-card" class="character-card character-ability-card">
+        <h2>属性 <span>（27 点购点）</span></h2>
+        <div id="character-abilities"></div>
+        <div id="character-points">已用 27 / 27 点</div>
+        <p class="character-hint">种族加值在创建时由服务端应用；调整到 27 点后才能创建。</p>
+      </section>
+    </main>
+
+    <footer id="character-footer">
+      <div id="character-status">选择职业、种族并分配属性</div>
+      <div id="character-actions">
+        <button id="character-submit" type="button" disabled>创建角色</button>
+        <button id="character-close" type="button">取消</button>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

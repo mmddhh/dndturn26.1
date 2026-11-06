@@ -56,7 +56,7 @@ ActorId 与当前 InstanceId 分离；服务器世代属于执行证据。UUID �
   → 最终战术属性
 ```
 
-保留 minecraft:armor/base、minecraft:armor/effective 与 dndturn:armor_class 等独立键。AC/减伤沿当前合同和 ActorCompilation 计算。装备 modifier 已在 effective 中计入，解释时不得再次加算。角色攻击属性不等于某次行动伤害输入；空手、选定武器、远程和特殊能力继续使用明确来源。
+保留 minecraft:armor/base、minecraft:armor/effective 与 dndturn:armor_class 等独立键。AC/减伤沿当前合同和 ActorCompilation 计算。装备 modifier 已在 effective 中计入，解释时不得再次加算。角色攻击属性不等于某次行动伤害输入；空手、选定武器、远程和特殊能力继续使用明确来源。已映射原版 Mob 的命中加值与伤害骰来自物种攻击档案，不读取原生 attack_damage；未映射 Mob 与玩家继续使用原路径。
 
 属性解释包含属性键、单位、base/effective、捕获证据、计算阶段、操作、操作数、贡献来源与完整性。原生 modifier 是否活跃，与是否能证明来自某件装备，是独立问题。装备关联核对属性、modifier 身份、操作、数值和当前槽位；结构匹配只表示当前装备声明匹配，不能证明任意第三方写入的历史因果。来源不唯一或无法证明时保留未知，不能按 ID 名称猜来源。
 

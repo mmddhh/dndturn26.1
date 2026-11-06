@@ -10,6 +10,7 @@ import cc.sighs.dndturn.domain.encounter.operation.DamageTrace;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.encounter.operation.ProjectileOrigin;
 import cc.sighs.dndturn.domain.fact.RuleFacts;
+import cc.sighs.dndturn.domain.resolution.AttackProfile;
 import cc.sighs.dndturn.domain.resolution.CombatRules;
 import cc.sighs.dndturn.domain.resolution.RuleResolver;
 import cc.sighs.dndturn.domain.spatial.GridCell;
@@ -18,7 +19,10 @@ import cc.sighs.dndturn.platform.spatial.MinecraftCoordinates;
 import cc.sighs.dndturn.platform.server.entity.MinecraftProjectiles;
 import cc.sighs.dndturn.platform.server.action.TacticalLaunchContext;
 import cc.sighs.dndturn.platform.server.actor.ActorStateAuthority;
+import cc.sighs.dndturn.platform.server.actor.MobAttackProfiles;
 import cc.sighs.dndturn.platform.server.actor.MobMovementBudgets;
+import cc.sighs.dndturn.platform.server.character.EncounterContentCache;
+import cc.sighs.dndturn.platform.server.character.PlayerArmorRules;
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
 import cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope;
@@ -462,12 +466,11 @@ public final class ProjectileExecutionCoordinator {
             rejectArrowImpact(arrow, hit, encounterId, origin, "projectile collided with unselected target"); return true;
         }
         String unsupported = !origin.launchVerified() ? "launch evidence unavailable"
-            : !"minecraft:arrow".equals(origin.ammoId()) ? "arrow ammunition effect unsupported"
+            : !ammoSupported(origin.ammoId()) ? "arrow ammunition effect unsupported"
             : origin.weaponEnchanted() ? "bow enchantment effect unsupported"
             : arrow.isOnFire() ? "arrow fire effect unsupported"
             : arrow.getPierceLevel() > 0 ? "piercing arrow effect unsupported"
-            : !"".equals(origin.weaponId()) && !"minecraft:bow".equals(origin.weaponId())
-                && !"minecraft:crossbow".equals(origin.weaponId()) ? "weapon effect unsupported" : null;
+            : !weaponSupported(origin.weaponId()) ? "weapon effect unsupported" : null;
         if (unsupported != null) {
             rejectArrowImpact(arrow, hit, encounterId, origin, unsupported);
             return true;
@@ -492,7 +495,8 @@ public final class ProjectileExecutionCoordinator {
         }
         if (owner instanceof LivingEntity living && !living.isDeadOrDying()
             && shooterDomain == null && owner.level() == level)
-            engine.join(encounterId, ownerId, MobMovementBudgets.of(owner));
+            if (engine.join(encounterId, ownerId, MobMovementBudgets.of(owner)))
+                EncounterContentCache.server().capture(encounterId, living, actorStates);
         UUID operationId = arrowOperationId(arrow.getUUID(), target.getUUID());
         OperationRecord.Result previous = engine.resultFor(encounterId, operationId);
         if (previous != null) {
@@ -525,7 +529,9 @@ public final class ProjectileExecutionCoordinator {
             if (ownerId != null && state.members().containsKey(ownerId))
                 engine.setHostile(encounterId, ownerId, target.getUUID(), true);
             var defenseFacts = actorStates.snapshots().defense(target);
-            int armorClass = RuleResolver.armorClass(defenseFacts);
+            int armorClass = PlayerArmorRules.armorClass(target,
+                actorStates.state(target.getUUID()).persistent().character());
+            if (armorClass < 0) armorClass = RuleResolver.armorClass(defenseFacts);
             double toughness = defenseFacts.read(RuleFacts.DEFENSE, RuleFacts.TOUGHNESS);
             if (!Double.isFinite(toughness) || toughness > Integer.MAX_VALUE)
                 throw new IllegalStateException("unsupported target toughness");
@@ -534,11 +540,26 @@ public final class ProjectileExecutionCoordinator {
                 state.members().get(target.getUUID()).dodging());
             DamageTrace launchTrace = origin.launchTrace();
             if (launchTrace != null) { mode = launchTrace.rollMode(); armorClass = launchTrace.targetArmorClass(); reduction = launchTrace.toughnessReduction(); }
-            var damagePlan = damageResolution.resolveAttack(encounterId, armorClass, reduction, origin.arrowBaseDamage(), mode, launchTrace);
+            AttackProfile profile;
+            if (origin.ownerWasPlayer() && ownerId != null && owner instanceof ServerPlayer player) {
+                profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profileFor(
+                    actorStates.state(player.getUUID()).persistent().character(), origin.weaponId());
+            } else {
+                profile = ownerId == null ? null : EncounterContentCache.server().attackProfile(encounterId, ownerId);
+                if (profile == null && !origin.ownerWasPlayer() && owner instanceof LivingEntity livingOwner)
+                    profile = MobAttackProfiles.of(livingOwner);
+            }
+            // A captured launch already fixed the total with its own bonus; recompute from those dice only.
+            int attackBonus = profile != null ? profile.attackBonus()
+                : launchTrace != null ? launchTrace.rollTotal() - launchTrace.selectedDie()
+                : CombatRules.ATTACK_BONUS;
+            var damagePlan = damageResolution.resolveAttack(encounterId, armorClass, reduction, origin.arrowBaseDamage(),
+                mode, launchTrace, attackBonus, profile);
+            double baseDamage = damagePlan.input().baseDamage();
             CombatRules.AttackRoll roll = damagePlan.roll();
             if (!roll.hit()) {
                 DamageTrace trace = attackTrace(operationId, target.getUUID(), mode, roll, armorClass,
-                    origin.arrowBaseDamage(), reduction, 0, false, 0, 0,
+                    baseDamage, reduction, 0, false, 0, 0,
                     damageEvidence(arrow, state, DamageTrace.Stage.MISS, null, List.of()));
                 engine.publish(encounterId, operationId, 0, OperationRecord.Outcome.COMPLETED,
                     "arrow missed: die=" + roll.die() + " AC=" + armorClass, 0, 0, true, trace);
@@ -548,11 +569,11 @@ public final class ProjectileExecutionCoordinator {
             }
             int tacticalDamage = damagePlan.damage();
             attempted = attackTrace(operationId, target.getUUID(), mode, roll, armorClass,
-                origin.arrowBaseDamage(), reduction, tacticalDamage, false, 0, 0,
+                baseDamage, reduction, tacticalDamage, false, 0, 0,
                 damageEvidence(arrow, state, DamageTrace.Stage.UNKNOWN, null, List.of()));
             if (tacticalDamage == 0) {
                 DamageTrace trace = attackTrace(operationId, target.getUUID(), mode, roll, armorClass,
-                    origin.arrowBaseDamage(), reduction, 0, false, 0, 0,
+                    baseDamage, reduction, 0, false, 0, 0,
                     damageEvidence(arrow, state, DamageTrace.Stage.ZERO_DAMAGE, null, List.of()));
                 engine.publish(encounterId, operationId, 0, OperationRecord.Outcome.COMPLETED,
                     "arrow hit with zero tactical damage", 0, 0, true, trace);
@@ -579,7 +600,7 @@ public final class ProjectileExecutionCoordinator {
                 float healthLoss = Math.max(0, healthBefore - target.getHealth());
                 float absorptionLoss = Math.max(0, absorptionBefore - target.getAbsorptionAmount());
                 DamageTrace trace = attackTrace(operationId, target.getUUID(), mode, roll, armorClass,
-                    origin.arrowBaseDamage(), reduction, tacticalDamage, observation.accepted(),
+                    baseDamage, reduction, tacticalDamage, observation.accepted(),
                     absorptionLoss, healthLoss,
                     damageEvidence(arrow, state, observation.accepted() ? DamageTrace.Stage.VANILLA_ACCEPTED
                         : DamageTrace.Stage.VANILLA_REJECTED, observation,
@@ -625,6 +646,18 @@ public final class ProjectileExecutionCoordinator {
                 engine.revokeEffectPermit(encounterId, permitId);
             host.flushOutcome();
         }
+    }
+
+    private static boolean ammoSupported(String id) {
+        return "minecraft:arrow".equals(id) || "dndturn:iron_arrow".equals(id) || "dndturn:iron_bolt".equals(id);
+    }
+
+    private static boolean weaponSupported(String id) {
+        if (id == null || id.isEmpty() || "minecraft:bow".equals(id) || "minecraft:crossbow".equals(id)) return true;
+        if (!id.startsWith("dndturn:iron_")) return false;
+        String path = id.substring("dndturn:iron_".length());
+        var spec = cc.sighs.dndturn.platform.server.character.DndEquipmentCatalog.WEAPONS.get(path);
+        return spec != null && spec.ranged();
     }
 
     private static UUID arrowOperationId(UUID projectileId, UUID targetId) {

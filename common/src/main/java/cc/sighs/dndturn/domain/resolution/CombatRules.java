@@ -36,25 +36,34 @@ public final class CombatRules {
     }
 
     public static AttackRoll rollAttack(Random random, RollMode mode, int targetAc) {
+        return rollAttack(random, mode, targetAc, ATTACK_BONUS);
+    }
+
+    public static AttackRoll rollAttack(Random random, RollMode mode, int targetAc, int attackBonus) {
         Objects.requireNonNull(random);
         Objects.requireNonNull(mode);
         int first = 1 + random.nextInt(20);
         int second = mode == RollMode.NORMAL ? first : 1 + random.nextInt(20);
-        return rollAttack(first, second, mode, targetAc);
+        return rollAttack(first, second, mode, targetAc, attackBonus);
     }
 
     /** Pure interpretation of captured dice; preview and replay never draw randomness. */
     public static AttackRoll rollAttack(int first, int second, RollMode mode, int targetAc) {
+        return rollAttack(first, second, mode, targetAc, ATTACK_BONUS);
+    }
+
+    public static AttackRoll rollAttack(int first, int second, RollMode mode, int targetAc, int attackBonus) {
         Objects.requireNonNull(mode);
         if (first < 1 || first > 20 || second < 1 || second > 20 || targetAc < 0
-                || mode == RollMode.NORMAL && first != second) throw new IllegalArgumentException("attack roll evidence");
+            || attackBonus < -20 || attackBonus > 50
+            || mode == RollMode.NORMAL && first != second) throw new IllegalArgumentException("attack roll evidence");
         int die = switch (mode) {
             case NORMAL -> first;
             case ADVANTAGE -> Math.max(first, second);
             case DISADVANTAGE -> Math.min(first, second);
         };
-        boolean hit = die == 20 || (die != 1 && die + ATTACK_BONUS >= targetAc);
-        return new AttackRoll(first, second, die, die + ATTACK_BONUS, hit, die == 20);
+        boolean hit = die == 20 || (die != 1 && die + attackBonus >= targetAc);
+        return new AttackRoll(first, second, die, die + attackBonus, hit, die == 20);
     }
 
     public static RollMode mode(boolean advantage, boolean disadvantage) {

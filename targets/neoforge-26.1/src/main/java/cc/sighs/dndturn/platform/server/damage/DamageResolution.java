@@ -2,6 +2,7 @@ package cc.sighs.dndturn.platform.server.damage;
 import cc.sighs.dndturn.domain.encounter.StateView;
 import cc.sighs.dndturn.domain.encounter.operation.DamageTrace;
 import cc.sighs.dndturn.domain.encounter.operation.ProjectileOrigin;
+import cc.sighs.dndturn.domain.resolution.AttackProfile;
 import cc.sighs.dndturn.domain.resolution.AttackResolution;
 import cc.sighs.dndturn.domain.resolution.CombatRules;
 import cc.sighs.dndturn.platform.diagnostics.DebugDiagnostics;
@@ -26,12 +27,20 @@ public final class DamageResolution {
 
     public AttackResolution.Plan resolveAttack(UUID encounter, int ac, int reduction,
             double damage, CombatRules.RollMode mode, DamageTrace captured) {
+        return resolveAttack(encounter, ac, reduction, damage, mode, captured, CombatRules.ATTACK_BONUS, null);
+    }
+
+    /** {@code profile} replaces the supplied base damage with its own dice roll on the captured attack random. */
+    public AttackResolution.Plan resolveAttack(UUID encounter, int ac, int reduction,
+            double damage, CombatRules.RollMode mode, DamageTrace captured, int attackBonus,
+            AttackProfile profile) {
         var random = gameTestAttackRandom.getOrDefault(encounter, attackRandom);
+        if (profile != null) damage = profile.roll(random);
         int first = captured == null ? 1 + random.nextInt(20) : captured.firstDie();
         int second = captured == null ? mode == CombatRules.RollMode.NORMAL ? first : 1 + random.nextInt(20) : captured.secondDie();
         return AttackResolution.resolve(new AttackResolution.Input(
                 CombatRules.RULES_REVISION, new AttackResolution.Defense(ac, reduction), damage, mode,
-                new AttackResolution.Dice(first, second)));
+                new AttackResolution.Dice(first, second), attackBonus));
     }
 
     public static DamageTrace attackTrace(UUID operationId, UUID targetId,

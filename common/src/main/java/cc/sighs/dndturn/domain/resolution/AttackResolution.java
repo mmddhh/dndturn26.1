@@ -14,12 +14,14 @@ public final class AttackResolution {
     public record Defense(int armorClass, int reduction) {
         public Defense { if (armorClass < 0 || reduction < 0) throw new IllegalArgumentException("defense values"); }
     }
-    public record Input(String ruleset, Defense defense, double baseDamage, CombatRules.RollMode mode, Dice dice) {
+    public record Input(String ruleset, Defense defense, double baseDamage, CombatRules.RollMode mode,
+                        Dice dice, int attackBonus) {
         public Input {
             if (!CombatRules.RULES_REVISION.equals(ruleset)) throw new IllegalArgumentException("attack ruleset unavailable");
             Objects.requireNonNull(defense); Objects.requireNonNull(mode); Objects.requireNonNull(dice);
             validateDamage(baseDamage, defense);
             if (mode == CombatRules.RollMode.NORMAL && dice.first() != dice.second()) throw new IllegalArgumentException("normal roll evidence");
+            if (attackBonus < -20 || attackBonus > 50) throw new IllegalArgumentException("attack bonus evidence");
         }
     }
     public record Plan(Input input, CombatRules.AttackRoll roll, int damage) {}
@@ -29,7 +31,8 @@ public final class AttackResolution {
     }
     public static Plan resolve(Input input) {
         int first = input.dice().first(), second = input.dice().second();
-        var roll = CombatRules.rollAttack(first, second, input.mode(), input.defense().armorClass());
+        var roll = CombatRules.rollAttack(first, second, input.mode(), input.defense().armorClass(),
+            input.attackBonus());
         return new Plan(input, roll, roll.hit() ? CombatRules.damageAfterReduction(input.baseDamage(), input.defense().reduction(), roll.critical()) : 0);
     }
 }

@@ -10,6 +10,7 @@ import cc.sighs.dndturn.platform.server.checkpoint.AbilityCheckpoint;
 import cc.sighs.dndturn.platform.server.control.ExitAuthorizations;
 import cc.sighs.dndturn.platform.server.checkpoint.VanillaEffectSettlementState;
 import cc.sighs.dndturn.platform.server.encounter.ServerCombatConfig;
+import cc.sighs.dndturn.platform.server.character.EncounterContent;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,7 +37,8 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
                                         Map<UUID, RecoveryAudit> recoveryAudits,
                                         Map<UUID, VanillaEffectSettlementState.Owner> participantEffects,
                                         Map<UUID, VanillaEffectSettlementState.Settlement> turnSettlements,
-                                        Map<UUID, ProcessState> processes) {
+                                        Map<UUID, ProcessState> processes,
+                                        Map<UUID, EncounterContent> encounterContent) {
 
     public CombatPersistenceEnvelope {
         if (cumulativeServerTicks < 0 || nextSessionSequence < 0)
@@ -60,6 +62,7 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
         participantEffects = Map.copyOf(participantEffects);
         turnSettlements = Map.copyOf(turnSettlements);
         processes = Map.copyOf(processes);
+        encounterContent = encounterContent == null ? Map.of() : Map.copyOf(encounterContent);
         if (processes.size() > 16384 || processes.entrySet().stream().anyMatch(e -> !e.getKey().equals(e.getValue().id())))
             throw new IllegalArgumentException("process checkpoint bounds");
         if (exitAuthorizations.stream().map(ExitAuthorizations.Grant::owner).distinct().count() != exitAuthorizations.size())

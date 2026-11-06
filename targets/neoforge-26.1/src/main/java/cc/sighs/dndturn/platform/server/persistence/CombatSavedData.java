@@ -88,6 +88,7 @@ public final class CombatSavedData extends SavedData {
         metadata.put("leases", envelope.leases());
         metadata.put("abilities", envelope.abilities());
         metadata.put("processes", envelope.processes());
+        metadata.put("encounterContent", envelope.encounterContent());
         metadata.put("mergeBindings", envelope.mergeBindings());
         metadata.put("projectileAbilities", envelope.projectileAbilities());
         metadata.put("recoveryAudits", envelope.recoveryAudits());

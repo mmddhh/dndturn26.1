@@ -193,6 +193,10 @@ public final class LocalTimeGameTests {
     public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> COMBAT_SAVE_VALUES =
         TEST_FUNCTIONS.register("combat_save_values", () -> LocalTimeGameTests::combatSaveValues);
 
+    public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CHARACTER_CREATION =
+        TEST_FUNCTIONS.register("character_creation",
+            () -> cc.sighs.dndturn.platform.server.character.PlayerCharacterChecks::run);
+
     public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> ARROW_CROSS_SESSION_MISS =
         TEST_FUNCTIONS.register("arrow_cross_session_miss", () -> helper -> arrowCrossSession(helper, false, true));
 
@@ -485,7 +489,7 @@ public final class LocalTimeGameTests {
             java.util.Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 8, 16, 64, false, 16)),
             java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.List.of(),
             java.util.Map.of(member, new CombatPersistenceEnvelope.StartReceipt(member, encounter)),
-            java.util.Map.of(departing, new CombatPersistenceEnvelope.ExitReceipt(departing, emptyOrder, 2)), java.util.List.of(), java.util.Map.of(), java.util.List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of()));
+            java.util.Map.of(departing, new CombatPersistenceEnvelope.ExitReceipt(departing, emptyOrder, 2)), java.util.List.of(), java.util.Map.of(), java.util.List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of()));
         var read = saved.envelope();
         PersistencePolicyChecks.verify(helper, saved);
         helper.assertTrue(read != null && read.cumulativeServerTicks() == 24100

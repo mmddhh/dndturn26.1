@@ -41,7 +41,7 @@ public final class EncounterPersistenceChecks {
                                                        EncounterPersistence persistence) {
         return new CombatPersistenceEnvelope(rules, clock, 0, Map.of(), Map.of(), Map.of(), Map.of(),
             Map.of(), List.of(), Map.of(), Map.of(), List.of(), Map.of(), List.of(),
-            persistence.checkpoints(), Map.of(), Map.of(), persistence.audits(), Map.of(), Map.of(), java.util.Map.of());
+            persistence.checkpoints(), Map.of(), Map.of(), persistence.audits(), Map.of(), Map.of(), java.util.Map.of(), java.util.Map.of());
     }
 
     private void savesMetadataImmediatelyAndClockPeriodicallyWithDetachedEvidence() {

@@ -1,0 +1,27 @@
+{
+  "classes": [
+    { "id": "dndturn:barbarian", "version": 1, "name": "Barbarian", "hit_die": 12, "saves": ["str", "con"] },
+    { "id": "dndturn:bard", "version": 1, "name": "Bard", "hit_die": 8, "saves": ["dex", "cha"] },
+    { "id": "dndturn:cleric", "version": 1, "name": "Cleric", "hit_die": 8, "saves": ["wis", "cha"] },
+    { "id": "dndturn:druid", "version": 1, "name": "Druid", "hit_die": 8, "saves": ["int", "wis"] },
+    { "id": "dndturn:fighter", "version": 1, "name": "Fighter", "hit_die": 10, "saves": ["str", "con"] },
+    { "id": "dndturn:monk", "version": 1, "name": "Monk", "hit_die": 8, "saves": ["str", "dex"] },
+    { "id": "dndturn:paladin", "version": 1, "name": "Paladin", "hit_die": 10, "saves": ["wis", "cha"] },
+    { "id": "dndturn:ranger", "version": 1, "name": "Ranger", "hit_die": 10, "saves": ["str", "dex"] },
+    { "id": "dndturn:rogue", "version": 1, "name": "Rogue", "hit_die": 8, "saves": ["dex", "int"] },
+    { "id": "dndturn:sorcerer", "version": 1, "name": "Sorcerer", "hit_die": 6, "saves": ["con", "cha"] },
+    { "id": "dndturn:warlock", "version": 1, "name": "Warlock", "hit_die": 8, "saves": ["wis", "cha"] },
+    { "id": "dndturn:wizard", "version": 1, "name": "Wizard", "hit_die": 6, "saves": ["int", "wis"] }
+  ],
+  "races": [
+    { "id": "dndturn:dwarf", "version": 1, "name": "Dwarf", "speed": 25, "size": "medium", "ability_boosts": { "con": 2 } },
+    { "id": "dndturn:elf", "version": 1, "name": "Elf", "speed": 30, "size": "medium", "ability_boosts": { "dex": 2 } },
+    { "id": "dndturn:halfling", "version": 1, "name": "Halfling", "speed": 25, "size": "small", "ability_boosts": { "dex": 2 } },
+    { "id": "dndturn:human", "version": 1, "name": "Human", "speed": 30, "size": "medium", "ability_boosts": { "str": 1, "dex": 1, "con": 1, "int": 1, "wis": 1, "cha": 1 } },
+    { "id": "dndturn:dragonborn", "version": 1, "name": "Dragonborn", "speed": 30, "size": "medium", "ability_boosts": { "str": 2, "cha": 1 } },
+    { "id": "dndturn:gnome", "version": 1, "name": "Gnome", "speed": 25, "size": "small", "ability_boosts": { "int": 2 } },
+    { "id": "dndturn:half_elf", "version": 1, "name": "Half-Elf", "speed": 30, "size": "medium", "ability_boosts": { "cha": 2 } },
+    { "id": "dndturn:half_orc", "version": 1, "name": "Half-Orc", "speed": 30, "size": "medium", "ability_boosts": { "str": 2, "con": 1 } },
+    { "id": "dndturn:tiefling", "version": 1, "name": "Tiefling", "speed": 30, "size": "medium", "ability_boosts": { "cha": 2, "int": 1 } }
+  ]
+}

@@ -16,6 +16,7 @@ public final class DNDTurnNeoForge {
     public DNDTurnNeoForge(IEventBus modBus) {
         BuiltinAdapters.install();
         modBus.addListener(PayloadRegistration::register);
+        cc.sighs.dndturn.platform.server.character.DndEquipmentItems.register(modBus);
         modBus.addListener((net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent event) ->
             event.enqueueWork(RegistrationLifecycle::freeze));
         modBus.addListener(CombatIntentHandler::register);
@@ -23,6 +24,7 @@ public final class DNDTurnNeoForge {
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onEntityTickPost);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onServerTick);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onLogout);
+        NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.platform.server.character.CharacterOptions::onLogin);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onStartTracking);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onStopTracking);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onDeath);

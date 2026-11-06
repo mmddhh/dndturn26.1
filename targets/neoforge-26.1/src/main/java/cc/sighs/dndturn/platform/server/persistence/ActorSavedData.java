@@ -19,7 +19,8 @@ public final class ActorSavedData extends SavedData {
     private static final int MAX_BYTES = 8 * 1024 * 1024;
     private static final Map<String, Class<? extends ActorStates.Change>> CHANGES = Map.ofEntries(
             Map.entry("learn", ActorStates.Learn.class), Map.entry("forget", ActorStates.Forget.class), Map.entry("prepare", ActorStates.Prepare.class),
-            Map.entry("resource", ActorStates.Resource.class), Map.entry("apply", ActorStates.Apply.class), Map.entry("remove", ActorStates.Remove.class),
+            Map.entry("resource", ActorStates.Resource.class), Map.entry("character", ActorStates.Character.class),
+            Map.entry("apply", ActorStates.Apply.class), Map.entry("remove", ActorStates.Remove.class),
             Map.entry("advance", ActorStates.Advance.class), Map.entry("death", ActorStates.Death.class),
             Map.entry("add_stacks", ActorStates.AddStacks.class), Map.entry("consume_stacks", ActorStates.ConsumeStacks.class),
             Map.entry("refresh_duration", ActorStates.RefreshDuration.class));

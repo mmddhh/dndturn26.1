@@ -187,7 +187,11 @@ class EncounterAuthorityReviewRegressionTest {
         engine.endTurn(plan.primary(), first);
         UUID next = engine.view(plan.primary()).current();
         assertNotEquals(first, next);
-        assertEquals(movement, engine.stateView(plan.primary()).members().get(next).movementTicks());
+        var nextMember = engine.exportSnapshot().encounters().stream()
+            .filter(state -> state.id().equals(plan.primary())).findFirst().orElseThrow()
+            .members().stream().filter(member -> member.id().equals(next)).findFirst().orElseThrow();
+        assertEquals(nextMember.movementTicksPerTurn(),
+            engine.stateView(plan.primary()).members().get(next).movementTicks());
     }
 
     @Test

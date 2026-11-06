@@ -55,7 +55,7 @@ public final class ClientControl {
     private ClientControl() {}
     public static EncounterProtocol.ConsentState consent() { return consent; }
     public static void consent(EncounterProtocol.ConsentState value) { consent = value; reconcile(); }
-    public static boolean modal() { return consent != null; }
+    public static boolean modal() { return consent != null || cc.sighs.dndturn.platform.client.ui.CharacterOverlay.isOpen(); }
     public static boolean active() { return session; }
 
     public static void reconcile() {
@@ -100,6 +100,7 @@ public final class ClientControl {
         gestures.replaceAll((button, gesture) -> new Gesture(gesture.owner, null, -1, gesture.x, gesture.y));
         clearKeys();
         TacticalOverlay.cancelGesture(); ConsentOverlay.cancelGesture();
+        cc.sighs.dndturn.platform.client.ui.CharacterOverlay.cancelGesture();
         AuiPointerStateAccessor.dndturn$buttons(0);
         Minecraft mc = Minecraft.getInstance();
         if (mc.mouseHandler instanceof MouseInputReset reset) reset.dndturn$resetInput();
@@ -113,6 +114,7 @@ public final class ClientControl {
     public static void reset() {
         boolean controlled = session || consent != null || rig.position() != null;
         session = false; consent = null; rig.reset(); TerrainCutaway.clear(); cameraOwner = null;
+        cc.sighs.dndturn.platform.client.ui.CharacterOverlay.close();
         ClientTacticalPlan.reset();
         recipient = Recipient.GAME; level = null; player = null;
         restoreGrab = false;
@@ -130,6 +132,11 @@ public final class ClientControl {
     public static boolean key(KeyEvent event, int action) {
         reconcile();
         InputConstants.Key code = InputConstants.getKey(event);
+        if (action == GLFW.GLFW_PRESS && code.getValue() == GLFW.GLFW_KEY_ESCAPE
+            && cc.sighs.dndturn.platform.client.ui.CharacterOverlay.isOpen()) {
+            cc.sighs.dndturn.platform.client.ui.CharacterOverlay.close();
+            return false;
+        }
         boolean suppressed = suppressedKeys.contains(code);
         if (action == GLFW.GLFW_RELEASE) { heldKeys.remove(code); suppressedKeys.remove(code); }
         else heldKeys.add(code);
@@ -248,7 +255,8 @@ public final class ClientControl {
             return doc != TacticalOverlay.document() && doc != ConsentOverlay.document();
         if (dispatch != null && dispatch.owner != Recipient.GAME && dispatch.owner != Recipient.SCREEN)
             return dispatch.revision == revision && dispatch.document == doc;
-        if (modal()) return doc == ConsentOverlay.document();
+        if (modal()) return doc == ConsentOverlay.document()
+            || doc == cc.sighs.dndturn.platform.client.ui.CharacterOverlay.document();
         if (session) {
             for (Gesture g : gestures.values()) if (g.revision == revision && g.document != null) return g.document == doc;
             return doc == TacticalOverlay.document();
@@ -262,7 +270,8 @@ public final class ClientControl {
     public static Document mouseDocument() {
         if (!Minecraft.getInstance().isWindowActive()) return null;
         if (dispatch != null) return dispatch.revision == revision && dispatch.document != null && dispatch.document.isActive() ? dispatch.document : null;
-        if (modal()) return ConsentOverlay.document();
+        if (modal()) return cc.sighs.dndturn.platform.client.ui.CharacterOverlay.isOpen()
+            ? cc.sighs.dndturn.platform.client.ui.CharacterOverlay.document() : ConsentOverlay.document();
         for (Gesture gesture : gestures.values()) return gesture.revision == revision ? gesture.document : null;
         return session ? TacticalOverlay.document() : null;
     }

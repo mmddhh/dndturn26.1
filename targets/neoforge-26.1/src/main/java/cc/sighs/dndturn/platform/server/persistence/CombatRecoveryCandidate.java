@@ -32,6 +32,14 @@ public final class CombatRecoveryCandidate {
         saved.pendingProjectileAttacks().forEach((id, pending) -> {
             Objects.requireNonNull(pending.targetId()); Objects.requireNonNull(pending.sourceEncounterId());
         });
+        saved.encounterContent().forEach((encounterId, content) -> {
+            if (!candidate.encounterIds().contains(encounterId))
+                throw new IllegalArgumentException("content snapshot belongs to an inactive encounter");
+            content.participants().forEach((actor, participant) -> {
+                if (!encounterId.equals(candidate.encounterOf(actor)))
+                    throw new IllegalArgumentException("content participant is not a member of its encounter");
+            });
+        });
         saved.startReceipts().values().forEach(receipt -> {
             Objects.requireNonNull(receipt.owner()); Objects.requireNonNull(receipt.encounterId());
         });

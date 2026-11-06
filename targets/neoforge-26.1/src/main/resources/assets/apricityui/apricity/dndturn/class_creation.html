@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="aui-font-mode" content="web">
+  <meta name="aui-viewport" content="mode=browser">
+  <meta name="aui-mouse-events" content="intercept">
+  <title>Adventurer's Tome</title>
+  <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+  <link rel="stylesheet" href="choice.css">
+  <link rel="stylesheet" href="class_creation.css">
+</head>
+<body class="ore-theme grimoire">
+  <div class="grimoire-shell">
+
+    <header class="grimoire-header">
+      <div class="emblem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,4 12,6 19,4 19,19 12,21 5,19"/><line x1="12" y1="6" x2="12" y2="21"/></svg></div>
+      <div class="grimoire-headings">
+        <h1 class="grimoire-title"><translation>screen.dndclasses.creation.title</translation></h1>
+        <p class="grimoire-sub">THE ADVENTURER'S TOME | <translation>screen.dndclasses.creation.subtitle</translation></p>
+      </div>
+      <div class="grimoire-badge"><translation>screen.dndclasses.creation.badge</translation></div>
+    </header>
+
+    <main class="grimoire-main">
+
+      <section id="col-left" class="card tome tome-left">
+        <div class="step-tabs">
+          <button id="step-race" class="step-tab active" type="button"><translation>screen.dndclasses.race.tab</translation></button>
+          <button id="step-class" class="step-tab" type="button"><translation>screen.dndclasses.creation.tab_class</translation></button>
+        </div>
+        <div class="card-header"><translation>screen.dndclasses.creation.roster</translation></div>
+        <div class="card-body tome-body tome-body-fixed">
+          <div id="race-list" class="race-list"></div>
+          <div id="class-list" class="class-list hidden"></div>
+        </div>
+      </section>
+
+      <section id="col-mid" class="card tome tome-mid">
+        <div class="card-header" id="detail-header"><translation>screen.dndclasses.creation.detail_title</translation></div>
+        <div class="card-body tome-body tome-body-scroll">
+          <div id="race-detail" class="race-detail"></div>
+          <div id="detail-body" class="hidden"></div>
+        </div>
+        <div id="race-footer" class="card-footer">
+          <button id="race-confirm" class="button confirm-button" type="button" disabled><translation>screen.dndclasses.race.confirm</translation></button>
+          <div id="race-msg" class="confirm-msg"></div>
+        </div>
+      </section>
+
+      <section id="col-right" class="card tome tome-right">
+        <div class="card-header"><translation>screen.dndclasses.creation.ability_points</translation></div>
+        <div class="card-body tome-body tome-body-scroll" id="ability-body"></div>
+        <div class="card-footer">
+          <button id="btn-confirm" class="button confirm-button" type="button" disabled><translation>screen.dndclasses.creation.confirm</translation></button>
+          <div id="confirm-msg" class="confirm-msg"></div>
+        </div>
+      </section>
+
+      <section id="sheet-view" class="card tome sheet-view hidden">
+        <div class="card-header" id="sheet-header"><translation>screen.dndclasses.sheet.character</translation></div>
+        <div class="card-body tome-body tome-body-scroll" id="character-sheet-body"></div>
+        <div id="sheet-actions" class="card-footer sheet-actions">
+          <button id="sheet-asi" class="button confirm-button" type="button"><translation>screen.dndclasses.asi.title</translation></button>
+          <button id="sheet-subclass" class="button confirm-button" type="button"><translation>screen.dndclasses.subclass.title</translation></button>
+        </div>
+      </section>
+
+      <div id="page-loading" class="page-loading hidden"><translation>screen.dndclasses.creation.loading</translation></div>
+
+    </main>
+
+    <footer id="grimoire-footer" class="grimoire-footer">
+      <div id="footer-summary" class="footer-summary"><translation>screen.dndclasses.creation.footer_no_class</translation></div>
+      <div class="rune-row">
+        <span class="rune">8 -> 0</span>
+        <span class="rune">12 -> 4</span>
+        <span class="rune">14 -> 7</span>
+        <span class="rune">15 -> 9</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <input id="class-payload" type="hidden" value="">
+  <input id="sheet-action" type="hidden" value="">
+  <input id="page-state" type="hidden" value="">
+  <input id="race-data" type="hidden" value="">
+
+  <div id="sheet-overlay" class="sheet-overlay">
+    <div class="sheet-modal">
+      <div class="sheet-modal-header"><translation>screen.dndclasses.creation.modal_title</translation></div>
+      <div class="sheet-modal-body" id="sheet-body"></div>
+      <div class="sheet-modal-footer">
+        <button id="sheet-cancel" class="button button-tertiary" type="button"><translation>screen.dndclasses.creation.back</translation></button>
+        <button id="sheet-commit" class="button" type="button"><translation>screen.dndclasses.creation.commit</translation></button>
+      </div>
+    </div>
+  </div>
+
+<script>var dndState = document.getElementById("page-state"); if (dndState) { dndState.value = '{"mode":"create"}'; }</script>
+<script src="class_creation.js"></script>
+<script>if (typeof boot === "function") { boot(); }</script>
+</body>
+</html>
+

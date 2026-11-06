@@ -17,7 +17,8 @@ class EnvironmentParticipantTest {
             List.of(new EncounterRegion.Anchor(member, new EncounterRegion.Point(0,0,0))), 3, 1), Set.of(member));
         var saved = engine.exportSnapshot(); var s = saved.encounters().get(0); var m = s.members().get(0);
         var negative = new EncounterStateSnapshot.MemberState(m.id(), initiative, m.tieBreak(), m.eligibleRound(),
-            m.movementTicks(), m.action(), m.reaction(), m.dodging(), m.disengaged(), m.preserveSpentActionOnNextTurn());
+            m.movementTicks(), m.movementTicksPerTurn(), m.action(), m.reaction(), m.dodging(), m.disengaged(),
+            m.preserveSpentActionOnNextTurn());
         var changed = new EncounterStateSnapshot.EncounterState(s.id(), s.bounds(), s.region(), s.phase(), s.version(),
             s.structuralRevision(), s.round(), s.cursor(), s.environmentRemaining(), s.authorizedEnvironmentStep(),
             s.environmentStepAuthorized(), s.boundaryInitiative(), s.boundaryTieBreak(), List.of(negative), s.hostile(),

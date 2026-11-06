@@ -28,6 +28,12 @@ public final class OverlayUiChecks {
                 "dndturn/tactical.css", new Size(960, 540));
         }
         require(declarations.containsKey("#end-control"), "async stylesheet readiness rule is not parsed by this AUI version");
+        try (var stream = OverlayUiChecks.class.getResourceAsStream("/assets/apricityui/apricity/dndturn/character.css")) {
+            if (stream == null) throw new AssertionError("missing character stylesheet");
+            CSS.readCSS(new String(stream.readAllBytes(), StandardCharsets.UTF_8), declarations,
+                "dndturn/character.css", new Size(960, 540));
+        }
+        require(declarations.containsKey("#character-shell"), "character stylesheet readiness rule is not parsed");
 
         // No Minecraft resource manager is installed in this process. Only document construction
         // uses this stub; DOM mutation and text invalidation are the real dependency implementation.

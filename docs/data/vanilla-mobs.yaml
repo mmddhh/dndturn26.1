@@ -1,0 +1,1129 @@
+# 原版 Mob 设计数据（设计输入，不是活动合同）
+# 来源：C:/Users/mdh/Desktop/原版怪物数据.md（用户提供，2026-11-03）
+# 规则：HP/AC 使用 Minecraft 原生值 1:1；speed_ticks 为每回合移动预算 tick（数据集中的“尺”按 tick 读）。
+# design 字段保留原始 5e 图鉴数据，仅作设计参考，不代表已实现。
+# status: integrated=已有专用适配；generic=仅通用兜底；deferred=Boss/飞行等暂缓
+mobs:
+  - entity: minecraft:creeper
+    name: "苦力怕"
+    size: "中型"
+    type: "怪物"
+    alignment: "无"
+    native:
+      hp: 20
+      ac: 0
+      speed_ticks: 25
+    design:
+      ac: "8"
+      hp_avg: "20"
+      hp_dice: "3d10+4"
+      speed: "25"
+      str: "8"
+      dex: "8"
+      con: "8"
+      int: "3"
+      wis: "4"
+      cha: "4"
+      cr: "1"
+      xp: "200"
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "黑暗视觉30尺，被动察觉7"
+      languages: "无"
+      traits: "易燃易爆：在苦力怕受到火焰伤害后，在其接下来的第二个回合开始时爆炸"
+      actions: "自爆：在苦力怕距离敌人三格时使用，随后在其接下来的第二个回合开始时爆炸"
+    status: integrated
+  - entity: minecraft:drowned
+    name: "溺尸"
+    size: "中型"
+    type: "不死生物"
+    alignment: "中立邪恶"
+    native:
+      hp: 20
+      ac: 2
+      speed_ticks: 20
+    design:
+      ac: "8"
+      hp_avg: "22"
+      hp_dice: "3d8+9"
+      speed: "20"
+      str: "13"
+      dex: "6"
+      con: "16"
+      int: "3"
+      wis: "6"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      resistances: "无"
+      immunities: "毒素、中毒"
+      senses: "黑暗视觉60尺，被动察觉8"
+      languages: "无"
+      traits: "水陆两栖Amphibious。溺尸可以在空气和水中呼吸。 不死坚韧Undead Fortitude。当溺尸因受非光耀或非重击伤害而使其生命值减至0时，它必须进行一次DC为5＋所受伤害值的体质豁免，豁免成功则生命值降至1。 感染：溺尸杀死村民时会将其转化为僵尸村民并恢复其hp至上限"
+      actions: "近战攻击：命中+3，触及5尺，单一目标。命中：4（1d6+1）点钝击伤害。"
+    status: integrated
+  - entity: minecraft:husk
+    name: "尸壳"
+    size: "中型"
+    type: "不死生物"
+    alignment: "中立邪恶"
+    native:
+      hp: 20
+      ac: 2
+      speed_ticks: 20
+    design:
+      ac: "8"
+      hp_avg: "22"
+      hp_dice: "3d8+9"
+      speed: "20"
+      str: "13"
+      dex: "6"
+      con: "16"
+      int: "3"
+      wis: "6"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      resistances: "无"
+      immunities: "毒素、中毒"
+      senses: "黑暗视觉60尺，被动察觉8"
+      languages: "无"
+      traits: "不死坚韧Undead Fortitude。当尸壳因受非光耀或非重击伤害而使其生命值减至0时，它必须进行一次DC为5＋所受伤害值的体质豁免，豁免成功则生命值降至1。 感染：尸壳杀死村民时会将其转化为僵尸村民并恢复其hp至上限"
+      actions: "近战攻击：命中+3，触及5尺，单一目标。命中：4（1d6+1）点钝击伤害。目标必须进行一次DC11的体质豁免，失败则陷入饥饿效果，持续一分钟。"
+    status: integrated
+  - entity: minecraft:phantom
+    name: "幻翼"
+    size: "中型"
+    type: "怪物"
+    alignment: "无"
+    native:
+      hp: 20
+      ac: 0
+      speed_ticks: 60
+    design:
+      ac: "13"
+      hp_avg: "22"
+      hp_dice: "4d10"
+      speed: "飞行60尺"
+      str: "15"
+      dex: "16"
+      con: "11"
+      int: "2"
+      wis: "12"
+      cha: "6"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "黑暗视觉60尺，被动察觉11"
+      languages: "无"
+      traits: "飞出敌人触及范围时不会引发借机攻击"
+      actions: "近战攻击：命中+4，触及5尺，单一生物。命中：4（1d4+2）点穿刺伤害。"
+    status: deferred
+  - entity: minecraft:silverfish
+    name: "蠹虫"
+    size: "小型"
+    type: "野兽"
+    alignment: "无"
+    native:
+      hp: 8
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: "12"
+      hp_avg: "7"
+      hp_dice: "2d6"
+      speed: "30"
+      str: "7"
+      dex: "15"
+      con: "11"
+      int: "2"
+      wis: "10"
+      cha: "4"
+      cr: "1/8"
+      xp: "25"
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "黑暗视觉60尺，被动察觉10"
+      languages: "无"
+      traits: "蠹虫至少有一个未处于失能的蠹虫在目标生物5尺内时，它对该生物发动的攻击检定有优势"
+      actions: "近战攻击：命中+4，触及5尺，单一目标。命中：4（1d4+2）点穿刺伤害。"
+    status: generic
+  - entity: minecraft:enderman
+    name: "末影人"
+    size: "中型"
+    type: "类人生物"
+    alignment: "守序中立"
+    native:
+      hp: 40
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: "15"
+      hp_avg: "40"
+      hp_dice: "5d10+13"
+      speed: "30"
+      str: "15"
+      dex: "16"
+      con: "16"
+      int: "12"
+      wis: "14"
+      cha: "10"
+      cr: "3"
+      xp: "700"
+      saves: "敏捷+5"
+      resistances: "无"
+      immunities: "无"
+      senses: "黑暗视觉60尺，被动察觉10"
+      languages: "通用语（倒放）"
+      traits: "惧水：接触喷溅型/滞留型药水时，受到1d10强酸伤害，在末影人回合开始时，如果其在水中，受到1d10强酸伤害。因上述情况受到伤害时，末影人必须进行一次DC12的感知豁免，失败则必须选择4格半径内的一处安全地块传送。 维度行者：（充能6）如果末影人未处于无法移动的状态，可以消耗一个附赠动作传送到半径15格内的一个安全地块。"
+      actions: "近战攻击：命中+4，触及5尺，单一目标。命中：6（1d8+2）点钝击伤害和2（1d4）挥砍伤害。"
+      reaction: "即将被射弹命中时，可以消耗一次反应，抵消这次伤害"
+    status: integrated
+  - entity: minecraft:slime
+    name: "史莱姆"
+    size: "大型"
+    type: "泥怪"
+    alignment: "无"
+    native:
+      hp: "size^2"
+      ac: 0
+      speed_ticks: 0
+    design:
+      ac: "8"
+      hp_avg: "45"
+      hp_dice: "6d10+12"
+      speed: "0，跳跃移动"
+      str: "15"
+      dex: "6"
+      con: "14"
+      int: "2"
+      wis: "6"
+      cha: "1"
+      cr: "2"
+      xp: "450"
+      saves: "无"
+      resistances: "强酸"
+      immunities: "闪电、挥砍、目盲，魅惑，耳聋，力竭，恐慌，倒地"
+      senses: "盲视60尺（该范围外视为目盲），被动察觉8"
+      languages: "无"
+      traits: "无"
+      actions: "近战攻击：命中+4，触及5尺，单一目标。命中：9（2d6+2）点钝击伤害外加3（1d6）强酸伤害。"
+      reaction: "当一只中型或更大体型的史莱姆受到闪电或挥砍伤害，而此时其生命值至少为10时，它将分裂成两个新的史莱姆。每一只新的史莱姆拥有原史莱姆一半的生命值（向下取整）。新的史莱姆比原来的体型小一级。"
+    status: generic
+    note: "native HP depends on size (size^2); no fixed value"
+  - entity: minecraft:spider
+    name: "蜘蛛"
+    size: "中型"
+    type: "野兽"
+    alignment: "无"
+    native:
+      hp: 16
+      ac: 0
+      speed_ticks: 40
+    design:
+      ac: "13"
+      hp_avg: "11"
+      hp_dice: "2d8+2"
+      speed: "40、攀爬40"
+      str: "12"
+      dex: "16"
+      con: "13"
+      int: "3"
+      wis: "12"
+      cha: "4"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "盲视10尺，黑暗视觉60尺，被动察觉13"
+      languages: "无"
+      skills: "察觉+3，隐匿+7"
+      traits: "蛛行Spider Climb。蜘蛛可以在困难地形的表面攀爬，包括倒吊在天花板上，且不需要进行属性检定。 蛛网感知Web Sense。与蛛网接触时，蜘蛛可以知晓其他与该蛛网接触生物的准确位置。 蛛网行者Web Walker。蜘蛛在蛛网上移动时无视蛛网造成的移动限制。"
+      actions: "近战攻击：命中+3，触及5尺，单一生物。命中：4（1d6+1）点穿刺伤害。"
+    status: generic
+  - entity: minecraft:cave_spider
+    name: "洞穴蜘蛛"
+    size: "中型"
+    type: "野兽"
+    alignment: "无"
+    native:
+      hp: 12
+      ac: 0
+      speed_ticks: 40
+    design:
+      ac: "13"
+      hp_avg: "11"
+      hp_dice: "2d8+2"
+      speed: "40、攀爬40"
+      str: "12"
+      dex: "16"
+      con: "13"
+      int: "3"
+      wis: "12"
+      cha: "4"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "盲视10尺，黑暗视觉60尺，被动察觉13"
+      languages: "无"
+      skills: "察觉+3，隐匿+7"
+      traits: "蛛行Spider Climb。蜘蛛可以在困难地形的表面攀爬，包括倒吊在天花板上，且不需要进行属性检定。 蛛网感知Web Sense。与蛛网接触时，蜘蛛可以知晓其他与该蛛网接触生物的准确位置。 蛛网行者Web Walker。蜘蛛在蛛网上移动时无视蛛网造成的移动限制。"
+      actions: "近战攻击：命中+3，触及5尺，单一生物。命中：4（1d6+1）点穿刺伤害，目标必须进行一次DC 11的体质豁免，豁免失败则受到7（2d6）点毒素伤害，豁免成功则伤害减半。如果该毒素伤害将目标生命值降至0，则目标伤势稳定但中毒1小时。恢复生命值无法让目标摆脱该中毒效应，且其在以该方式中毒期间同时陷入麻痹。"
+    status: generic
+  - entity: minecraft:stray
+    name: "流浪者"
+    size: "中型"
+    type: "不死生物"
+    alignment: "守序邪恶"
+    native:
+      hp: 20
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: "13"
+      hp_avg: "13"
+      hp_dice: "2d8+4"
+      speed: "30"
+      str: "10"
+      dex: "14"
+      con: "15"
+      int: "6"
+      wis: "8"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      vulnerabilities: "钝击"
+      resistances: "无"
+      immunities: "毒素、中毒、力竭"
+      senses: "黑暗视觉60尺，被动察觉9"
+      languages: "无"
+      traits: "无"
+      actions: "远程攻击：命中+4，射程80/320尺，单一目标。命中：5（1d6+2）点穿刺伤害，目标必须进行一次DC 11的体质豁免，豁免失败则在一分钟内速度减少10."
+    status: integrated
+  - entity: minecraft:skeleton
+    name: "骷髅"
+    size: "中型"
+    type: "不死生物"
+    alignment: "守序邪恶"
+    native:
+      hp: 20
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: "13"
+      hp_avg: "13"
+      hp_dice: "2d8+4"
+      speed: "30"
+      str: "10"
+      dex: "14"
+      con: "15"
+      int: "6"
+      wis: "8"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      vulnerabilities: "钝击"
+      resistances: "无"
+      immunities: "毒素、中毒、力竭"
+      senses: "黑暗视觉60尺，被动察觉9"
+      languages: "无"
+      traits: "无"
+      actions: "远程攻击：命中+4，射程80/320尺，单一目标。命中：5（1d6+2）点穿刺伤害。"
+    status: integrated
+  - entity: minecraft:vex
+    name: "恼鬼"
+    size: "小型"
+    type: "不死生物"
+    alignment: "混乱邪恶"
+    native:
+      hp: 14
+      ac: 0
+      speed_ticks: 50
+    design:
+      ac: "12"
+      hp_avg: "10"
+      hp_dice: "2d10"
+      speed: "飞行50尺（悬浮）"
+      str: "1"
+      dex: "12"
+      con: "11"
+      int: "10"
+      wis: "10"
+      cha: "11"
+      cr: "1/2"
+      xp: "100"
+      saves: "无"
+      resistances: "强酸，冷冻，火焰，闪电，雷鸣，非魔法攻击的钝击、 穿刺、挥砍"
+      immunities: "黯蚀，毒素"
+      senses: "黑暗视觉60尺，被动察觉10"
+      languages: "通用语"
+      traits: "恼鬼可以如同穿过困难地形一样穿过其他生物和物件。如果它在自己的回合结束时仍处在物件内部则受到5（1d10）点力场伤害。 恼鬼飞出敌人触及范围时不会引发借机攻击"
+      actions: "近战攻击：命中+4，触及5尺，单一生物。命中：6（3d4）点黯蚀伤害。"
+    status: deferred
+  - entity: minecraft:vindicator
+    name: "卫道士"
+    size: "中型"
+    type: "类人生物"
+    alignment: "混乱邪恶"
+    native:
+      hp: 24
+      ac: 0
+      speed_ticks: 35
+    design:
+      ac: "14"
+      hp_avg: "24"
+      hp_dice: "6d8"
+      speed: "35"
+      str: "16"
+      dex: "13"
+      con: "10"
+      int: "10"
+      wis: "8"
+      cha: "8"
+      cr: "2"
+      xp: "450"
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "被动察觉10"
+      languages: "通用语"
+      traits: "无"
+      actions: "近战攻击：命中+5，触及5尺，单一目标。命中：10（1d12+4）点挥砍伤害。"
+    status: generic
+  - entity: minecraft:witch
+    name: "女巫"
+    size: "中型"
+    type: "类人生物"
+    alignment: "混乱中立"
+    native:
+      hp: 26
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: "12"
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "10"
+      dex: "12"
+      con: "9"
+      int: "14"
+      wis: "12"
+      cha: "10"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "毒素，强酸"
+      immunities: "中毒、失明"
+      senses: "被动察觉11"
+      languages: "通用语"
+      traits: "无"
+      actions: "远程攻击：充能5/6，向某处投掷一瓶剧毒/瞬间伤害药水。"
+    status: generic
+  - entity: minecraft:zombie
+    name: "僵尸"
+    size: "中型"
+    type: "不死生物"
+    alignment: "中立邪恶"
+    native:
+      hp: 20
+      ac: 2
+      speed_ticks: 20
+    design:
+      ac: "8"
+      hp_avg: "22"
+      hp_dice: "3d8+9"
+      speed: "20"
+      str: "13"
+      dex: "6"
+      con: "16"
+      int: "3"
+      wis: "6"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      resistances: "无"
+      immunities: "毒素、中毒"
+      senses: "黑暗视觉60尺，被动察觉8"
+      languages: "无"
+      traits: "不死坚韧Undead Fortitude。当僵尸因受非光耀或非重击伤害而使其生命值减至0时，它必须进行一次DC为5＋所受伤害值的体质豁免，豁免成功则生命值降至1。 感染：僵尸杀死村民时会将其转化为僵尸村民并恢复其hp至上限"
+      actions: "近战攻击：命中+3，触及5尺，单一目标。命中：4（1d6+1）点钝击伤害。"
+    status: integrated
+  - entity: minecraft:zombie_villager
+    name: "僵尸村民"
+    size: "中型"
+    type: "不死生物"
+    alignment: "中立邪恶"
+    native:
+      hp: 20
+      ac: 2
+      speed_ticks: 20
+    design:
+      ac: "8"
+      hp_avg: "22"
+      hp_dice: "3d8+9"
+      speed: "20"
+      str: "13"
+      dex: "6"
+      con: "16"
+      int: "3"
+      wis: "6"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      resistances: "无"
+      immunities: "毒素、中毒"
+      senses: "黑暗视觉60尺，被动察觉8"
+      languages: "无"
+      traits: "不死坚韧Undead Fortitude。当僵尸村民因受非光耀或非重击伤害而使其生命值减至0时，它必须进行一次DC为5＋所受伤害值的体质豁免，豁免成功则生命值降至1。 感染：僵尸村民杀死村民时会将其转化为僵尸村民并恢复其hp至上限"
+      actions: "近战攻击：命中+3，触及5尺，单一目标。命中：4（1d6+1）点钝击伤害。"
+    status: integrated
+  - entity: minecraft:bogged
+    name: "沼骸"
+    size: "中型"
+    type: "不死生物"
+    alignment: "守序邪恶"
+    native:
+      hp: 16
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: "13"
+      hp_avg: "13"
+      hp_dice: "2d8+4"
+      speed: "30"
+      str: "10"
+      dex: "14"
+      con: "15"
+      int: "6"
+      wis: "8"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      vulnerabilities: "钝击"
+      resistances: "无"
+      immunities: "毒素、中毒、力竭"
+      senses: "黑暗视觉60尺，被动察觉9"
+      languages: "无"
+      traits: "无"
+      actions: "远程攻击：命中+4，射程80/320尺，单一目标。命中：5（1d6+2）点穿刺伤害，目标必须进行一次DC 11的体质豁免，豁免失败则在其回合开始时受到2（1d4）毒素伤害，持续三回合."
+    status: integrated
+  - entity: minecraft:parched
+    name: "焦骸"
+    size: "中型"
+    type: "不死生物"
+    alignment: "守序邪恶"
+    native:
+      hp: 16
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: "13"
+      hp_avg: "13"
+      hp_dice: "2d8+4"
+      speed: "30"
+      str: "10"
+      dex: "14"
+      con: "15"
+      int: "6"
+      wis: "8"
+      cha: "5"
+      cr: "1/4"
+      xp: "50"
+      saves: "无"
+      vulnerabilities: "钝击"
+      resistances: "无"
+      immunities: "毒素、中毒、力竭"
+      senses: "黑暗视觉60尺，被动察觉9"
+      languages: "无"
+      traits: "无"
+      actions: "远程攻击：命中+4，射程80/320尺，单一目标。命中：5（1d6+2）点穿刺伤害，目标必须进行一次DC 11的体质豁免，豁免失败则在其回合开始时受到虚弱效果，持续一分钟."
+    status: integrated
+  - entity: minecraft:creaking
+    name: "嘎枝"
+    size: "中型"
+    type: "植物"
+    alignment: "无"
+    native:
+      hp: 1
+      ac: 0
+      speed_ticks: 35
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "35"
+      str: "12"
+      dex: "14"
+      con: "11"
+      int: "3"
+      wis: "6"
+      cha: "10"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "钝击、穿刺、挥砍、强酸、冷冻、火焰、力场、闪电、黯蚀、毒素、心灵、光耀、雷鸣、目盲、魅惑、耳聋、恐慌、擒抱、失能、麻痹、力竭、中毒、倒地、震慑、昏迷"
+      senses: "盲视30"
+      languages: "无"
+      traits: "木头人：当嘎枝与玩家的连线和该玩家视线间的夹角小于60°时，嘎枝才可以进行行动，否则跳过其回合。 嘎枝之心：嘎枝与一颗嘎枝之心绑定，嘎枝之心存在时，嘎枝不会受到任何伤害，命中嘎枝时，会产生粒子指向嘎枝之心的位置。"
+      actions: "近战攻击：命中+4，单一目标。命中5（1d6+2）钝击伤害。"
+    status: generic
+    note: "native HP 1; damage immunity is tied to Creaking Heart"
+  - entity: minecraft:pillager
+    name: "掠夺者"
+    size: "中型"
+    type: "类人生物"
+    alignment: "混乱邪恶"
+    native:
+      hp: 24
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "8"
+      dex: "14"
+      con: "10"
+      int: "10"
+      wis: "9"
+      cha: "8"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "被动察觉9"
+      languages: "通用语"
+      traits: "无"
+      actions: "远程攻击：命中+4，射程80/320尺，单一目标。命中：6（1d6+3）点穿刺伤害"
+    status: generic
+  - entity: minecraft:ravager
+    name: "劫掠兽"
+    size: "大型"
+    type: "怪兽"
+    alignment: "无"
+    native:
+      hp: 100
+      ac: 0
+      speed_ticks: 35
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "35"
+      str: "16"
+      dex: "14"
+      con: "13"
+      int: "3"
+      wis: "12"
+      cha: "4"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "钝击"
+      immunities: "无"
+      senses: "被动察觉11"
+      languages: "无"
+      traits: "无"
+      actions: "近战攻击：命中+6，单一目标。命中：12点钝击伤害。"
+    status: generic
+  - entity: minecraft:warden
+    name: "监守者"
+    size: "大型"
+    type: "怪兽"
+    alignment: "守序中立"
+    native:
+      hp: 500
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "17"
+      dex: "12"
+      con: "14"
+      int: "8"
+      wis: "12"
+      cha: "10"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "非魔法攻击的钝击、穿刺、挥砍"
+      immunities: "目盲"
+      senses: "无视觉，被动察觉11"
+      languages: "无"
+      traits: "循声辩位：监守者能够追踪到声源精确位置，但没有视力。监守者会优先攻击最后一个发出声音的目标。"
+      actions: "多重攻击Multiattack。监守者可以使用两次近战攻击。 近战攻击：命中+8，单一目标。命中：15点钝击伤害 音波尖啸：充能6，发出一道直线20尺音波，对路径内敌人造成20点雷鸣伤害 嗅探：使用后在下一回合开始时得知20半径内所有生物位置"
+    status: deferred
+  - entity: minecraft:blaze
+    name: "烈焰人"
+    size: "中型"
+    type: "元素生物"
+    alignment: "混乱邪恶"
+    native:
+      hp: 20
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30，飞行30（悬浮）"
+      str: "8"
+      dex: "12"
+      con: "13"
+      int: "6"
+      wis: "12"
+      cha: "7"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "火焰"
+      senses: "黑暗视觉60，被动察觉11"
+      languages: "元素语"
+      traits: "火焰本源：烈焰人接触岩浆/岩浆块/火焰时不会受到伤害，也不会被火矢点燃，但是会被雪球和水伤害（3点冷冻伤害）"
+      actions: "近战攻击：命中+3，单一目标。命中：2（1d4）钝击+2点火焰伤害 火球连珠：远程攻击，命中+5，向三个目标射出火球。命中：8点火焰伤害"
+    status: deferred
+  - entity: minecraft:ghast
+    name: "恶魂"
+    size: "大型"
+    type: "不死生物"
+    alignment: "无"
+    native:
+      hp: 10
+      ac: 0
+      speed_ticks: 25
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "飞行25（悬浮）"
+      str: "4"
+      dex: "12"
+      con: "8"
+      int: "3"
+      wis: "10"
+      cha: "2"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "火焰"
+      senses: "黑暗视觉60，被动察觉10"
+      languages: "无"
+      traits: "无"
+      actions: "火球：远程攻击：命中+4，单一目标。命中：6点火焰伤害。无论是否命中，在火球落点产生半径6爆炸，范围内生物必须进行一次敏捷豁免，失败受到10点力场伤害，成功伤害减半。"
+    status: deferred
+  - entity: minecraft:magma_cube
+    name: "岩浆怪"
+    size: "大型"
+    type: "泥怪"
+    alignment: "无"
+    native:
+      hp: "size^2"
+      ac: 0
+      speed_ticks: 0
+    design:
+      ac: "8"
+      hp_avg: "45"
+      hp_dice: "6d10+12"
+      speed: "0，跳跃移动"
+      str: "15"
+      dex: "6"
+      con: "14"
+      int: "2"
+      wis: "6"
+      cha: "1"
+      cr: "2"
+      xp: "450"
+      saves: "无"
+      resistances: "强酸"
+      immunities: "火焰、闪电、挥砍、目盲，魅惑，耳聋，力竭，恐慌，倒地"
+      senses: "盲视60尺（该范围外视为目盲），被动察觉8"
+      languages: "无"
+      traits: "无"
+      actions: "近战攻击：命中+4，触及5尺，单一目标。命中：9（2d6+2）点钝击伤害外加3（1d6）火焰伤害。"
+      reaction: "当一只中型或更大体型的岩浆怪受到闪电或挥砍伤害，而此时其生命值至少为10时，它将分裂成两个新的岩浆怪。每一只新的岩浆怪拥有原岩浆怪一半的生命值（向下取整）。新的岩浆怪比原来的体型小一级。"
+    status: generic
+    note: "native HP depends on size (size^2); no fixed value"
+  - entity: minecraft:piglin_brute
+    name: "猪灵蛮兵"
+    size: "中型"
+    type: "类人生物"
+    alignment: "混乱邪恶"
+    native:
+      hp: 50
+      ac: 0
+      speed_ticks: 35
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "35"
+      str: "16"
+      dex: "12"
+      con: "11"
+      int: "7"
+      wis: "7"
+      cha: "7"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "被动察觉9"
+      languages: "地狱语"
+      traits: "无"
+      actions: "近战攻击：命中+5，单一目标。命中：12点挥砍伤害。"
+    status: generic
+  - entity: minecraft:wither_skeleton
+    name: "凋灵骷髅"
+    size: "中型"
+    type: "不死生物"
+    alignment: "无"
+    native:
+      hp: 20
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "14"
+      dex: "8"
+      con: "12"
+      int: "3"
+      wis: "12"
+      cha: "2"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "黯蚀"
+      senses: "黑暗视觉60，被动察觉11"
+      languages: "无"
+      traits: "无"
+      actions: "近战攻击：命中+5，单一目标。命中：4点挥砍+8点黯蚀"
+    status: integrated
+  - entity: minecraft:piglin
+    name: "猪灵"
+    size: "中型"
+    type: "类人生物"
+    alignment: "混乱邪恶"
+    native:
+      hp: 16
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "12"
+      dex: "10"
+      con: "8"
+      int: "6"
+      wis: "10"
+      cha: "5"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "黑暗视觉60，被动察觉10"
+      languages: "地狱语"
+      traits: "无"
+      actions: "根据手持武器不同进行近战/远程攻击，命中+5，单一目标。命中：造成6点挥砍/穿刺伤害"
+    status: generic
+  - entity: minecraft:hoglin
+    name: "疣猪兽"
+    size: "大型"
+    type: "野兽"
+    alignment: "无"
+    native:
+      hp: 40
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "14"
+      dex: "5"
+      con: "12"
+      int: "3"
+      wis: "10"
+      cha: "10"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "被动察觉10"
+      languages: "无"
+      traits: "会远离诡异菌"
+      actions: "近战攻击：命中+6，单一目标。命中：造成10点穿刺伤害"
+    status: generic
+  - entity: minecraft:zoglin
+    name: "僵尸疣猪兽"
+    size: "大型"
+    type: "不死生物"
+    alignment: "无"
+    native:
+      hp: 40
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "14"
+      dex: "5"
+      con: "12"
+      int: "3"
+      wis: "10"
+      cha: "10"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "被动察觉10"
+      languages: "无"
+      traits: "会远离诡异菌"
+      actions: "近战攻击：命中+6，单一目标。命中：造成10点穿刺伤害"
+    status: generic
+  - entity: minecraft:endermite
+    name: "末影螨"
+    size: "小型"
+    type: "怪兽"
+    alignment: "无"
+    native:
+      hp: 8
+      ac: 0
+      speed_ticks: 25
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "25"
+      str: "4"
+      dex: "15"
+      con: "6"
+      int: "2"
+      wis: "7"
+      cha: "1"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "盲视20，被动察觉7"
+      languages: "无"
+      traits: "无"
+      actions: "近战攻击：命中+2，单一目标。命中：造成2点穿刺伤害"
+    status: generic
+  - entity: minecraft:shulker
+    name: "潜影贝"
+    size: "中型"
+    type: "怪兽"
+    alignment: "无"
+    native:
+      hp: 30
+      ac: 0
+      speed_ticks: 0
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "0"
+      str: "10"
+      dex: "10"
+      con: "10"
+      int: "10"
+      wis: "10"
+      cha: "10"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "火焰、束缚"
+      senses: "被动察觉10"
+      languages: "无"
+      traits: "无"
+      actions: "远程攻击：命中+4，单一目标。命中：3点力场伤害，并给予目标3回合漂浮效果 闭合/开启：合上贝壳，增加10ac，并弹开箭矢，但不能攻击和传送/结束闭合状态 传送：传送至8格（切比雪夫距离）内的一处地点"
+    status: generic
+    note: "open AC 0; closed adds 20 armor (native state)"
+  - entity: minecraft:ender_dragon
+    name: "末影龙"
+    size: "巨型"
+    type: "龙类"
+    alignment: "混乱中立"
+    native:
+      hp: 200
+      ac: 0
+      speed_ticks: 60
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "飞行60（悬浮）"
+      str: "23"
+      dex: "14"
+      con: "21"
+      int: "14"
+      wis: "13"
+      cha: "17"
+      cr: null
+      xp: null
+      saves: "敏捷+7，体质+10，感知+6，魅力+8"
+      resistances: "无"
+      immunities: "强酸"
+      senses: "盲视60尺，黑暗视觉120尺，被动察觉21"
+      languages: "通用语，龙语"
+      traits: "水陆两栖Amphibious。末影龙可以在空气和水中呼吸。 传奇抗性Legendary Resistance（3/日）。末影龙豁免失败时，可以将其改为豁免成功。"
+      actions: "多重攻击Multiattack。末影龙可以先使用它的骇人威仪。然后再发动三次攻击，一次啃咬和两次爪击。 啃咬Bite。近战武器攻击：命中+11，触及10尺，单一目标。命中：17（2d10+6）穿刺伤害，外加4（1d8）强酸伤害。 爪击Claw。近战武器攻击：命中+11，触及5尺，单一目标。命中：13（2d6+6）点挥砍伤害。 尾击Tail。近战武器攻击：命中+11，触及15尺，单一目标。命中：15（2d8+6）点钝击伤害。 骇人威仪Frightful Presence。该黑龙指定周边120尺范围内若干意识到其存在的生物，每个目标都必须进行一次DC 16的感知豁免，豁免失败者将陷入1分钟的恐慌状态。该被恐慌生物可以在其自己回合结束时再进行一次该豁免，豁免成功则终止该生物身上的恐慌效应。豁免成功或身上的该效应结束的生物，将在接下来的24小时内免疫该龙的骇人威仪。 黯蚀吐息Acid Breath（充能5~6）。该末影龙呼出龙息并覆盖一处60尺长5尺宽的线状区域，该区域内的每个生物都必须进行一次DC 18的敏捷豁免，豁免失败者将受到54（12d8）点黯蚀伤害，豁免成功则伤害减半。"
+    status: deferred
+  - entity: minecraft:wither
+    name: "凋灵"
+    size: "大型"
+    type: "不死生物"
+    alignment: "守序邪恶"
+    native:
+      hp: 300
+      ac: 4
+      speed_ticks: 60
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "飞行60（悬浮）"
+      str: "11"
+      dex: "16"
+      con: "16"
+      int: "20"
+      wis: "14"
+      cha: "16"
+      cr: null
+      xp: null
+      saves: "体质+10，智力+12，感知+9"
+      resistances: "冷冻，闪电，黯蚀，非魔法攻击的钝击、穿刺、挥砍"
+      immunities: "毒素、火焰"
+      senses: "真实视觉120尺，被动察觉19"
+      languages: "通用语"
+      traits: "传奇抗性Legendary Resistance（3/日）。凋灵豁免失败时，可以将其改为豁免成功。 抵抗驱散Turn Resistance。凋灵抵抗驱散不死生物效应所做的豁免检定具有优势。 不死本源：凋灵每回合恢复6点生命值，每杀死一个生物恢复5点生命值 悲恸：凋灵生命降至一半以下时，箭矢和三叉戟无法对其造成伤害。 憎恶：一切无来源的环境伤害和闪电伤害会激怒凋灵，使其获得一次发射蓝色凋灵之首的机会"
+      actions: "凋灵之首：远程攻击，命中+10，单一目标。命中：8点黯蚀伤害。无论是否命中，在凋灵之首落点产生半径6爆炸，对范围内生物造成10点黯蚀伤害同时范围内生物必须进行一次敏捷豁免，失败受到10点力场伤害，成功伤害减半。 蓝色凋灵之首：远程攻击，命中+10，单一目标。命中：10点黯蚀伤害。无论是否命中，在蓝色凋灵之首落点产生半径7爆炸，对范围内生物造成10点黯蚀伤害同时范围内生物必须进行一次敏捷豁免，失败受到10点力场伤害，成功伤害减半。"
+    status: deferred
+  - entity: minecraft:elder_guardian
+    name: "远古守卫者"
+    size: "大型"
+    type: "怪兽"
+    alignment: "无"
+    native:
+      hp: 80
+      ac: 0
+      speed_ticks: 35
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "游泳35"
+      str: "13"
+      dex: "12"
+      con: "10"
+      int: "3"
+      wis: "10"
+      cha: "5"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "真实视觉100尺，被动察觉10"
+      languages: "无"
+      traits: "可以在水中呼吸 刺球：每回合开始时对身边5尺的敌人造成3点穿刺伤害"
+      actions: "激光：选中没有遮挡的目标，专注一回合，造成10点力场伤害和8点钝击伤害 疲劳诅咒：充能4/5/6，选中一个目标，造成2分钟挖掘疲劳3"
+    status: generic
+  - entity: minecraft:guardian
+    name: "守卫者"
+    size: ""
+    type: "怪兽"
+    alignment: "无"
+    native:
+      hp: 30
+      ac: 0
+      speed_ticks: 35
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "游泳35"
+      str: "13"
+      dex: "12"
+      con: "10"
+      int: "3"
+      wis: "10"
+      cha: "5"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "被动察觉10"
+      languages: "无"
+      traits: "可以在水中呼吸 刺球：每回合开始时对身边5尺的敌人造成1点穿刺伤害"
+      actions: "激光：选中没有遮挡的目标，专注一回合，造成5点力场伤害和4点钝击伤害"
+    status: generic
+  - entity: minecraft:evoker
+    name: "唤魔者"
+    size: "中型"
+    type: "类人生物"
+    alignment: "混乱邪恶"
+    native:
+      hp: 24
+      ac: 0
+      speed_ticks: 30
+    design:
+      ac: null
+      hp_avg: null
+      hp_dice: null
+      speed: "30"
+      str: "8"
+      dex: "8"
+      con: "12"
+      int: "12"
+      wis: "10"
+      cha: "4"
+      cr: null
+      xp: null
+      saves: "无"
+      resistances: "无"
+      immunities: "无"
+      senses: "被动察觉10"
+      languages: "通用语"
+      traits: "无"
+      actions: "召唤恼鬼：充能6，在身边召唤4只恼鬼，恼鬼在唤魔者行动之后行动 召唤尖牙：发出一道直线10尺音波，对路径内敌人造成10点穿刺伤害"
+    status: generic
