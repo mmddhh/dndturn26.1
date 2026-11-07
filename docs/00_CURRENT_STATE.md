@@ -345,6 +345,7 @@ JDK25 + Java17 toolchain、target Gradle 9.8 的 `build --offline` 最终通过�
 - 开始搭建怪物能力数据底座：新增 `MobDefinition` / `MobAction` / `DamageComponent` / `DamageType` / `MovementMode`。`ContentSnapshot` 现在包含 `mobs`，默认 `dndturn-content/default-mobs.json` 与世界 `dndturn-content/mobs/*.json` 可加载；HP/AC 明确不进入 `MobDefinition`，运行时仍取原生最大生命与原生护甲，速度值直接作为 tick 预算。当前只有 Ghast 的默认样例，尚未接执行/AI/伤害消费。
 - 未提供数据的第三方 Mob 使用默认模板：六维全 10、原生 HP/AC、30 tick 地面速度、+5 命中、10 点钝击近战；现有 `MobAttackProfiles.DEFAULT` 已接入近战/普通箭的 fallback，`MobDefinition.fallback(entityId)` 供后续能力/AI 使用。
 - 新增 `DefenseProfile` 与 `DamagePacket`：多段伤害逐段消费抗性/免疫/易伤，为下一步接 `DamageTrace` 做基础；尚未替换现有 `AttackProfile`。
+- 恶魂已接入第一条特殊怪物能力：`dndturn:ghast_fireball` 使用 +4 远程命中、6 火焰伤害，落点半径 6 内生物进行 DC 15 敏捷豁免，失败 10 力场、成功 5；由显式 `AiDefinition`/`AbilityExecutor` 驱动，`GhastAbilities` 注册 ActorDefinition、能力与 AI。该能力仍是直接结算，不创建原版火球实体，也未写入完整 `DamageTrace` 多段证据。
 - 迁移 classes 的 iron 起始装备并扩展到完整 iron 表；复用 classes 的物品模型，创建页提交时按 `equipment` 列表发放到背包，物品满时掉落。玩家 AC 的 `PlayerArmorRules` 增加对应套装映射；这不包含 classes 的实时投掷、攻击间隔或 Better Combat 兼容。
 - 装备目录扩展到完整 iron 表：37 种武器 + 3 种弹药 + 12 类护甲 × 4 槽；独立 `DNDTurn 装备` 创造页；每个物品带伤害骰/护甲 AC/词条 lore。26.1 使用 `assets/dndturn/items/*.json` 定义模型，classes 的字符串装备数组也按 20 发箭/弩矢发放。物品注册 id 必须保留 `iron_` 前缀，否则模型和起始装备 id 不匹配；显示名采用 classes 的原始名称（铁制不额外加“铁”）。tooltip 的伤害类型、武器词条、护甲类别、力量要求和潜行劣势均使用翻译键。
 - 子职/ASI 页面在窗口 resize 后会重建 Document；客户端现在每次 tick 在 `choice-data` 为空时重新注入数据，避免 resize 后空白。子职名称复用 classes 的 `subclass.dndclasses.*.name` 翻译键。

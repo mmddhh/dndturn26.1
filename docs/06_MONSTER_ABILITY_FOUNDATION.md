@@ -58,12 +58,25 @@ attack = +5, 10 bludgeoning
 - 结果在玩家动作栏显示；
 - 不提供 QTE、不重掷、不自动重试。
 
+## 首个纵向切片：Ghast
+
+`GhastAbilities` 已接入：
+
+- `ActorDefinition` 绑定 Ghast；
+- `dndturn:ghast_fireball` 能力；
+- 显式 `AiDefinition`；
+- +4 远程命中、6 火焰；
+- 落点半径 6 的 DC 15 DEX 豁免；
+- 失败 10 力场 / 成功 5；
+- 结果使用 `SaveService` 与动作栏。
+
+当前是直接结算，不创建原版 `LargeFireball` 实体，也没有把两段伤害写入完整 `DamageTrace`。这属于可玩纵向切片，不是最终的多段证据模型。
+
 ## 还没完成
 
 - 37 个怪物的数据规范化；
 - `DamagePacket` 接入现有伤害链；
 - 条件运行时；
-- `MobAction` 的可执行步骤；
 - 范围/召唤/引导/充能过程；
 - 特殊动作的 AI 语义；
 - 原生特殊攻击 adapter；
@@ -73,4 +86,4 @@ attack = +5, 10 bludgeoning
 
 1. 把 `DamagePacket`/`DefenseProfile` 接入 `DamageTrace`；
 2. 条件定义与运行时；
-3. 以 Ghast 火球打通“范围 + 豁免 + 半伤 + 火焰免疫”的完整纵向切片。
+3. 用 Ghast 火球验证真实客户端、动作栏与伤害结果。

@@ -6,6 +6,7 @@ import cc.sighs.dndturn.platform.server.ai.MovementPorts;
 import cc.sighs.dndturn.platform.server.action.VanillaBehaviors;
 import cc.sighs.dndturn.platform.server.builtin.ai.VanillaAiFamilies;
 import cc.sighs.dndturn.platform.server.builtin.creeper.CreeperAbilities;
+import cc.sighs.dndturn.platform.server.builtin.ghast.GhastAbilities;
 import cc.sighs.dndturn.platform.server.builtin.melee.VanillaMeleeAdapters;
 import cc.sighs.dndturn.platform.server.builtin.skeleton.SkeletonFamily;
 
@@ -18,6 +19,7 @@ public final class BuiltinAdapters {
         VanillaMeleeAdapters.register();
         VanillaBehaviors.register();
         CreeperAbilities.register();
+        GhastAbilities.register();
         SkeletonFamily.register();
         VanillaAiFamilies.register();
         MovementPorts.register(new MovementPorts.Registration(
