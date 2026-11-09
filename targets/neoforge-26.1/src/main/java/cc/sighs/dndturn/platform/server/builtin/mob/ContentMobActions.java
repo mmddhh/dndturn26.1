@@ -35,6 +35,8 @@ import cc.sighs.dndturn.platform.server.character.PlayerArmorRules;
 import cc.sighs.dndturn.platform.server.character.SaveService;
 import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,7 @@ public final class ContentMobActions {
     public static final String ACTOR = "dndturn:content_mob";
     public static final String ACTION = "dndturn:content_action";
     public static final String ACTION_PARAM = "action";
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final java.util.Random RANDOM = new java.util.Random();
     private static final Map<UUID, MobDefinition> ACTOR_DEFINITIONS = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -85,8 +88,11 @@ public final class ContentMobActions {
             }
             public ActorDefinition definition(LiveActorContext actor) {
                 MobDefinition content = contentDefinition(actor);
+                if (content == null) throw new IllegalStateException("content definition disappeared: " + actor.id());
                 if (ACTOR_DEFINITIONS.size() > 4096) ACTOR_DEFINITIONS.clear();
                 ACTOR_DEFINITIONS.put(actor.id(), content);
+                LOGGER.info("content actor {} uses {} actions ({})", content.id(), content.actions().size(),
+                    content.actions().stream().map(MobAction::id).toList());
                 return new ActorDefinition(ACTOR, 1, Set.of(), new FactSlice(Map.of(), Map.of()),
                     List.of(new EffectDefinition.Grant(ACTION, 1)),
                     ActorDefinition.Classification.unspecified(), Map.of());
@@ -104,12 +110,15 @@ public final class ContentMobActions {
     private static AiPlanner.Decision plan(cc.sighs.dndturn.domain.ai.AiDecisionContext context) {
         if (!context.actionAvailable()) return new AiPlanner.EndTurn("NO_ACTION");
         MobDefinition definition = ACTOR_DEFINITIONS.get(context.actor().actor());
-        if (definition == null) return new AiPlanner.EndTurn("NO_CONTENT_DEFINITION");
+        if (definition == null) {
+            LOGGER.warn("content AI missing definition for {}", context.actor().actor());
+            return nativeFallback(context, "NO_CONTENT_DEFINITION");
+        }
         var target = context.perception().actors().stream()
             .filter(t -> t.visible() && t.nativeAttackable() && context.hostile().contains(t.id()))
             .min(Comparator.comparingDouble(PerceptionSnapshot.ObservedActor::distanceSquared)
                 .thenComparing(PerceptionSnapshot.ObservedActor::id)).orElse(null);
-        if (target == null) return new AiPlanner.EndTurn("NO_TARGET");
+        if (target == null) return nativeFallback(context, "NO_TARGET");
         MobAction action = choose(definition, Math.sqrt(target.distanceSquared()));
         if (action != null) {
             var option = context.options().stream()
@@ -121,14 +130,29 @@ public final class ContentMobActions {
                 var source = option != null ? option.binding().source() : binding.source();
                 var targetIntent = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY, context.dimension(),
                     target.id(), null, -1, 0, 0, 0);
-                return new AiPlanner.Propose(new ActionIntent(ACTION, 1, ActionIntent.Hand.MAIN_HAND,
+                LOGGER.info("content AI {} -> {} on {}", definition.id(), action.id(), target.id());
+                return new AiPlanner.Propose(new ActionIntent(ACTION, 1, source.hand(),
                     ActionIntent.Capability.USE_ITEM, targetIntent, source.item(),
                     source, null, CombatRules.RULES_REVISION,
                     Map.of(ACTION_PARAM, action.id())));
             }
         }
+        return nativeFallback(context, action == null ? "NO_CONTENT_IN_RANGE" : "NO_CONTENT_OPTION");
+    }
+
+    /** Keep vanilla adapters usable when the content table has no usable action at this distance. */
+    private static AiPlanner.Decision nativeFallback(cc.sighs.dndturn.domain.ai.AiDecisionContext context, String reason) {
+        var option = context.options().stream()
+            .filter(o -> o.available() && !o.binding().id().equals(ACTION))
+            .filter(o -> o.semantics().contains(AiAffordance.DAMAGE) || o.semantics().contains(AiAffordance.CONTROL)
+                || o.semantics().contains(AiAffordance.DEBUFF)).findFirst().orElse(null);
+        if (option != null) {
+            var target = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY, context.dimension(),
+                option.target(), null, -1, 0, 0, 0);
+            return new AiPlanner.Propose(option.binding().invocation(target));
+        }
         if (context.movementOpportunity() != null) return new AiPlanner.Propose(context.movementOpportunity());
-        return new AiPlanner.EndTurn("OUT_OF_RANGE");
+        return new AiPlanner.EndTurn(reason);
     }
 
     private static boolean supported(MobAction action) {
@@ -200,6 +224,7 @@ public final class ContentMobActions {
             MobDefinition def = contentDefinition(actor);
             MobAction action = actionFor(def, execution.snapshot().intent());
             if (def == null || action == null) throw new IllegalStateException("content action disappeared");
+            LOGGER.info("content action start actor={} action={}", actor.id(), action.id());
             LivingEntity target = (LivingEntity) actor.level().getEntity(execution.snapshot().intent().target().entity());
             String detail;
             if (action.kind() == MobAction.Kind.SUMMON) {
