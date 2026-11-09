@@ -83,8 +83,6 @@ public final class ContentMobActions {
             public String id() { return ACTOR; }
             public int priority() { return 10; }
             public boolean matches(LiveActorContext actor) {
-                String id = BuiltInRegistries.ENTITY_TYPE.getKey(actor.body().getType()).toString();
-                if (id.equals("minecraft:ghast")) return false; // kept on the audited explicit adapter
                 return actor.body() instanceof Mob && contentDefinition(actor) != null
                     && contentDefinition(actor).actions().stream().anyMatch(a -> supported(a));
             }
