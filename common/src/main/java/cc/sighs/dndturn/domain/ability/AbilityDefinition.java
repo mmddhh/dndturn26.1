@@ -59,7 +59,9 @@ public record AbilityDefinition(String id, int version, String label, ActionInte
             throw new IllegalArgumentException("ability learning policy mismatch: " + id);
     }
     public void validateParameters(Map<String, String> values) {
-        if (values.entrySet().stream().anyMatch(e -> !parameters.getOrDefault(e.getKey(), Set.of()).contains(e.getValue())))
-            throw new IllegalArgumentException("unsupported ability parameter");
+        if (values.entrySet().stream().anyMatch(e -> {
+            Set<String> allowed = parameters.getOrDefault(e.getKey(), Set.of());
+            return !allowed.contains("*") && !allowed.contains(e.getValue());
+        })) throw new IllegalArgumentException("unsupported ability parameter");
     }
 }

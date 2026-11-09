@@ -1,13 +1,1191 @@
 {
   "mobs": [
     {
-      "id": "dndturn:ghast",
+      "id": "minecraft:creeper",
       "version": 1,
-      "abilities": { "str": 17, "dex": 17, "con": 10, "int": 10, "wis": 12, "cha": 8 },
+      "abilities": {
+        "str": 8,
+        "dex": 8,
+        "con": 8,
+        "int": 3,
+        "wis": 4,
+        "cha": 4
+      },
       "saves": {},
-      "speeds": { "flying": 60 },
+      "speeds": {
+        "ground": 25
+      },
       "resistances": [],
-      "immunities": ["fire"],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "易爆：受火焰伤害后第二个回合开始爆炸"
+      ],
+      "actions": [],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:drowned",
+      "version": 1,
+      "abilities": {
+        "str": 13,
+        "dex": 6,
+        "con": 16,
+        "int": 3,
+        "wis": 6,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 20,
+        "swimming": 20
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "poisoned"
+      ],
+      "traits": [
+        "水陆两栖",
+        "不死坚韧",
+        "感染"
+      ],
+      "actions": [
+        {
+          "id": "bash",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:husk",
+      "version": 1,
+      "abilities": {
+        "str": 13,
+        "dex": 6,
+        "con": 16,
+        "int": 3,
+        "wis": 6,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 20
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "poisoned"
+      ],
+      "traits": [
+        "不死坚韧",
+        "感染"
+      ],
+      "actions": [
+        {
+          "id": "bash",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ],
+          "condition": "hunger",
+          "duration_rounds": 10
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:phantom",
+      "version": 1,
+      "abilities": {
+        "str": 15,
+        "dex": 16,
+        "con": 11,
+        "int": 2,
+        "wis": 12,
+        "cha": 6
+      },
+      "saves": {},
+      "speeds": {
+        "flying": 60
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "飞出触及范围不引发借机攻击"
+      ],
+      "actions": [
+        {
+          "id": "bite",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:silverfish",
+      "version": 1,
+      "abilities": {
+        "str": 7,
+        "dex": 15,
+        "con": 11,
+        "int": 2,
+        "wis": 10,
+        "cha": 4
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "至少一个未失能蠹虫在目标5尺内时攻击有优势"
+      ],
+      "actions": [
+        {
+          "id": "bite",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:enderman",
+      "version": 1,
+      "abilities": {
+        "str": 15,
+        "dex": 16,
+        "con": 16,
+        "int": 12,
+        "wis": 14,
+        "cha": 10
+      },
+      "saves": {
+        "dex": 5
+      },
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "惧水",
+        "维度行者"
+      ],
+      "actions": [
+        {
+          "id": "slam",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 8,
+              "flat": 2,
+              "type": "bludgeoning"
+            },
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 0,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:slime",
+      "version": 1,
+      "abilities": {
+        "str": 15,
+        "dex": 6,
+        "con": 14,
+        "int": 2,
+        "wis": 6,
+        "cha": 1
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 0
+      },
+      "resistances": [
+        "acid"
+      ],
+      "immunities": [
+        "lightning",
+        "slashing",
+        "bludgeoning",
+        "piercing"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "blinded",
+        "charmed",
+        "deafened",
+        "exhaustion",
+        "frightened",
+        "prone"
+      ],
+      "traits": [
+        "分裂"
+      ],
+      "actions": [
+        {
+          "id": "slam",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 2,
+              "sides": 6,
+              "flat": 2,
+              "type": "bludgeoning"
+            },
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 0,
+              "type": "acid"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:spider",
+      "version": 1,
+      "abilities": {
+        "str": 12,
+        "dex": 16,
+        "con": 13,
+        "int": 3,
+        "wis": 12,
+        "cha": 4
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 40,
+        "climbing": 40
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "蛛行",
+        "蛛网感知",
+        "蛛网行者"
+      ],
+      "actions": [
+        {
+          "id": "bite",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:cave_spider",
+      "version": 1,
+      "abilities": {
+        "str": 12,
+        "dex": 16,
+        "con": 13,
+        "int": 3,
+        "wis": 12,
+        "cha": 4
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 40,
+        "climbing": 40
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "蛛行",
+        "蛛网感知",
+        "蛛网行者"
+      ],
+      "actions": [
+        {
+          "id": "bite",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "piercing"
+            },
+            {
+              "dice": 2,
+              "sides": 6,
+              "flat": 0,
+              "type": "poison"
+            }
+          ],
+          "save_dc": 11,
+          "save_ability": "con",
+          "condition": "poisoned"
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:stray",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 14,
+        "con": 15,
+        "int": 6,
+        "wis": 8,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [
+        "bludgeoning"
+      ],
+      "condition_immunities": [
+        "poisoned",
+        "exhaustion"
+      ],
+      "traits": [],
+      "actions": [
+        {
+          "id": "arrow",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 0,
+          "range_ticks": 80,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ],
+          "save_dc": 11,
+          "save_ability": "con",
+          "condition": "slowed",
+          "duration_rounds": 10
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:skeleton",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 14,
+        "con": 15,
+        "int": 6,
+        "wis": 8,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [
+        "bludgeoning"
+      ],
+      "condition_immunities": [
+        "poisoned",
+        "exhaustion"
+      ],
+      "traits": [],
+      "actions": [
+        {
+          "id": "arrow",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 0,
+          "range_ticks": 80,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:vex",
+      "version": 1,
+      "abilities": {
+        "str": 1,
+        "dex": 12,
+        "con": 11,
+        "int": 10,
+        "wis": 10,
+        "cha": 11
+      },
+      "saves": {},
+      "speeds": {
+        "flying": 50
+      },
+      "resistances": [
+        "acid",
+        "cold",
+        "fire",
+        "lightning",
+        "thunder",
+        "bludgeoning",
+        "piercing",
+        "slashing"
+      ],
+      "immunities": [
+        "necrotic",
+        "poison"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "可穿过生物和物件",
+        "飞出触及范围不引发借机攻击"
+      ],
+      "actions": [
+        {
+          "id": "slash",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 3,
+              "sides": 4,
+              "flat": 0,
+              "type": "necrotic"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:vindicator",
+      "version": 1,
+      "abilities": {
+        "str": 16,
+        "dex": 13,
+        "con": 10,
+        "int": 10,
+        "wis": 8,
+        "cha": 8
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 35
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "axe",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 12,
+              "flat": 4,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:witch",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 12,
+        "con": 9,
+        "int": 14,
+        "wis": 12,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [
+        "poison",
+        "acid"
+      ],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "poisoned",
+        "blinded"
+      ],
+      "traits": [],
+      "actions": [
+        {
+          "id": "potion",
+          "kind": "SAVE_AREA",
+          "range_ticks": 60,
+          "radius_ticks": 3,
+          "damage": [
+            {
+              "dice": 3,
+              "sides": 6,
+              "flat": 0,
+              "type": "poison"
+            }
+          ],
+          "save_ability": "con",
+          "save_dc": 13,
+          "half_on_save": true
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 5,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:zombie",
+      "version": 1,
+      "abilities": {
+        "str": 13,
+        "dex": 6,
+        "con": 16,
+        "int": 3,
+        "wis": 6,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 20
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "poisoned"
+      ],
+      "traits": [
+        "不死坚韧",
+        "感染"
+      ],
+      "actions": [
+        {
+          "id": "bash",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:zombie_villager",
+      "version": 1,
+      "abilities": {
+        "str": 13,
+        "dex": 6,
+        "con": 16,
+        "int": 3,
+        "wis": 6,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 20
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "poisoned"
+      ],
+      "traits": [
+        "不死坚韧",
+        "感染"
+      ],
+      "actions": [
+        {
+          "id": "bash",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:bogged",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 14,
+        "con": 15,
+        "int": 6,
+        "wis": 8,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [
+        "bludgeoning"
+      ],
+      "condition_immunities": [
+        "poisoned",
+        "exhaustion"
+      ],
+      "traits": [],
+      "actions": [
+        {
+          "id": "arrow",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 0,
+          "range_ticks": 80,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            },
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 0,
+              "type": "poison"
+            }
+          ],
+          "condition": "poisoned",
+          "duration_rounds": 3
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:parched",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 14,
+        "con": 15,
+        "int": 6,
+        "wis": 8,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [
+        "poison"
+      ],
+      "vulnerabilities": [
+        "bludgeoning"
+      ],
+      "condition_immunities": [
+        "poisoned",
+        "exhaustion"
+      ],
+      "traits": [],
+      "actions": [
+        {
+          "id": "arrow",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 0,
+          "range_ticks": 80,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ],
+          "condition": "weakness",
+          "duration_rounds": 10
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:creaking",
+      "version": 1,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 11,
+        "int": 3,
+        "wis": 6,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 35
+      },
+      "resistances": [
+        "bludgeoning",
+        "piercing",
+        "slashing",
+        "acid",
+        "cold",
+        "fire",
+        "force",
+        "lightning",
+        "necrotic",
+        "poison",
+        "psychic",
+        "radiant",
+        "thunder"
+      ],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "blinded",
+        "charmed",
+        "deafened",
+        "frightened",
+        "grappled",
+        "incapacitated",
+        "paralyzed",
+        "exhaustion",
+        "poisoned",
+        "prone",
+        "stunned",
+        "unconscious"
+      ],
+      "traits": [
+        "木头人",
+        "嘎枝之心"
+      ],
+      "actions": [
+        {
+          "id": "bash",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:pillager",
+      "version": 1,
+      "abilities": {
+        "str": 8,
+        "dex": 14,
+        "con": 10,
+        "int": 10,
+        "wis": 9,
+        "cha": 8
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "crossbow",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 0,
+          "range_ticks": 80,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 3,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:ravager",
+      "version": 1,
+      "abilities": {
+        "str": 16,
+        "dex": 14,
+        "con": 13,
+        "int": 3,
+        "wis": 12,
+        "cha": 4
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 35
+      },
+      "resistances": [
+        "bludgeoning"
+      ],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "gore",
+          "kind": "ATTACK",
+          "attack_bonus": 6,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 12,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:warden",
+      "version": 1,
+      "abilities": {
+        "str": 17,
+        "dex": 12,
+        "con": 14,
+        "int": 8,
+        "wis": 12,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [
+        "bludgeoning",
+        "piercing",
+        "slashing"
+      ],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "blinded"
+      ],
+      "traits": [
+        "循声辩位"
+      ],
+      "actions": [
+        {
+          "id": "slam",
+          "kind": "ATTACK",
+          "attack_bonus": 8,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 15,
+              "type": "bludgeoning"
+            }
+          ]
+        },
+        {
+          "id": "sonic_boom",
+          "kind": "SAVE_AREA",
+          "range_ticks": 20,
+          "radius_ticks": 1,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 20,
+              "type": "thunder"
+            }
+          ],
+          "save_ability": "con",
+          "save_dc": 18,
+          "half_on_save": true
+        }
+      ],
+      "multiattack": 2,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:blaze",
+      "version": 1,
+      "abilities": {
+        "str": 8,
+        "dex": 12,
+        "con": 13,
+        "int": 6,
+        "wis": 12,
+        "cha": 7
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30,
+        "flying": 30
+      },
+      "resistances": [],
+      "immunities": [
+        "fire"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "火焰本源"
+      ],
+      "actions": [
+        {
+          "id": "slam",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 0,
+              "type": "bludgeoning"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 2,
+              "type": "fire"
+            }
+          ]
+        },
+        {
+          "id": "fireball_volley",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 0,
+          "range_ticks": 60,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 8,
+              "type": "fire"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:ghast",
+      "version": 1,
+      "abilities": {
+        "str": 4,
+        "dex": 12,
+        "con": 8,
+        "int": 3,
+        "wis": 10,
+        "cha": 2
+      },
+      "saves": {},
+      "speeds": {
+        "flying": 25
+      },
+      "resistances": [],
+      "immunities": [
+        "fire"
+      ],
       "vulnerabilities": [],
       "condition_immunities": [],
       "traits": [],
@@ -16,18 +1194,806 @@
           "id": "fireball",
           "kind": "SAVE_AREA",
           "range_ticks": 60,
+          "radius_ticks": 6,
           "damage": [
-            { "dice": 1, "sides": 6, "flat": 0, "type": "fire" },
-            { "dice": 0, "sides": 0, "flat": 10, "type": "force" }
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 0,
+              "type": "fire"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "force"
+            }
           ],
           "save_ability": "dex",
           "save_dc": 15,
-          "half_on_save": true,
-          "radius_ticks": 6
+          "half_on_save": true
         }
       ],
       "multiattack": 1,
       "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:magma_cube",
+      "version": 1,
+      "abilities": {
+        "str": 15,
+        "dex": 6,
+        "con": 14,
+        "int": 2,
+        "wis": 6,
+        "cha": 1
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 0
+      },
+      "resistances": [
+        "acid"
+      ],
+      "immunities": [
+        "fire",
+        "lightning",
+        "slashing",
+        "bludgeoning",
+        "piercing"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "blinded",
+        "charmed",
+        "deafened",
+        "exhaustion",
+        "frightened",
+        "prone"
+      ],
+      "traits": [
+        "分裂"
+      ],
+      "actions": [
+        {
+          "id": "slam",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 2,
+              "sides": 6,
+              "flat": 2,
+              "type": "bludgeoning"
+            },
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 0,
+              "type": "fire"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:piglin_brute",
+      "version": 1,
+      "abilities": {
+        "str": 16,
+        "dex": 12,
+        "con": 11,
+        "int": 7,
+        "wis": 7,
+        "cha": 7
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 35
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "axe",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 12,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:wither_skeleton",
+      "version": 1,
+      "abilities": {
+        "str": 14,
+        "dex": 8,
+        "con": 12,
+        "int": 3,
+        "wis": 12,
+        "cha": 2
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [
+        "necrotic"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "sword",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 4,
+              "type": "slashing"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 8,
+              "type": "necrotic"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:piglin",
+      "version": 1,
+      "abilities": {
+        "str": 12,
+        "dex": 10,
+        "con": 8,
+        "int": 6,
+        "wis": 10,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "weapon",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 6,
+              "type": "slashing"
+            }
+          ]
+        },
+        {
+          "id": "crossbow",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 0,
+          "range_ticks": 80,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 6,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:hoglin",
+      "version": 1,
+      "abilities": {
+        "str": 14,
+        "dex": 5,
+        "con": 12,
+        "int": 3,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "远离诡异菌"
+      ],
+      "actions": [
+        {
+          "id": "gore",
+          "kind": "ATTACK",
+          "attack_bonus": 6,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:zoglin",
+      "version": 1,
+      "abilities": {
+        "str": 14,
+        "dex": 5,
+        "con": 12,
+        "int": 3,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "远离诡异菌"
+      ],
+      "actions": [
+        {
+          "id": "gore",
+          "kind": "ATTACK",
+          "attack_bonus": 6,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:endermite",
+      "version": 1,
+      "abilities": {
+        "str": 4,
+        "dex": 15,
+        "con": 6,
+        "int": 2,
+        "wis": 7,
+        "cha": 1
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 25
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "bite",
+          "kind": "ATTACK",
+          "attack_bonus": 2,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:shulker",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 0
+      },
+      "resistances": [],
+      "immunities": [
+        "fire"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [
+        "restrained"
+      ],
+      "traits": [],
+      "actions": [
+        {
+          "id": "bullet",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 0,
+          "range_ticks": 60,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 3,
+              "type": "force"
+            }
+          ],
+          "condition": "levitating",
+          "duration_rounds": 3
+        },
+        {
+          "id": "close",
+          "kind": "SPECIAL",
+          "condition": "closed"
+        },
+        {
+          "id": "teleport",
+          "kind": "SPECIAL"
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:ender_dragon",
+      "version": 1,
+      "abilities": {
+        "str": 23,
+        "dex": 14,
+        "con": 21,
+        "int": 14,
+        "wis": 13,
+        "cha": 17
+      },
+      "saves": {
+        "dex": 7,
+        "con": 10,
+        "wis": 6,
+        "cha": 8
+      },
+      "speeds": {
+        "flying": 60
+      },
+      "resistances": [],
+      "immunities": [
+        "acid"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "水陆两栖",
+        "传奇抗性3/日"
+      ],
+      "actions": [
+        {
+          "id": "bite",
+          "kind": "ATTACK",
+          "attack_bonus": 11,
+          "reach_ticks": 10,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 2,
+              "sides": 10,
+              "flat": 6,
+              "type": "piercing"
+            },
+            {
+              "dice": 1,
+              "sides": 8,
+              "flat": 0,
+              "type": "acid"
+            }
+          ]
+        },
+        {
+          "id": "claw",
+          "kind": "ATTACK",
+          "attack_bonus": 11,
+          "reach_ticks": 5,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 2,
+              "sides": 6,
+              "flat": 6,
+              "type": "slashing"
+            }
+          ]
+        },
+        {
+          "id": "tail",
+          "kind": "ATTACK",
+          "attack_bonus": 11,
+          "reach_ticks": 15,
+          "range_ticks": 0,
+          "damage": [
+            {
+              "dice": 2,
+              "sides": 8,
+              "flat": 6,
+              "type": "bludgeoning"
+            }
+          ]
+        },
+        {
+          "id": "acid_breath",
+          "kind": "SAVE_AREA",
+          "range_ticks": 60,
+          "radius_ticks": 5,
+          "damage": [
+            {
+              "dice": 12,
+              "sides": 8,
+              "flat": 0,
+              "type": "necrotic"
+            }
+          ],
+          "save_ability": "dex",
+          "save_dc": 18,
+          "half_on_save": true
+        }
+      ],
+      "multiattack": 3,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:wither",
+      "version": 1,
+      "abilities": {
+        "str": 11,
+        "dex": 16,
+        "con": 16,
+        "int": 20,
+        "wis": 14,
+        "cha": 16
+      },
+      "saves": {
+        "con": 10,
+        "int": 12,
+        "wis": 9
+      },
+      "speeds": {
+        "flying": 60
+      },
+      "resistances": [
+        "cold",
+        "lightning",
+        "necrotic",
+        "bludgeoning",
+        "piercing",
+        "slashing"
+      ],
+      "immunities": [
+        "poison",
+        "fire"
+      ],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "传奇抗性3/日",
+        "不死本源",
+        "悲恸",
+        "憎恶"
+      ],
+      "actions": [
+        {
+          "id": "wither_head",
+          "kind": "ATTACK",
+          "attack_bonus": 10,
+          "reach_ticks": 0,
+          "range_ticks": 60,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 8,
+              "type": "necrotic"
+            }
+          ]
+        },
+        {
+          "id": "wither_burst",
+          "kind": "SAVE_AREA",
+          "range_ticks": 60,
+          "radius_ticks": 6,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "necrotic"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "force"
+            }
+          ],
+          "save_ability": "dex",
+          "save_dc": 15,
+          "half_on_save": true
+        },
+        {
+          "id": "blue_wither_head",
+          "kind": "ATTACK",
+          "attack_bonus": 10,
+          "reach_ticks": 0,
+          "range_ticks": 60,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "necrotic"
+            }
+          ]
+        },
+        {
+          "id": "blue_burst",
+          "kind": "SAVE_AREA",
+          "range_ticks": 60,
+          "radius_ticks": 7,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "necrotic"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "force"
+            }
+          ],
+          "save_ability": "dex",
+          "save_dc": 15,
+          "half_on_save": true
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:elder_guardian",
+      "version": 1,
+      "abilities": {
+        "str": 13,
+        "dex": 12,
+        "con": 10,
+        "int": 3,
+        "wis": 10,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "swimming": 35
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "水中呼吸",
+        "刺球"
+      ],
+      "actions": [
+        {
+          "id": "laser",
+          "kind": "ATTACK",
+          "attack_bonus": 0,
+          "reach_ticks": 0,
+          "range_ticks": 30,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "force"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 8,
+              "type": "bludgeoning"
+            }
+          ]
+        },
+        {
+          "id": "curse",
+          "kind": "SAVE_AREA",
+          "range_ticks": 30,
+          "radius_ticks": 1,
+          "damage": [],
+          "save_ability": "wis",
+          "save_dc": 15,
+          "half_on_save": false,
+          "condition": "mining_fatigue",
+          "duration_rounds": 20
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:guardian",
+      "version": 1,
+      "abilities": {
+        "str": 13,
+        "dex": 12,
+        "con": 10,
+        "int": 3,
+        "wis": 10,
+        "cha": 5
+      },
+      "saves": {},
+      "speeds": {
+        "swimming": 35
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [
+        "水中呼吸",
+        "刺球"
+      ],
+      "actions": [
+        {
+          "id": "laser",
+          "kind": "ATTACK",
+          "attack_bonus": 0,
+          "reach_ticks": 0,
+          "range_ticks": 30,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 5,
+              "type": "force"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 4,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:evoker",
+      "version": 1,
+      "abilities": {
+        "str": 8,
+        "dex": 8,
+        "con": 12,
+        "int": 12,
+        "wis": 10,
+        "cha": 4
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "summon_vex",
+          "kind": "SUMMON",
+          "range_ticks": 8,
+          "summon_id": "minecraft:vex",
+          "summon_count": 4
+        },
+        {
+          "id": "fang_line",
+          "kind": "ATTACK",
+          "attack_bonus": 0,
+          "reach_ticks": 0,
+          "range_ticks": 10,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 6,
       "legendary_resistance": 0
     }
   ]

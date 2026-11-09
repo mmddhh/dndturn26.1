@@ -72,14 +72,29 @@ attack = +5, 10 bludgeoning
 
 当前是直接结算，不创建原版 `LargeFireball` 实体，也没有把两段伤害写入完整 `DamageTrace`。这属于可玩纵向切片，不是最终的多段证据模型。
 
+## 通用内容动作
+
+`ContentMobActions` 为内容表中有动作的 Mob 提供通用能力：
+
+- `ATTACK`：d20 + 动作命中，对 AC 结算 `DamagePacket`；
+- `SAVE_AREA`：在目标点半径内逐个豁免，成功半伤；
+- `SUMMON`：按 `summon_id` / `summon_count` 生成实体；
+- 支持 `MobDefinition.multiattack` 对攻击动作重复；
+- 每个遭遇使用 `EncounterContentCache` 固定的内容快照，不随实时 reload 改义。
+
+默认 `default-mobs.json` 已规范化 37 个怪物条目。执行器仍不处理：
+
+- 条件/持续伤害的完整运行时；
+- 反应、传奇动作、传奇抗性；
+- 传送、闭壳、引导等 `SPECIAL` / `CHANNEL` 语义；
+- 完整的逐段 `DamageTrace` 证据。
+
 ## 还没完成
 
-- 37 个怪物的数据规范化；
-- `DamagePacket` 接入现有伤害链；
 - 条件运行时；
-- 范围/召唤/引导/充能过程；
-- 特殊动作的 AI 语义；
-- 原生特殊攻击 adapter；
+- 反应/传奇动作/传奇抗性；
+- 引导、传送、闭壳等特殊动作；
+- `DamagePacket` 接入完整 `DamageTrace`；
 - 行为级测试与实机验收。
 
 ## 下一步

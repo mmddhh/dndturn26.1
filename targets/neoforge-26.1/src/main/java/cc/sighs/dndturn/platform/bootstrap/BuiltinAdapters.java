@@ -8,6 +8,7 @@ import cc.sighs.dndturn.platform.server.builtin.ai.VanillaAiFamilies;
 import cc.sighs.dndturn.platform.server.builtin.creeper.CreeperAbilities;
 import cc.sighs.dndturn.platform.server.builtin.ghast.GhastAbilities;
 import cc.sighs.dndturn.platform.server.builtin.melee.VanillaMeleeAdapters;
+import cc.sighs.dndturn.platform.server.builtin.mob.ContentMobActions;
 import cc.sighs.dndturn.platform.server.builtin.skeleton.SkeletonFamily;
 
 /** Composition root installs builtins through the same registration contracts as extensions. */
@@ -20,6 +21,7 @@ public final class BuiltinAdapters {
         VanillaBehaviors.register();
         CreeperAbilities.register();
         GhastAbilities.register();
+        ContentMobActions.register();
         SkeletonFamily.register();
         VanillaAiFamilies.register();
         MovementPorts.register(new MovementPorts.Registration(
