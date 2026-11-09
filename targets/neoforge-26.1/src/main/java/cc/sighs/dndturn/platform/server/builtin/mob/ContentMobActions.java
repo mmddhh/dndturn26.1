@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -62,6 +63,7 @@ public final class ContentMobActions {
     public static final String ACTION_PARAM = "action";
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final java.util.Random RANDOM = new java.util.Random();
+    private static final Map<UUID, Map<String, Long>> COOLDOWNS = new java.util.concurrent.ConcurrentHashMap<>();
     private static final Map<UUID, MobDefinition> ACTOR_DEFINITIONS = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static final AbilityDefinition DEFINITION = new AbilityDefinition(
@@ -119,7 +121,8 @@ public final class ContentMobActions {
             .min(Comparator.comparingDouble(PerceptionSnapshot.ObservedActor::distanceSquared)
                 .thenComparing(PerceptionSnapshot.ObservedActor::id)).orElse(null);
         if (target == null) return nativeFallback(context, "NO_TARGET");
-        MobAction action = choose(definition, Math.sqrt(target.distanceSquared()));
+        MobAction action = choose(definition, Math.sqrt(target.distanceSquared()),
+            context.actor().actor(), context.runtime().round());
         if (action != null) {
             var option = context.options().stream()
                 .filter(o -> o.target().equals(target.id()) && o.available() && o.binding().id().equals(ACTION))
@@ -173,9 +176,11 @@ public final class ContentMobActions {
         return content == null ? CharacterContentService.current() : content.content();
     }
 
-    static MobAction choose(MobDefinition definition, double distance) {
+    static MobAction choose(MobDefinition definition, double distance, UUID actor, long round) {
+        Map<String, Long> ready = COOLDOWNS.getOrDefault(actor, Map.of());
         return definition.actions().stream()
             .filter(ContentMobActions::supported)
+            .filter(a -> ready.getOrDefault(a.id(), 0L) <= round)
             .filter(a -> distance <= range(a))
             .findFirst().orElse(null);
     }
@@ -228,11 +233,20 @@ public final class ContentMobActions {
             LivingEntity target = (LivingEntity) actor.level().getEntity(execution.snapshot().intent().target().entity());
             String detail;
             if (action.kind() == MobAction.Kind.SUMMON) {
-                detail = summon(actor.body(), action);
+                detail = summon(actions, actor, target, action);
             } else if (action.kind() == MobAction.Kind.SAVE_AREA) {
-                detail = area(actor.body(), target, action);
+                detail = area(actions, actor, execution, target, action);
             } else {
-                detail = attack(actor.body(), target, action, def.multiattack());
+                detail = attack(actions, actor, execution, target, action, def.multiattack());
+            }
+            int recharge = Math.max(action.rechargeMin(), def.rechargeMin());
+            if (recharge > 0) {
+                var runtime = ServerRuntime.existingEncounter(actor.level().getServer());
+                var encounter = runtime == null ? null : runtime.encounterOf(actor.id());
+                if (runtime != null && encounter != null) {
+                    COOLDOWNS.computeIfAbsent(actor.id(), ignored -> new java.util.concurrent.ConcurrentHashMap<>())
+                        .put(action.id(), runtime.state(encounter).round() + recharge);
+                }
             }
             actions.finishAction(actor.body(), execution, OperationRecord.Outcome.COMPLETED, detail);
         }
@@ -244,7 +258,10 @@ public final class ContentMobActions {
         }
     }
 
-    private static String attack(LivingEntity actor, LivingEntity target, MobAction action, int multiattack) {
+    private static String attack(ActionExecutionCoordinator actions, LiveActorContext actorContext,
+                                 ActionExecutionCoordinator.Execution execution, LivingEntity target,
+                                 MobAction action, int multiattack) {
+        LivingEntity actor = actorContext.body();
         int attacks = action.kind() == MobAction.Kind.ATTACK ? Math.max(1, multiattack) : 1;
         StringBuilder result = new StringBuilder("action=").append(action.id()).append(" attacks=").append(attacks);
         for (int i = 0; i < attacks && target.isAlive(); i++) {
@@ -254,7 +271,7 @@ public final class ContentMobActions {
             if (roll.hit()) amount = packet(actor, target, action);
             result.append(" roll=").append(roll.total()).append(" ac=").append(ac)
                 .append(" hit=").append(roll.hit()).append(" damage=").append(amount);
-            if (amount > 0) target.hurt(actor.level().damageSources().mobAttack(actor), amount);
+            if (amount > 0) actions.damage(actorContext, execution, target, amount, false);
             if (roll.hit()) {
                 boolean applies = true;
                 if (action.saveAbility() != null && action.saveDc() > 0)
@@ -265,7 +282,9 @@ public final class ContentMobActions {
         return result.toString();
     }
 
-    private static String area(LivingEntity actor, LivingEntity center, MobAction action) {
+    private static String area(ActionExecutionCoordinator actions, LiveActorContext actorContext,
+                               ActionExecutionCoordinator.Execution execution, LivingEntity center, MobAction action) {
+        LivingEntity actor = actorContext.body();
         if (action.saveAbility() == null) return "action=" + action.id() + " missing save";
         AABB box = center.getBoundingBox().inflate(Math.max(1, action.radiusTicks()));
         int affected = 0;
@@ -275,7 +294,7 @@ public final class ContentMobActions {
             int amount = packet(actor, target, action);
             if (save.success() && action.halfOnSave()) amount /= 2;
             else if (save.success()) amount = 0;
-            if (amount > 0) target.hurt(actor.level().damageSources().mobAttack(actor), amount);
+            if (amount > 0) actions.damage(actorContext, execution, target, amount, false);
             if (!save.success()) applyCondition(target, action);
             affected++;
         }
@@ -299,18 +318,27 @@ public final class ContentMobActions {
         target.addEffect(new MobEffectInstance(net.minecraft.core.Holder.direct(effect), duration, 0));
     }
 
-    private static String summon(LivingEntity actor, MobAction action) {
+    private static String summon(ActionExecutionCoordinator actions, LiveActorContext actorContext,
+                                  LivingEntity target, MobAction action) {
+        LivingEntity actor = actorContext.body();
         if (action.summonId() == null || action.summonCount() <= 0) return "action=" + action.id() + " no summon";
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(
             net.minecraft.resources.Identifier.parse(action.summonId())).orElse(null);
         if (type == null) return "action=" + action.id() + " unknown summon " + action.summonId();
+        var runtime = ServerRuntime.existingEncounter(actor.level().getServer());
+        var encounter = runtime == null ? null : runtime.encounterOf(actorContext.id());
+        net.minecraft.server.level.ServerPlayer owner = target instanceof ServerPlayer player
+            ? player : actor.level().getNearestPlayer(actor, 32) instanceof ServerPlayer nearest ? nearest : null;
         int count = 0;
         for (int i = 0; i < action.summonCount(); i++) {
             Entity entity = type.create(actor.level(), net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
-            if (entity == null) continue;
-            entity.snapTo(actor.getX() + (i % 3) * .8, actor.getY(), actor.getZ() + (i / 3) * .8,
+            if (!(entity instanceof Mob mob)) continue;
+            mob.snapTo(actor.getX() + (i % 3) * .8, actor.getY(), actor.getZ() + (i / 3) * .8,
                 actor.getYRot(), 0);
-            if (actor.level().addFreshEntity(entity)) count++;
+            if (!actor.level().addFreshEntity(mob)) continue;
+            if (owner != null && encounter != null) actions.joinGeneratedMob(owner, mob, encounter);
+            if (target instanceof ServerPlayer player && mob.canAttack(player)) mob.setTarget(player);
+            count++;
         }
         return "action=" + action.id() + " summoned=" + count;
     }

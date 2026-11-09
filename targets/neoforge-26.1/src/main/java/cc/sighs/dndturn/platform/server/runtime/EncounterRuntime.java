@@ -95,6 +95,10 @@ public final class EncounterRuntime {
     private final ActionCombat actionCombat = new ActionCombat() {
         public OperationRecord.Result attackPlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
         java.util.function.Consumer<OperationRecord.Result> complete) { return EncounterRuntime.this.attackPlan(context, target, operation, parent, complete); }
+        public OperationRecord.Result damagePlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
+        float amount, boolean knockback, java.util.function.Consumer<OperationRecord.Result> complete) {
+            return combat.damagePlan(context, target, operation, parent, amount, knockback, complete);
+        }
         public DamageTrace rangedTrace(LivingEntity actor, UUID target, UUID operation, boolean opening) { return EncounterRuntime.this.rangedTrace(actor, target, operation, opening); }
     };
     private final ActionEffects actionEffects = new ActionEffects() {

@@ -343,6 +343,53 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             }
         }
     }
+
+    public OperationRecord.Result damagePlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
+                                             float amount, boolean knockback,
+                                             java.util.function.Consumer<OperationRecord.Result> complete) {
+        requireThread();
+        context.verifyCurrent();
+        LivingEntity actor = context.body();
+        if (!(actor.level().getEntity(target) instanceof LivingEntity living) || !living.isAlive())
+            throw new IllegalStateException("damage target unavailable");
+        UUID encounterId = engine.encounterOf(actor.getUUID());
+        if (encounterId == null || parent == null) throw new IllegalStateException("damage has no plan parent");
+        StateView state = engine.stateView(encounterId);
+        UUID permitId = UUID.randomUUID();
+        OperationRecord.Snapshot snapshot = host.operationSnapshot(operation, parent, encounterId,
+            actor.getUUID(), actor.getUUID(), target, host.clock(), state.version(),
+            new GridCell(actor.blockPosition().getX(), actor.blockPosition().getY(), actor.blockPosition().getZ()),
+            new GridCell(living.blockPosition().getX(), living.blockPosition().getY(), living.blockPosition().getZ()),
+            OperationRecord.Kind.DAMAGE);
+        engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permitId, encounterId, operation,
+            actor.getUUID(), Set.of(target), Set.of(EncounterPhase.ACTIVE), 1, state.round()));
+        if (!engine.beginOperation(snapshot, permitId)) throw new IllegalStateException("damage permit rejected");
+        host.swing(actor, encounterId, operation, net.minecraft.world.InteractionHand.MAIN_HAND);
+        if (!(actor.level() instanceof net.minecraft.server.level.ServerLevel level))
+            throw new IllegalStateException("damage requires a server level");
+        var source = level.damageSources().source(TacticalDamageContext.DAMAGE_TYPE, actor);
+        float before = living.getHealth();
+        outcomes.enterOutcome();
+        try {
+            var observed = TacticalDamageContext.hurtObserved(level, living, source, amount, knockback, operation, this);
+            float loss = Math.max(0, before - living.getHealth());
+            OperationRecord.Outcome outcome = observed.accepted() ? OperationRecord.Outcome.COMPLETED
+                : loss > 0 ? OperationRecord.Outcome.PARTIAL : OperationRecord.Outcome.REJECTED;
+            var result = engine.publish(encounterId, operation, 0, outcome,
+                "content damage amount=" + amount + " accepted=" + observed.accepted(), 0, loss, true);
+            complete.accept(result);
+            return result;
+        } catch (RuntimeException failure) {
+            var result = engine.publish(encounterId, operation, 0, OperationRecord.Outcome.UNKNOWN,
+                "content damage outcome unknown: " + failure.getClass().getSimpleName(), 0, 0, true);
+            complete.accept(result);
+            return result;
+        } finally {
+            outcomes.exitOutcome();
+            if (outcomes.outcomeDepth() == 0) outcomes.flushWorldOutcome();
+        }
+    }
+
     private OperationRecord.Result attack(LivingEntity actor, UUID targetId,
                                           UUID operationId, long expectedVersion, UUID planParent, boolean intrusion) {
         requireThread();

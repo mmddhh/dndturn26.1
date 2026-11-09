@@ -668,6 +668,19 @@ public final class ActionExecutionCoordinator {
         DebugDiagnostics.log("STEP_ACCEPTED", () -> "op=" + snapshot.operationId() + " parent=" + root.operationId()
             + " actor=" + root.owner() + " target=" + root.target() + " kind=" + snapshot.kind());
     }
+
+    /** Apply a data-driven damage amount through a bounded damage child, never a raw target.hurt call. */
+    public void damage(LiveActorContext actor, Execution execution, LivingEntity target, float amount, boolean knockback) {
+        UUID parent = execution.actionOperation();
+        if (parent == null) throw new IllegalStateException("damage requires an accepted action step");
+        combat.damagePlan(actor, target.getUUID(), UUID.randomUUID(), parent, amount, knockback, result -> {});
+    }
+
+    /** Admit a mob created by a summon action into the current encounter. */
+    public void joinGeneratedMob(net.minecraft.server.level.ServerPlayer owner, net.minecraft.world.entity.Mob mob,
+                                 UUID encounter) {
+        effects.joinGeneratedMob(owner, mob, encounter);
+    }
     public void accept(LivingEntity player, Execution execution, String reason) {
         DebugDiagnostics.log("BEHAVIOR_ACCEPTED", () -> "op=" + execution.root.operationId()
             + " child=" + execution.action + " reason=" + reason);

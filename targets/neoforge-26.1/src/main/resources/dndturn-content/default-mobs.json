@@ -1974,7 +1974,8 @@
           "kind": "SUMMON",
           "range_ticks": 8,
           "summon_id": "minecraft:vex",
-          "summon_count": 4
+          "summon_count": 4,
+          "recharge_min": 6
         },
         {
           "id": "fang_line",

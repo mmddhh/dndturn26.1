@@ -9,5 +9,8 @@ import cc.sighs.dndturn.domain.encounter.operation.DamageTrace;
 public interface ActionCombat {
     OperationRecord.Result attackPlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
         java.util.function.Consumer<OperationRecord.Result> complete);
+    /** A bounded damage child for a data-driven monster action; no attack roll or native damage bypass. */
+    OperationRecord.Result damagePlan(LiveActorContext context, UUID target, UUID operation, UUID parent,
+        float amount, boolean knockback, java.util.function.Consumer<OperationRecord.Result> complete);
     DamageTrace rangedTrace(LivingEntity actor, UUID target, UUID operation, boolean opening);
 }
