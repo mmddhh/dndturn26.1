@@ -115,6 +115,7 @@ public final class ActionExecutionCoordinator {
         Set<Integer> observedSlots = Set.of();
         AbilityCheckpoint.Sample before, observed;
         List<NativeObservation> nativeObservations = List.of();
+        final Map<UUID, cc.sighs.dndturn.domain.encounter.operation.ResolvedDamageStep> damageSteps = new LinkedHashMap<>();
         final List<AbilityCheckpoint.Spawn> spawned = new ArrayList<>();
         AimGeometry.Aim aimBefore, plannedAim;
         TacticalImpact.Prepared preparedImpact;
@@ -658,6 +659,7 @@ public final class ActionExecutionCoordinator {
         if (executions.get(player.getUUID()) == execution) checkpoint(execution);
             }
     }
+    public void worldOutcome(Runnable action) { worldOutcomes.completeWorldOutcome(action); }
     public void beginStep(LivingEntity player, Execution execution) {
         var root = execution.root;
         var snapshot = new OperationRecord.Snapshot(UUID.randomUUID(), root.operationId(), root.encounterId(), player.getUUID(), player.getUUID(),
@@ -668,6 +670,75 @@ public final class ActionExecutionCoordinator {
         DebugDiagnostics.log("STEP_ACCEPTED", () -> "op=" + snapshot.operationId() + " parent=" + root.operationId()
             + " actor=" + root.owner() + " target=" + root.target() + " kind=" + snapshot.kind());
     }
+    /** Records each resolved target before submission; submitted or unknown requests are never replayed. */
+    public cc.sighs.dndturn.domain.encounter.operation.ResolvedDamageStep numericalStep(LivingEntity actor, Execution execution,
+            LivingEntity target, String stage, String nativeType, String channel, Vec3 center, double radius, List<Integer> dice,
+            int bonus, int threshold, boolean success, float rolled, float afterSave, float afterDefense) {
+        var root = execution.root;
+        UUID request = UUID.nameUUIDFromBytes((root.operationId() + ":" + stage + ":" + target.getUUID())
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var decision = new cc.sighs.dndturn.domain.encounter.operation.ResolvedDamageStep(request, target.getUUID(), instance(target),
+            stage, nativeType, channel, new cc.sighs.dndturn.domain.encounter.operation.ResolvedDamageStep.Area(center.x, center.y, center.z, radius), dice, bonus, threshold, success, rolled, afterSave, afterDefense,
+            OperationRecord.Outcome.ACCEPTED, 0, 0, 0, false, "prepared");
+        var known = execution.damageSteps.get(request);
+        if (known != null) {
+            if (!known.application(OperationRecord.Outcome.ACCEPTED, 0, 0, 0, false, "prepared").equals(decision))
+                throw new IllegalArgumentException("damage step payload conflict");
+            return known;
+        }
+        if (execution.damageSteps.size() >= 63) throw new IllegalStateException("damage step budget exhausted");
+        execution.damageSteps.put(request, decision);
+        checkpoint(execution);
+        var level = (ServerLevel) actor.level();
+        var state = engine.stateView(root.encounterId());
+        UUID other = engine.encounterOf(target.getUUID());
+        if (!root.owner().equals(actor.getUUID()) || !execution.ownerInstance.equals(instance(actor))
+                || engine.pendingOperation(root.encounterId(), execution.action) == null
+                || target.level() != level || level.getEntity(target.getUUID()) != target || !target.isAlive()
+                || !level.hasChunkAt(target.blockPosition()) || !level.getWorldBorder().isWithinBounds(target.blockPosition())
+                || other != null && !other.equals(root.encounterId()) || !decision.area().contains(target.getX(), target.getY(), target.getZ())) {
+            var rejected = decision.application(OperationRecord.Outcome.REJECTED, 0, 0, 0, false, "target or parent unavailable");
+            execution.damageSteps.put(request, rejected); checkpoint(execution); return rejected;
+        }
+        if (afterDefense == 0) {
+            var zero = decision.application(OperationRecord.Outcome.COMPLETED, 0, 0, 0, false, "no numerical application");
+            execution.damageSteps.put(request, zero); checkpoint(execution); return zero;
+        }
+        UUID permit = UUID.randomUUID();
+        engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit, root.encounterId(), execution.action,
+            actor.getUUID(), Set.of(target.getUUID()), Set.of(state.phase()),
+            1, state.round(), true));
+        var child = new OperationRecord.Snapshot(request, execution.action, root.encounterId(), actor.getUUID(), actor.getUUID(),
+            target.getUUID(), evidence.planClock(), engine.stateView(root.encounterId()).version(), cell(actor.blockPosition()),
+            cell(target.blockPosition()), OperationRecord.Kind.DAMAGE, generation);
+        if (!engine.beginOperation(child, permit)) {
+            engine.revokeEffectPermit(root.encounterId(), permit);
+            var rejected = decision.application(OperationRecord.Outcome.REJECTED, 0, 0, 0, false, "damage child rejected");
+            execution.damageSteps.put(request, rejected); checkpoint(execution); return rejected;
+        }
+        var result = decision.application(OperationRecord.Outcome.UNKNOWN, 0, 0, 0, true, "submitted");
+        execution.damageSteps.put(request, result); checkpoint(execution);
+        try {
+            var runtime = cc.sighs.dndturn.platform.server.runtime.ServerRuntime.encounters(level.getServer());
+            var receipt = cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter.apply(level, actor, target,
+                request, nativeType, channel, afterDefense, new cc.sighs.dndturn.platform.server.damage.DamageAttempt() {
+                    public boolean cancelDamageAttempt(LivingEntity subject, net.minecraft.world.damagesource.DamageSource source, float amount, UUID operation) {
+                        boolean cancelled = runtime.combat().cancelDamageAttempt(subject, source, amount, operation);
+                        return cancelled || !decision.instance().equals(instance(subject))
+                            || !decision.area().contains(subject.getX(), subject.getY(), subject.getZ());
+                    }
+                    public net.minecraft.world.entity.Entity damageBody(LivingEntity subject, UUID operation) { return runtime.combat().damageBody(subject, operation); }
+                });
+            result = decision.application(receipt.outcome(), receipt.health(), receipt.absorption(), receipt.shields(), true, receipt.reason());
+        } catch (RuntimeException failure) {
+            result = decision.application(OperationRecord.Outcome.UNKNOWN, 0, 0, 0, true, failure.getClass().getSimpleName());
+        }
+        execution.damageSteps.put(request, result); checkpoint(execution);
+        engine.publish(root.encounterId(), request, 0, result.outcome(), result.reason(), 0, result.healthLoss(), true);
+        engine.revokeEffectPermit(root.encounterId(), permit);
+        return result;
+    }
+
     public void accept(LivingEntity player, Execution execution, String reason) {
         DebugDiagnostics.log("BEHAVIOR_ACCEPTED", () -> "op=" + execution.root.operationId()
             + " child=" + execution.action + " reason=" + reason);
@@ -752,7 +823,7 @@ public final class ActionExecutionCoordinator {
         evidence.recordAbilityCheckpoint(new AbilityCheckpoint(e.root.operationId(), e.root.encounterId(), e.root.owner(),
             e.ownerInstance, e.root.intent(), e.phase, e.behavior.executionClock(), evidence.planClock(), e.executionSteps, e.movement, e.action,
             e.before, e.observed, e.sourceChange, e.observationFailure, !e.releaseFailure.isEmpty() ? AbilityCheckpoint.Release.FAILED : e.released ? AbilityCheckpoint.Release.RELEASED : AbilityCheckpoint.Release.HELD,
-            e.releaseFailure, e.ruleRequest, e.nativeObservations));
+            e.releaseFailure, e.ruleRequest, e.nativeObservations, List.copyOf(e.damageSteps.values())));
     }
     private void requireRuleRequest(Execution execution) {
         var request = execution.ruleRequest;

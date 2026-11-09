@@ -24,6 +24,90 @@ import net.minecraft.world.level.block.Blocks;
 
 /** Real native launch through shared discovery/AI/PLAN and the normal environment projectile owner. */
 public final class MobStandardizationChecks {
+    public static void ghast(GameTestHelper h) { ghast(h, "hit"); }
+    public static void ghastMiss(GameTestHelper h) { ghast(h, "miss"); }
+    public static void ghastDeath(GameTestHelper h) { ghast(h, "death"); }
+    public static void ghastAbsorption(GameTestHelper h) { ghast(h, "absorption"); }
+    public static void ghastShield(GameTestHelper h) { ghast(h, "shield"); }
+    public static void ghastCancel(GameTestHelper h) { ghast(h, "cancel"); }
+    private static void ghast(GameTestHelper h, String mode) {
+        var level = h.getLevel(); var base = new BlockPos(220001 + List.of("hit","miss","death","absorption","cancel","shield").indexOf(mode)*1000, 185, 1);
+        var forced = new HashSet<Long>();
+        for (int x = (base.getX()-24)>>4; x <= (base.getX()+24)>>4; x++) for (int z=-2; z<=2; z++) {
+            level.getChunk(x,z); if (level.setChunkForced(x,z,true)) forced.add(ChunkPos.pack(x,z));
+        }
+        level.waitForEntities(ChunkPos.containing(base),1);
+        var player = TestPlayers.survival(h); player.setPos(base.getX()+.5, base.getY(), .5); player.connection.resetPosition();
+        var ghast = EntityType.GHAST.create(level, EntitySpawnReason.COMMAND);
+        ghast.setPos(player.getX()+12, player.getY(), player.getZ()); ghast.setNoAi(true); ghast.setNoGravity(true); level.addFreshEntity(ghast);
+        var boundary = EntityType.COW.create(level, EntitySpawnReason.COMMAND);
+        boundary.setPos(player.getX()+6, player.getY(), player.getZ()); boundary.setNoAi(true); boundary.setNoGravity(true); level.addFreshEntity(boundary);
+        var corner = EntityType.COW.create(level, EntitySpawnReason.COMMAND);
+        corner.setPos(player.getX()+5, player.getY(), player.getZ()+5); corner.setNoAi(true); corner.setNoGravity(true); level.addFreshEntity(corner);
+        player.setNoGravity(true);
+        var service = ServerRuntime.encounters(level.getServer());
+        java.util.function.Consumer<net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent> cancel = event -> {
+            if (mode.equals("cancel") && event.getEntity() == boundary) event.setCanceled(true);
+        };
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(cancel);
+        Runnable cleanup = () -> {
+            net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(cancel);
+            var id = service.encounterOf(player.getUUID()); if (id != null) service.lifecycle().stop(id);
+            ghast.discard(); boundary.discard(); corner.discard(); player.discard();
+            for (long key : forced) { var chunk=ChunkPos.unpack(key); level.setChunkForced(chunk.x(),chunk.z(),false); } forced.clear();
+        };
+        h.runAtTickTime(299, cleanup);
+        h.startSequence().thenIdle(20).thenExecute(() -> {
+            ghast.setTarget(player); service.lifecycle().requestStart(player, UUID.randomUUID());
+        }).thenWaitUntil(() -> {
+            var id = service.encounterOf(ghast.getUUID()); h.assertTrue(id != null, "Ghast not discovered");
+            var state = service.state(id);
+            if (player.getUUID().equals(state.current())) service.combat().endTurn(id,player,UUID.randomUUID(),state.version());
+            h.assertTrue(ghast.getUUID().equals(service.state(id).current()), "waiting for Ghast turn");
+        }).thenExecute(() -> {
+            var id = service.encounterOf(ghast.getUUID());
+            service.useAttackRandomForGameTest(id, new Random(1) { int calls; @Override public int nextInt(int bound) { return mode.equals("miss") && calls++ == 0 ? 0 : 14; } });
+            var actor = service.actorStates().context(ghast); var state = service.state(id);
+            var target = new ActionIntent.Target(ActionIntent.TargetKind.ENTITY, level.dimension().identifier().toString(), player.getUUID(), null, -1, 0, 0, 0);
+            var option = cc.sighs.dndturn.platform.server.ability.AbilityQueries.forActor(actor).discover(actor,state,target).stream()
+                .filter(o -> o.binding().id().equals("dndturn:ghast_fireball")).findFirst().orElseThrow();
+            var operation = UUID.randomUUID(); var intent = option.binding().invocation(target);
+            if (mode.equals("death")) player.setHealth(1);
+            if (mode.equals("absorption")) { player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_ABSORPTION).setBaseValue(20); player.setAbsorptionAmount(20); }
+            if (mode.equals("shield")) {
+                var world = io.github.fatalitaya.combatnexus.combat.api.CombatAccess.find((io.github.fatalitaya.combatnexus.combat.api.WorldLookup)level).orElseThrow();
+                var source = new io.github.fatalitaya.combatnexus.combat.api.CombatSource(io.github.fatalitaya.combatnexus.api.id.NexusId.parse("dndturn:fixture"),Optional.empty(),Optional.empty());
+                var definition = new io.github.fatalitaya.combatnexus.combat.shield.api.ShieldDefinition(20,0,Set.of(),Set.of(),Set.of(),0,0,
+                    io.github.fatalitaya.combatnexus.combat.shield.api.ShieldDefinition.Stacking.REPLACE_SAME_SOURCE);
+                h.assertTrue(world.shields().grant(UUID.randomUUID(),player.getUUID(),new io.github.fatalitaya.combatnexus.combat.shield.api.ShieldGrant(source,definition,20,OptionalLong.empty())).applied(),"shield grant rejected");
+            }
+            float before = player.getHealth();
+            service.actions().submit(actor,service.generation(),id,operation,state.version(),intent,false);
+            var checkpoint = service.abilityCheckpoint(operation);
+            h.assertTrue(checkpoint != null && checkpoint.damageSteps().size() == (mode.equals("death") ? 2 : 3), "Ghast did not retain independent steps: " + checkpoint);
+            var expected = mode.equals("cancel") ? OperationRecord.Outcome.REJECTED : OperationRecord.Outcome.COMPLETED;
+            h.assertTrue(checkpoint.damageSteps().stream().allMatch(r -> r.outcome()==(r.target().equals(boundary.getUUID()) ? expected : OperationRecord.Outcome.COMPLETED)), "Ghast application failed: " + checkpoint.damageSteps());
+            float expectedHealth = mode.equals("death") ? 0 : (mode.equals("absorption") || mode.equals("shield")) ? before : before-(mode.equals("miss") ? 5 : 11);
+            float boundaryHealth = mode.equals("cancel") ? 10 : 5;
+            h.assertTrue(player.getHealth()==expectedHealth && boundary.getHealth()==boundaryHealth && corner.getHealth()==10,
+                "two-stage/spherical application differs: player="+player.getHealth()+" boundary="+boundary.getHealth()+" corner="+corner.getHealth());
+            if (mode.equals("absorption")) h.assertTrue(player.getAbsorptionAmount()==9
+                && checkpoint.damageSteps().stream().mapToDouble(r -> r.absorptionLoss()).sum()==11,"absorption receipt differs");
+            if (mode.equals("shield")) h.assertTrue(checkpoint.damageSteps().stream().mapToDouble(r -> r.shieldLoss()).sum()==11,"full-shield absorption not retained");
+            h.assertTrue(checkpoint.damageSteps().stream().anyMatch(r -> r.channel().equals("combatnexus:fire"))
+                && checkpoint.damageSteps().stream().filter(r -> r.channel().equals("dndturn:force")).count()==(mode.equals("death") ? 1 : 2),"typed channels missing");
+            if (!mode.equals("death")) {
+                float after = player.getHealth();
+                service.actions().submit(actor,service.generation(),id,operation,state.version(),intent,false);
+                h.assertTrue(player.getHealth()==after && boundary.getHealth()==boundaryHealth,"retry replayed numerical damage");
+                service.persistIfChanged();
+                var saved = level.getServer().getDataStorage().computeIfAbsent(cc.sighs.dndturn.platform.server.persistence.CombatSavedData.TYPE).envelope();
+                h.assertTrue(saved.abilities().get(operation).damageSteps().equals(checkpoint.damageSteps()), "saved application evidence changed");
+                h.assertTrue(saved.encounterContent().get(id).content().equals(
+                    cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(id).content()), "typed catalog roundtrip changed definitions");
+            }
+        }).thenExecute(cleanup).thenSucceed();
+    }
     public static void run(GameTestHelper h) { run(h, false, false, false, false); }
     public static void held(GameTestHelper h) { run(h, true, false, false, false); }
     public static void external(GameTestHelper h) { run(h, false, true, false, false); }

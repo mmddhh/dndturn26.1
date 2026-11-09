@@ -103,6 +103,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         return DamageResolution.damageEvidence(actor, state, stage, observed, changes,
             host.origin(actor.getUUID()), host.knockback(state.id()));
     }
+    public java.util.Random random(UUID encounter) { requireThread(); return damageResolution.random(encounter); }
     public void drainImmediateTriggers(LiveActorContext actor, UUID encounter, UUID parent) {
         requireThread();
         var operation = engine.pendingOperation(encounter, parent);
@@ -395,7 +396,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
                 actorStates.state(player.getUUID()).persistent().character());
         } else {
             profile = EncounterContentCache.server().attackProfile(encounterId, actor.getUUID());
-            if (profile == null) profile = MobAttackProfiles.of(actor);
+            if (profile == null) profile = MobAttackProfiles.of(actor, EncounterContentCache.server().find(encounterId).content());
         }
         double directMeleeDamage = plan != null || profile != null ? 0 : actor instanceof ServerPlayer
             ? actor.getMainHandItem().getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY)
@@ -467,7 +468,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         permitId = UUID.randomUUID();
         engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permitId, encounterId, operationId,
             actor.getUUID(), Set.of(targetId), Set.of(EncounterPhase.ACTIVE), 1,
-            engine.stateView(encounterId).round()));
+            engine.stateView(encounterId).round(), false));
         damageId = UUID.randomUUID();
         OperationRecord.Snapshot child = host.operationSnapshot(damageId, operationId,
             encounterId, actor.getUUID(), actor.getUUID(), targetId, host.clock(),
@@ -544,9 +545,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
     }
 
     private int armorClass(LivingEntity target, cc.sighs.dndturn.domain.fact.FactSlice defenseFacts) {
-        int player = PlayerArmorRules.armorClass(target,
-            actorStates.state(target.getUUID()).persistent().character());
-        return player >= 0 ? player : RuleResolver.armorClass(defenseFacts);
+        return RuleResolver.armorClass(defenseFacts);
     }
 
     public DamageTrace rangedTrace(LivingEntity player, UUID targetId, UUID operation, boolean opening) {
@@ -563,7 +562,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
                 actorStates.state(shooter.getUUID()).persistent().character());
         } else {
             profile = EncounterContentCache.server().attackProfile(state.id(), player.getUUID());
-            if (profile == null) profile = MobAttackProfiles.of(player);
+            if (profile == null) profile = MobAttackProfiles.of(player, EncounterContentCache.server().find(state.id()).content());
         }
         double base = 0;
         var plan = damageResolution.resolveAttack(state.id(), ac, reduction, base, mode, null,

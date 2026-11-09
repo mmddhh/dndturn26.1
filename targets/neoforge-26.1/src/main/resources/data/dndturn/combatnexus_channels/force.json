@@ -1,0 +1,6 @@
+{
+  "channel": "dndturn:force",
+  "trigger_tags": [],
+  "affected_by_armor": false,
+  "priority": 0
+}

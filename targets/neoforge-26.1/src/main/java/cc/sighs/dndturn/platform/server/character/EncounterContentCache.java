@@ -43,7 +43,7 @@ public final class EncounterContentCache {
         if (character.created() && (characterClass == null || characterRace == null))
             throw new IllegalStateException("character content is not present in the encounter snapshot");
         var participant = new ParticipantContent(actor, definition.id(), definition.version(), character,
-                characterClass, characterRace, MobAttackProfiles.of(entity));
+                characterClass, characterRace, MobAttackProfiles.of(entity, content));
         var participants = new LinkedHashMap<>(current.participants());
         participants.put(actor, participant);
         byEncounter.put(encounterId, new EncounterContent(encounterId.toString(), content, participants));

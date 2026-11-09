@@ -85,6 +85,9 @@ neoForge {
 repositories.clear()
 
 repositories {
+    mavenLocal {
+        content { includeGroup 'io.github.fatalitaya.combatnexus' }
+    }
     // 保留 Minecraft 官方库
     maven {
         url = "https://libraries.minecraft.net/"
@@ -128,6 +131,9 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation project(':common')
+    implementation('io.github.fatalitaya.combatnexus:CombatNexus-neoforge-26.1.2:0.1.0-SNAPSHOT') {
+        transitive = false
+    }
     // Exact NeoForge 26.1 release, not the similarly named artifacts for other targets.
     implementation 'com.sighs:ApricityUI-neoforge-26.1:1.2.8'
     implementation 'dev.latvian.mods:rhino:2101.2.7-build.82'

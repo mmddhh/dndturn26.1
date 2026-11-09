@@ -3,11 +3,22 @@
     {
       "id": "dndturn:ghast",
       "version": 1,
-      "abilities": { "str": 17, "dex": 17, "con": 10, "int": 10, "wis": 12, "cha": 8 },
+      "abilities": {
+        "str": 17,
+        "dex": 17,
+        "con": 10,
+        "int": 10,
+        "wis": 12,
+        "cha": 8
+      },
       "saves": {},
-      "speeds": { "flying": 60 },
+      "speeds": {
+        "flying": 60
+      },
       "resistances": [],
-      "immunities": ["fire"],
+      "immunities": [
+        "fire"
+      ],
       "vulnerabilities": [],
       "condition_immunities": [],
       "traits": [],
@@ -17,13 +28,1143 @@
           "kind": "SAVE_AREA",
           "range_ticks": 60,
           "damage": [
-            { "dice": 1, "sides": 6, "flat": 0, "type": "fire" },
-            { "dice": 0, "sides": 0, "flat": 10, "type": "force" }
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 0,
+              "type": "fire"
+            },
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "force"
+            }
           ],
           "save_ability": "dex",
           "save_dc": 15,
           "half_on_save": true,
           "radius_ticks": 6
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:zombie",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:husk",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:drowned",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:zombie_villager",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:skeleton",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:stray",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:bogged",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:parched",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:wither_skeleton",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 12,
+              "flat": 4,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:enderman",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 8,
+              "flat": 2,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:spider",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:cave_spider",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 1,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:silverfish",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:vex",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 3,
+              "sides": 4,
+              "flat": 0,
+              "type": "necrotic"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:vindicator",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 12,
+              "flat": 4,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:pillager",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 3,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:ravager",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 6,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 12,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:warden",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 8,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 15,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:blaze",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 3,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 2,
+              "type": "fire"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:piglin_brute",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 12,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:piglin",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 5,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 6,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:hoglin",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 6,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:zoglin",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 6,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 10,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:endermite",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 2,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 0,
+              "sides": 0,
+              "flat": 2,
+              "type": "piercing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:phantom",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 4,
+              "flat": 2,
+              "type": "slashing"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:creaking",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 1,
+              "sides": 6,
+              "flat": 2,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:slime",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 2,
+              "sides": 6,
+              "flat": 2,
+              "type": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "multiattack": 1,
+      "recharge_min": 0,
+      "legendary_resistance": 0
+    },
+    {
+      "id": "minecraft:magma_cube",
+      "version": 1,
+      "abilities": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+      },
+      "saves": {},
+      "speeds": {
+        "ground": 30
+      },
+      "resistances": [],
+      "immunities": [],
+      "vulnerabilities": [],
+      "condition_immunities": [],
+      "traits": [],
+      "actions": [
+        {
+          "id": "melee",
+          "kind": "ATTACK",
+          "attack_bonus": 4,
+          "reach_ticks": 3,
+          "damage": [
+            {
+              "dice": 2,
+              "sides": 6,
+              "flat": 2,
+              "type": "bludgeoning"
+            }
+          ]
         }
       ],
       "multiattack": 1,

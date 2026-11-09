@@ -121,7 +121,7 @@ public final class CreeperExplosion {
         var engine = frame.context.engine(); var root = frame.context.operation();
         UUID permit = UUID.randomUUID(), operation = UUID.randomUUID();
         engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit, root.encounterId(), root.operationId(), root.owner(),
-                Set.of(target.getUUID()), Set.of(EncounterPhase.CANDIDATE, EncounterPhase.ACTIVE), 1, engine.stateView(root.encounterId()).round()));
+                Set.of(target.getUUID()), Set.of(EncounterPhase.CANDIDATE, EncounterPhase.ACTIVE), 1, engine.stateView(root.encounterId()).round(), false));
         var child = new OperationRecord.Snapshot(operation, root.operationId(), root.encounterId(), root.owner(), root.owner(), target.getUUID(),
                 frame.context.service().clock(), engine.stateView(root.encounterId()).version(), root.sourceCell(),
                 MinecraftCoordinates.cell(target.blockPosition()), OperationRecord.Kind.DAMAGE, frame.context.service().generation());

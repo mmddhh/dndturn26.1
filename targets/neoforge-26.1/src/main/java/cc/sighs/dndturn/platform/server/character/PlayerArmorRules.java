@@ -16,27 +16,27 @@ import net.minecraft.world.item.Items;
  * Only ready-made 5e-like vanilla sets count; mixed or partial sets are unarmored.
  */
 public final class PlayerArmorRules {
-    private record Profile(ArmorCategory category, int baseAc) {}
-    private static final Map<String, Profile> PROFILES = Map.ofEntries(
-        Map.entry("leather", new Profile(ArmorCategory.LIGHT, 11)),
-        Map.entry("chainmail", new Profile(ArmorCategory.HEAVY, 16)),
-        Map.entry("iron", new Profile(ArmorCategory.HEAVY, 16)),
-        Map.entry("golden", new Profile(ArmorCategory.MEDIUM, 14)),
-        Map.entry("diamond", new Profile(ArmorCategory.HEAVY, 18)),
-        Map.entry("netherite", new Profile(ArmorCategory.HEAVY, 18)),
-        Map.entry("iron_leather", new Profile(ArmorCategory.LIGHT, 11)),
-        Map.entry("iron_padded", new Profile(ArmorCategory.LIGHT, 11)),
-        Map.entry("iron_studded_leather", new Profile(ArmorCategory.LIGHT, 12)),
-        Map.entry("iron_hide", new Profile(ArmorCategory.MEDIUM, 12)),
-        Map.entry("iron_chain_shirt", new Profile(ArmorCategory.MEDIUM, 13)),
-        Map.entry("iron_scale_mail", new Profile(ArmorCategory.MEDIUM, 14)),
-        Map.entry("iron_breastplate", new Profile(ArmorCategory.MEDIUM, 14)),
-        Map.entry("iron_half_plate", new Profile(ArmorCategory.MEDIUM, 15)),
-        Map.entry("iron_ring_mail", new Profile(ArmorCategory.HEAVY, 14)),
-        Map.entry("iron_chain_mail", new Profile(ArmorCategory.HEAVY, 16)),
-        Map.entry("iron_splint", new Profile(ArmorCategory.HEAVY, 17)),
-        Map.entry("iron_plate", new Profile(ArmorCategory.HEAVY, 18))
-    );
+    private record Profile(String setId, ArmorCategory category, int baseAc) {}
+    private static final Map<String, Profile> PROFILES = profiles();
+
+    private static Map<String, Profile> profiles() {
+        var profiles = new java.util.LinkedHashMap<String, Profile>();
+        addSet(profiles, "minecraft:leather", ArmorCategory.LIGHT, 11);
+        addSet(profiles, "minecraft:chainmail", ArmorCategory.HEAVY, 16);
+        addSet(profiles, "minecraft:iron", ArmorCategory.HEAVY, 16);
+        addSet(profiles, "minecraft:golden", ArmorCategory.MEDIUM, 14);
+        addSet(profiles, "minecraft:diamond", ArmorCategory.HEAVY, 18);
+        addSet(profiles, "minecraft:netherite", ArmorCategory.HEAVY, 18);
+        cc.sighs.dndturn.domain.character.EquipmentRules.ARMOR.forEach((id, armor) ->
+            addSet(profiles, id, armor.category(), armor.baseAc()));
+        return Map.copyOf(profiles);
+    }
+
+    private static void addSet(Map<String, Profile> profiles, String id, ArmorCategory category, int ac) {
+        var profile = new Profile(id, category, ac);
+        for (String slot : new String[] {"helmet", "chestplate", "leggings", "boots"})
+            profiles.put(id + "_" + slot, profile);
+    }
 
     private PlayerArmorRules() {}
 
@@ -66,9 +66,6 @@ public final class PlayerArmorRules {
     }
 
     private static Profile profile(ItemStack stack) {
-        String path = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
-        for (String suffix : new String[] {"_helmet", "_chestplate", "_leggings", "_boots"})
-            if (path.endsWith(suffix)) return PROFILES.get(path.substring(0, path.length() - suffix.length()));
-        return null;
+        return PROFILES.get(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
     }
 }

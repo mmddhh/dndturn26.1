@@ -1,12 +1,12 @@
 package cc.sighs.dndturn.platform.server.character;
 
-import cc.sighs.dndturn.domain.character.ContentSnapshot;
+import cc.sighs.dndturn.domain.character.RulesCatalog;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
 /** Content revision and participant evidence pinned to one encounter. */
-public record EncounterContent(String encounterId, ContentSnapshot content,
+public record EncounterContent(String encounterId, RulesCatalog content,
                                Map<UUID, ParticipantContent> participants) {
     public EncounterContent {
         Objects.requireNonNull(encounterId);

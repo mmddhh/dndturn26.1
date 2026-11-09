@@ -14,13 +14,13 @@ public record AbilityCheckpoint(UUID operation, UUID encounter, UUID owner, UUID
                                 SourceChange sourceChange, String observationFailure,
                                 Release release, String releaseReason,
                                 ExecutionRequest ruleRequest,
-                                List<NativeObservation> details) {
+                                List<NativeObservation> details, List<cc.sighs.dndturn.domain.encounter.operation.ResolvedDamageStep> damageSteps) {
     public AbilityCheckpoint(UUID operation, UUID encounter, UUID owner, UUID ownerInstance,
             ActionIntent invocation, Phase phase, AbilityCheckpoint.ExecutionClock clock, long tick, long executionSteps,
             UUID movement, UUID action, Sample before, Sample observed, SourceChange sourceChange, String observationFailure,
             Release release, String releaseReason, ExecutionRequest ruleRequest) {
         this(operation, encounter, owner, ownerInstance, invocation, phase, clock, tick, executionSteps, movement, action,
-                before, observed, sourceChange, observationFailure, release, releaseReason, ruleRequest, List.of());
+                before, observed, sourceChange, observationFailure, release, releaseReason, ruleRequest, List.of(), List.of());
     }
     public static final int MAX_OBSERVED_BLOCKS = 256;
     public enum ExecutionClock { AUTHORIZED_EXECUTION_STEP }
@@ -66,6 +66,8 @@ public record AbilityCheckpoint(UUID operation, UUID encounter, UUID owner, UUID
         }
     }
     public AbilityCheckpoint {
+        damageSteps = List.copyOf(damageSteps);
+        if (damageSteps.size() > 64) throw new IllegalArgumentException("damage step budget");
         details = List.copyOf(details);
         if (details.size() > 128 || details.stream().anyMatch(value -> !value.operation().equals(operation)))
             throw new IllegalArgumentException("typed checkpoint observation identity");

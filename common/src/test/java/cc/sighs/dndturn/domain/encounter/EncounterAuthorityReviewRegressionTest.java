@@ -352,7 +352,7 @@ class EncounterAuthorityReviewRegressionTest {
         UUID permitId = id(300);
         f.engine().issueOutcomePermit(new EncounterAuthority.OutcomePermit(permitId, f.encounter(),
             attack.operationId(), f.owner(), Set.of(f.target()),
-            Set.of(EncounterPhase.ACTIVE), 1, f.engine().view(f.encounter()).round()));
+            Set.of(EncounterPhase.ACTIVE), 1, f.engine().view(f.encounter()).round(), false));
         damage = operation(f, 201, OperationRecord.Kind.DAMAGE, attack.operationId(),
             f.owner(), f.owner(), f.target());
         assertTrue(f.engine().beginOperation(damage, permitId));
@@ -436,7 +436,7 @@ class EncounterAuthorityReviewRegressionTest {
         UUID projectile = id(99), permitId = id(300);
         f.engine().issueOutcomePermit(new EncounterAuthority.OutcomePermit(permitId, f.encounter(),
             attack.operationId(), projectile, Set.of(f.target()),
-            Set.of(EncounterPhase.ACTIVE, EncounterPhase.ENVIRONMENT), 1, Long.MAX_VALUE));
+            Set.of(EncounterPhase.ACTIVE, EncounterPhase.ENVIRONMENT), 1, Long.MAX_VALUE, false));
         finish(f, attack.operationId());
         f.engine().endTurn(f.encounter(), f.owner());
         f.engine().endTurn(f.encounter(), f.target());
@@ -461,14 +461,14 @@ class EncounterAuthorityReviewRegressionTest {
         UUID firstPermit = id(301);
         f.engine().issueOutcomePermit(new EncounterAuthority.OutcomePermit(firstPermit, f.encounter(),
             attack.operationId(), id(99), Set.of(f.target(), id(3)),
-            Set.of(EncounterPhase.ACTIVE), 2, f.engine().view(f.encounter()).round()));
+            Set.of(EncounterPhase.ACTIVE), 2, f.engine().view(f.encounter()).round(), false));
         var child = operation(f, 201, OperationRecord.Kind.DAMAGE, attack.operationId(),
             f.owner(), id(99), id(3));
         assertTrue(f.engine().beginOperation(child, firstPermit));
         UUID grandchildPermit = id(302);
         f.engine().issueOutcomePermit(new EncounterAuthority.OutcomePermit(grandchildPermit, f.encounter(),
             child.operationId(), id(98), Set.of(f.target()),
-            Set.of(EncounterPhase.ACTIVE), 1, f.engine().view(f.encounter()).round()));
+            Set.of(EncounterPhase.ACTIVE), 1, f.engine().view(f.encounter()).round(), false));
         finish(f, attack.operationId());
         finish(f, child.operationId());
         var grandchild = operation(f, 202, OperationRecord.Kind.DAMAGE, child.operationId(),
@@ -590,7 +590,7 @@ class EncounterAuthorityReviewRegressionTest {
         assertTrue(engine.beginOperation(attack));
         var permit = new EncounterAuthority.OutcomePermit(id(401), source,
             attack.operationId(), owner, Set.of(target), Set.of(EncounterPhase.ACTIVE),
-            1, engine.stateView(source).round() + 1);
+            1, engine.stateView(source).round() + 1, false);
         engine.issueOutcomePermit(permit);
         var oldResult = engine.publish(source, attack.operationId(), 0,
             OperationRecord.Outcome.COMPLETED, "miss", 0, 0, true);

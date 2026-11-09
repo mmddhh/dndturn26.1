@@ -51,7 +51,7 @@ class EnvironmentParticipantTest {
         assertFalse(engine.beginEnvironmentEffect(root,step));
         UUID permit=UUID.randomUUID();
         engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit,id,root.operationId(),environment,
-            Set.of(actor),Set.of(EncounterPhase.ENVIRONMENT),1,engine.stateView(id).round()));
+            Set.of(actor),Set.of(EncounterPhase.ENVIRONMENT),1,engine.stateView(id).round(), false));
         var child=new OperationRecord.Snapshot(UUID.randomUUID(),root.operationId(),id,environment,environment,actor,
             1,engine.stateView(id).version(),cell,cell,OperationRecord.Kind.NATIVE_EFFECT);
         assertTrue(engine.beginOperation(child,permit));

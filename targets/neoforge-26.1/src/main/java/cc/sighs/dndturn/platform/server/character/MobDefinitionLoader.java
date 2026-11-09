@@ -54,8 +54,7 @@ final class MobDefinitionLoader {
 
     private static MobAction action(JsonObject json, Path file) {
         String id = CharacterContentLoader.string(json, "id", file);
-        MobAction.Kind kind = MobAction.Kind.valueOf(CharacterContentLoader.string(json, "kind", file)
-            .toUpperCase(java.util.Locale.ROOT));
+        String kind = CharacterContentLoader.string(json, "kind", file);
         List<DamageComponent> damage = new ArrayList<>();
         if (json.has("damage")) for (JsonElement value : json.getAsJsonArray("damage")) {
             JsonObject part = value.getAsJsonObject();
@@ -64,20 +63,21 @@ final class MobDefinitionLoader {
                 part.has("flat") ? part.get("flat").getAsInt() : 0,
                 DamageType.byId(CharacterContentLoader.string(part, "type", file))));
         }
-        return new MobAction(id, kind,
-            json.has("attack_bonus") ? json.get("attack_bonus").getAsInt() : 0,
-            json.has("reach_ticks") ? json.get("reach_ticks").getAsInt() : 0,
-            json.has("range_ticks") ? json.get("range_ticks").getAsInt() : 0,
-            damage,
-            json.has("save_ability") ? Ability.byId(json.get("save_ability").getAsString()) : null,
-            json.has("save_dc") ? json.get("save_dc").getAsInt() : 0,
-            json.has("half_on_save") && json.get("half_on_save").getAsBoolean(),
-            json.has("condition") ? json.get("condition").getAsString() : null,
-            json.has("duration_rounds") ? json.get("duration_rounds").getAsInt() : 0,
-            json.has("radius_ticks") ? json.get("radius_ticks").getAsInt() : 0,
-            json.has("recharge_min") ? json.get("recharge_min").getAsInt() : 0,
-            json.has("summon_id") ? json.get("summon_id").getAsString() : null,
-            json.has("summon_count") ? json.get("summon_count").getAsInt() : 0);
+        return switch (kind) {
+            case "ATTACK" -> {
+                CharacterContentLoader.requireFields(json, Set.of("id", "kind", "attack_bonus", "reach_ticks", "range_ticks", "damage"), file);
+                yield new MobAction.Attack(id, json.get("attack_bonus").getAsInt(),
+                    json.has("reach_ticks") ? json.get("reach_ticks").getAsInt() : 0,
+                    json.has("range_ticks") ? json.get("range_ticks").getAsInt() : 0, damage);
+            }
+            case "SAVE_AREA" -> {
+                CharacterContentLoader.requireFields(json, Set.of("id", "kind", "save_ability", "save_dc", "half_on_save", "radius_ticks", "range_ticks", "damage"), file);
+                yield new MobAction.SaveArea(id, Ability.byId(json.get("save_ability").getAsString()), json.get("save_dc").getAsInt(),
+                    json.get("half_on_save").getAsBoolean(), json.get("radius_ticks").getAsInt(),
+                    json.has("range_ticks") ? json.get("range_ticks").getAsInt() : 0, damage);
+            }
+            default -> throw new IllegalArgumentException("Unsupported mob action executor: " + kind);
+        };
     }
 
     private static Set<DamageType> damageTypes(JsonObject json, String key) {

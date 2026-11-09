@@ -36,9 +36,10 @@ public final class DndEquipmentItems {
                 .component(DataComponents.LORE, new ItemLore(List.of(
                     Component.translatable("tooltip.dndturn.ammunition"))))));
         }
-        for (String type : DndEquipmentCatalog.WEAPONS.keySet()) {
-            String id = "iron_" + type;
-            var spec = DndEquipmentCatalog.WEAPONS.get(type);
+        for (String itemId : cc.sighs.dndturn.domain.character.EquipmentRules.WEAPONS.keySet()) {
+            String id = Identifier.parse(itemId).getPath();
+            String type = id.substring("iron_".length());
+            var spec = cc.sighs.dndturn.domain.character.EquipmentRules.WEAPONS.get(itemId);
             List<Component> lore = new ArrayList<>();
             if (spec.dice() > 0) {
                 String dice = spec.dice() + "d" + spec.sides();
@@ -50,24 +51,24 @@ public final class DndEquipmentItems {
                         Component.translatable("damage_type.dndturn." + spec.damageType())));
                 }
             }
-            if (!spec.tags().isBlank()) lore.add(tagLine(spec.tags()));
+            if (!spec.properties().isEmpty()) lore.add(tagLine(spec.properties()));
             ALL.add(ITEMS.registerItem(id, properties -> weapon(type, properties), () -> new Item.Properties()
                 .durability(250)
                 .component(DataComponents.LORE, new ItemLore(lore))));
         }
-        for (String set : DndEquipmentCatalog.ARMOR.keySet()) {
-            var spec = DndEquipmentCatalog.ARMOR.get(set);
+        for (String set : cc.sighs.dndturn.domain.character.EquipmentRules.ARMOR.keySet()) {
+            var spec = cc.sighs.dndturn.domain.character.EquipmentRules.ARMOR.get(set);
             ArmorMaterial material = switch (spec.category()) {
-                case "light" -> ArmorMaterials.LEATHER;
-                case "medium" -> ArmorMaterials.CHAINMAIL;
+                case LIGHT -> ArmorMaterials.LEATHER;
+                case MEDIUM -> ArmorMaterials.CHAINMAIL;
                 default -> ArmorMaterials.IRON;
             };
             for (ArmorType type : List.of(ArmorType.HELMET, ArmorType.CHESTPLATE,
                     ArmorType.LEGGINGS, ArmorType.BOOTS)) {
-                String id = "iron_" + set + "_" + type.getSerializedName();
+                String id = Identifier.parse(set).getPath() + "_" + type.getSerializedName();
                 List<Component> lore = new ArrayList<>();
                 lore.add(Component.translatable("tooltip.dndturn.armor", spec.baseAc(),
-                    Component.translatable("armor_category.dndturn." + spec.category())));
+                    Component.translatable("armor_category.dndturn." + spec.category().name().toLowerCase(java.util.Locale.ROOT))));
                 if (spec.strength() > 0) lore.add(Component.translatable("tooltip.dndturn.strength", spec.strength()));
                 if (spec.stealth()) lore.add(Component.translatable("tooltip.dndturn.stealth"));
                 ALL.add(ITEMS.registerItem(id, Item::new, () -> new Item.Properties()
@@ -98,8 +99,7 @@ public final class DndEquipmentItems {
     }
 
     public static Item get(String id) {
-        String path = id.contains(":") ? id.substring(id.indexOf(':') + 1) : id;
-        return BuiltInRegistries.ITEM.get(Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, path))
+        return BuiltInRegistries.ITEM.get(Identifier.parse(id))
             .map(net.minecraft.core.Holder.Reference::value)
             .orElse(net.minecraft.world.item.Items.AIR);
     }
@@ -112,14 +112,13 @@ public final class DndEquipmentItems {
         };
     }
 
-    private static Component tagLine(String tags) {
+    private static Component tagLine(java.util.Set<cc.sighs.dndturn.domain.character.EquipmentRules.Property> properties) {
         var line = Component.literal("");
         boolean first = true;
-        for (String tag : tags.split(",")) {
-            String value = tag.trim();
-            if (value.isEmpty()) continue;
+        for (var property : properties.stream().sorted().toList()) {
             if (!first) line.append(", ");
-            line.append(Component.translatable("weapon_property.dndturn." + value.replace(' ', '_')));
+            String key = property.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+            line.append(Component.translatable("weapon_property.dndturn." + key));
             first = false;
         }
         return line;

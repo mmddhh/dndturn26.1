@@ -109,29 +109,57 @@ public final class GhastAbilities {
 
         @Override
         public void start(ActionExecutionCoordinator actions, LiveActorContext actor, ActionExecutionCoordinator.Execution execution) {
+            actions.worldOutcome(() -> fireball(actions, actor, execution));
+        }
+
+        private void fireball(ActionExecutionCoordinator actions, LiveActorContext actor, ActionExecutionCoordinator.Execution execution) {
             actions.beginStep(actor.body(), execution);
             LivingEntity target = (LivingEntity) actor.level().getEntity(execution.snapshot().intent().target().entity());
+            var center = target.position();
             var ghast = (Ghast) actor.body();
-            var random = new java.util.Random();
             int attack = 4;
             var service = ServerRuntime.encounters(actor.level().getServer());
+            var content = java.util.Objects.requireNonNull(
+                cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(
+                    service.encounterOf(actor.body().getUUID())), "Ghast encounter content");
+            var random = service.combat().random(service.encounterOf(actor.body().getUUID()));
             var defenseFacts = service.actorStates().snapshots().defense(target);
-            int ac = PlayerArmorRules.armorClass(target,
-                service.actorStates().state(target.getUUID()).persistent().character());
-            if (ac < 0) ac = RuleResolver.armorClass(defenseFacts);
+            int ac = RuleResolver.armorClass(defenseFacts);
             var roll = cc.sighs.dndturn.domain.resolution.CombatRules.rollAttack(random,
                 cc.sighs.dndturn.domain.resolution.CombatRules.RollMode.NORMAL, ac, attack);
-            if (roll.hit()) target.hurt(actor.level().damageSources().mobAttack(ghast), 6.0F);
-            if (!target.isRemoved()) {
-                AABB area = target.getBoundingBox().inflate(6);
-                for (LivingEntity affected : target.level().getEntitiesOfClass(LivingEntity.class, area,
-                    e -> e.isAlive() && e != ghast)) {
-                    var save = SaveService.roll(affected, Ability.DEX, 15, "dndturn:ghast_fireball", random);
-                    affected.hurt(actor.level().damageSources().mobAttack(ghast), save.success() ? 5.0F : 10.0F);
-                }
+            // Fix the epicenter and candidates before the first write. Native death cannot cancel stage two.
+            var affectedTargets = actor.level().getEntitiesOfClass(LivingEntity.class, AABB.ofSize(center, 12, 12, 12),
+                e -> e.isAlive() && e != ghast && e.position().distanceToSqr(center) <= 36).stream()
+                .sorted(Comparator.comparing(LivingEntity::getUUID)).toList();
+            if (affectedTargets.size() > 62) throw new IllegalStateException("Ghast target budget exceeded");
+            var results = new java.util.ArrayList<cc.sighs.dndturn.domain.encounter.operation.ResolvedDamageStep>();
+            results.add(actions.numericalStep(ghast, execution, target, "fire", "minecraft:fireball", "combatnexus:fire", ghast.position(), 60,
+                List.of(roll.first(), roll.second()), attack, ac, roll.hit(), 6, roll.hit() ? 6 : 0,
+                roll.hit() ? defend(content, target, cc.sighs.dndturn.domain.mob.DamageType.FIRE, 6) : 0));
+            for (LivingEntity affected : affectedTargets) {
+                if (affected == target && !affected.isAlive()) continue;
+                var save = SaveService.roll(affected, Ability.DEX, 15, FIREBALL, content, random);
+                int afterSave = save.success() ? 5 : 10;
+                results.add(actions.numericalStep(ghast, execution, affected, "force", "minecraft:magic", "dndturn:force", center, 6,
+                    List.of(save.die()), save.bonus(), save.dc(), save.success(), 10, afterSave,
+                    defend(content, affected, cc.sighs.dndturn.domain.mob.DamageType.FORCE, afterSave)));
             }
-            actions.finishAction(actor.body(), execution, OperationRecord.Outcome.COMPLETED,
-                "ghast fireball attack=" + roll.total() + " ac=" + ac + " hit=" + roll.hit());
+            var outcome = results.stream().anyMatch(r -> r.outcome() == OperationRecord.Outcome.UNKNOWN)
+                ? OperationRecord.Outcome.UNKNOWN
+                : results.stream().allMatch(r -> r.outcome() == OperationRecord.Outcome.COMPLETED)
+                    ? OperationRecord.Outcome.COMPLETED
+                    : results.stream().allMatch(r -> r.outcome() == OperationRecord.Outcome.REJECTED)
+                        ? OperationRecord.Outcome.REJECTED : OperationRecord.Outcome.PARTIAL;
+            actions.finishAction(ghast, execution, outcome, "Ghast fireball targets=" + results.size());
+        }
+
+        private int defend(cc.sighs.dndturn.platform.server.character.EncounterContent content, LivingEntity target,
+                cc.sighs.dndturn.domain.mob.DamageType type, int amount) {
+            var participant = content.participants().get(target.getUUID());
+            String id = participant == null ? net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString()
+                : participant.definitionId();
+            var mob = content.content().mobOrFallback(id);
+            return new cc.sighs.dndturn.domain.mob.DefenseProfile(mob.resistances(), mob.immunities(), mob.vulnerabilities()).apply(type, amount);
         }
 
         @Override

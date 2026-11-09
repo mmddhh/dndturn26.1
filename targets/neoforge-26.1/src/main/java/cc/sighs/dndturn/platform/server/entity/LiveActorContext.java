@@ -12,6 +12,7 @@ public record LiveActorContext(LivingEntity body, Facts facts) {
     /** Explicit read-only ports. These never expose another runtime owner. */
     public interface Facts {
         cc.sighs.dndturn.domain.actor.ActorStates.State state(UUID actor);
+        UUID encounter(UUID actor);
         UUID encounterAtBlock(ServerLevel level, net.minecraft.core.BlockPos pos);
         boolean ownsProjectile(ServerPlayer owner, net.minecraft.world.entity.projectile.Projectile projectile);
         String fault(UUID actor);

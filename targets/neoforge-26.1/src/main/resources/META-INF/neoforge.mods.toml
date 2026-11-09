@@ -22,7 +22,7 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "minecraft"
 type = "required"
-versionRange = "[${minecraft_version},26.2)"
+versionRange = "[${minecraft_version}]"
 ordering = "NONE"
 side = "BOTH"
 
@@ -32,5 +32,12 @@ type = "required"
 versionRange = "[1.2.5,1.3)"
 ordering = "AFTER"
 side = "CLIENT"
+
+[[dependencies.${mod_id}]]
+modId = "combatnexus"
+type = "required"
+versionRange = "[0.1.0-SNAPSHOT]"
+ordering = "AFTER"
+side = "BOTH"
 
 

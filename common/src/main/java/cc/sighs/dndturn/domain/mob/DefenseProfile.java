@@ -4,7 +4,7 @@ import java.util.Set;
 
 /** Per-actor damage defenses from the monster design document. */
 public record DefenseProfile(Set<DamageType> resistances, Set<DamageType> immunities,
-                             Set<DamageType> vulnerabilities, boolean magical) {
+                             Set<DamageType> vulnerabilities) {
     public DefenseProfile {
         resistances = Set.copyOf(resistances);
         immunities = Set.copyOf(immunities);

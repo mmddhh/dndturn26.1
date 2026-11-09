@@ -305,6 +305,7 @@ public final class EncounterRuntime {
             public Entity resolve(UUID id) { return EncounterRuntime.this.resolve(id); }
         });
         actorStates.snapshots().bindFacts(new LiveActorContext.Facts() {
+            public UUID encounter(UUID actor) { return engine.encounterOf(actor); }
             public cc.sighs.dndturn.domain.effect.EffectSnapshot.Vanilla effect(LivingEntity actor, net.minecraft.world.effect.MobEffectInstance effect) { return vanillaEffects.describe(actor, effect); }
             public boolean hostile(UUID encounter, UUID actor, UUID target) {
                 return engine.isHostile(encounter, actor, target) || engine.isHostile(encounter, target, actor);

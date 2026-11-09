@@ -49,6 +49,7 @@ public final class ActorStateAuthority {
         public void requireAbilityWork(UUID actor, UUID encounter, cc.sighs.dndturn.platform.server.budget.AbilityWorkBudget.Work work) {
             queryBudget.require(recordedTick, actor, encounter, work);
         }
+        public UUID encounter(UUID actor) { return membership.apply(actor); }
         public UUID encounterAtBlock(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos) { return null; }
         public boolean ownsProjectile(net.minecraft.server.level.ServerPlayer owner, net.minecraft.world.entity.projectile.Projectile projectile) { return false; }
     });

@@ -119,7 +119,7 @@ public final class CombatStructureChecks {
                         0, engine.view(encounter).version(), null, null, OperationRecord.Kind.ATTACK, runtime.generation());
                 h.assertTrue(engine.beginOperation(parent), "attack admission failed");
                 engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit, encounter, attack, attacker.getUUID(), Set.of(defender.getUUID()),
-                        Set.of(EncounterPhase.ACTIVE), 4, engine.stateView(encounter).round()));
+                        Set.of(EncounterPhase.ACTIVE), 4, engine.stateView(encounter).round(), false));
                 UUID blocker = UUID.randomUUID();
                 runtime.processes().open(blocker, process("test:blocker"), new ProcessState.Owner(ProcessState.Ownership.ACTOR, actor.id()),
                         attack, attack, encounter, actor.instance(), 30, "EXECUTE");

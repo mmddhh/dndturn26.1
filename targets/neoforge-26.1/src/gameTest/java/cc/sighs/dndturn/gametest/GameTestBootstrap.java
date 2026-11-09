@@ -25,6 +25,12 @@ public final class GameTestBootstrap {
         LocalTimeGameTests.TEST_FUNCTIONS.register("mob_standardization_approach", () -> MobRangedApproachChecks::run);
         LocalTimeGameTests.TEST_FUNCTIONS.register("mob_standardization_revoked", () -> MobRangedApproachChecks::revoked);
         LocalTimeGameTests.TEST_FUNCTIONS.register("mob_standardization_external", () -> MobStandardizationChecks::external);
+        LocalTimeGameTests.TEST_FUNCTIONS.register("ghast_numerical_miss", () -> MobStandardizationChecks::ghastMiss);
+        LocalTimeGameTests.TEST_FUNCTIONS.register("ghast_numerical_death", () -> MobStandardizationChecks::ghastDeath);
+        LocalTimeGameTests.TEST_FUNCTIONS.register("ghast_numerical_absorption", () -> MobStandardizationChecks::ghastAbsorption);
+        LocalTimeGameTests.TEST_FUNCTIONS.register("ghast_numerical_cancel", () -> MobStandardizationChecks::ghastCancel);
+        LocalTimeGameTests.TEST_FUNCTIONS.register("ghast_numerical_shield", () -> MobStandardizationChecks::ghastShield);
+        LocalTimeGameTests.TEST_FUNCTIONS.register("ghast_numerical", () -> MobStandardizationChecks::ghast);
         LocalTimeGameTests.TEST_FUNCTIONS.register("mob_standardization", () -> MobStandardizationChecks::run);
         LocalTimeGameTests.TEST_FUNCTIONS.register("mob_standardization_held", () -> MobStandardizationChecks::held);
         LocalTimeGameTests.TEST_FUNCTIONS.register("gate_melee", () -> GateMeleeChecks::run);

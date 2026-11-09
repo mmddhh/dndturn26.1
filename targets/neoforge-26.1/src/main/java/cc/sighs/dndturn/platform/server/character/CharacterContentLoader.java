@@ -3,7 +3,7 @@ package cc.sighs.dndturn.platform.server.character;
 import cc.sighs.dndturn.domain.character.Ability;
 import cc.sighs.dndturn.domain.character.CharacterClass;
 import cc.sighs.dndturn.domain.character.CharacterRace;
-import cc.sighs.dndturn.domain.character.ContentSnapshot;
+import cc.sighs.dndturn.domain.character.RulesCatalog;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -21,14 +21,14 @@ import java.util.stream.Stream;
 
 /** Loads creator-authored class/race JSON. A failed file rejects the whole revision, never a partial list. */
 public final class CharacterContentLoader {
-    private static final int MAX_FILES = ContentSnapshot.MAX_ENTRIES;
+    private static final int MAX_FILES = RulesCatalog.MAX_ENTRIES;
     private static final long MAX_FILE_BYTES = 64 * 1024;
     private static final Set<String> CLASS_FIELDS = Set.of("id", "version", "name", "hit_die", "saves");
     private static final Set<String> RACE_FIELDS = Set.of("id", "version", "name", "speed", "size", "ability_boosts");
 
     private CharacterContentLoader() {}
 
-    public static ContentSnapshot load(Path root) {
+    public static RulesCatalog load(Path root) {
         Map<String, CharacterClass> classes = new LinkedHashMap<>();
         Map<String, CharacterRace> races = new LinkedHashMap<>();
         Map<String, cc.sighs.dndturn.domain.mob.MobDefinition> mobs = new LinkedHashMap<>();
@@ -41,7 +41,7 @@ public final class CharacterContentLoader {
         } catch (IOException error) {
             throw new IllegalStateException("cannot load character content from " + root, error);
         }
-        return new ContentSnapshot(UUID.randomUUID().toString(), classes, races, mobs);
+        return new RulesCatalog(UUID.randomUUID().toString(), classes, races, mobs);
     }
 
     private static void loadDefaultMobs(Map<String, cc.sighs.dndturn.domain.mob.MobDefinition> target)

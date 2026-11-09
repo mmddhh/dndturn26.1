@@ -147,7 +147,7 @@ public final class EncounterAuthority {
 
     /** A server-issued capability for a particular causal effect, never a client intent. */
     public record OutcomePermit(UUID id, UUID encounterId, UUID parentId, UUID source,
-                               Set<UUID> targets, Set<EncounterPhase> phases, int maxUses, long validThroughRound) {
+                               Set<UUID> targets, Set<EncounterPhase> phases, int maxUses, long validThroughRound, boolean capturedWorldTargets) {
         public OutcomePermit {
             Objects.requireNonNull(id);
             Objects.requireNonNull(encounterId);
@@ -907,7 +907,12 @@ public final class EncounterAuthority {
         if (parent.kind() == OperationRecord.Kind.END_TURN
             && (!permit.source().equals(parent.owner()) || !permit.targets().equals(Set.of(parent.owner()))))
             throw new IllegalArgumentException("turn settlement permits only the finishing participant");
-        if (!encounter.members.keySet().containsAll(permit.targets()))
+        if (permit.capturedWorldTargets() && (parent.kind() != OperationRecord.Kind.USE_ITEM
+                || !parent.owner().equals(permit.source()) || permit.targets().size() > 64
+                || permit.targets().stream().anyMatch(target -> membership.containsKey(target)
+                    && !canonicalId.equals(membership.get(target)))))
+            throw new IllegalArgumentException("world effect permit scope");
+        if (!permit.capturedWorldTargets() && !encounter.members.keySet().containsAll(permit.targets()))
             throw new IllegalArgumentException("permit target is not a member");
         long nextVersion = Math.addExact(encounter.version, 1);
         encounter.permits.put(permit.id(), new PermitState(permit));
@@ -1206,7 +1211,8 @@ public final class EncounterAuthority {
                 && permit.permit.phases().contains(encounter.phase)
                 && encounter.round <= permit.effectiveValidThroughRound
                 && permit.used < permit.permit.maxUses()
-                && encounter.members.containsKey(snapshot.target());
+                && (encounter.members.containsKey(snapshot.target()) || permit.permit.capturedWorldTargets()
+                    && !membership.containsKey(snapshot.target()));
             boolean reaction = parent != null && snapshot.kind() == OperationRecord.Kind.INTERRUPT
                 && encounter.phase == EncounterPhase.ACTIVE && encounter.operations.pending.containsKey(parent.operationId())
                 && (parent.kind() == OperationRecord.Kind.ATTACK || parent.kind() == OperationRecord.Kind.DAMAGE)

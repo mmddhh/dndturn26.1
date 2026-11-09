@@ -110,6 +110,7 @@ public final class DamageResolution {
         }
         return List.copyOf(changes);
     }
+    public Random random(UUID encounter) { return gameTestAttackRandom.getOrDefault(encounter, attackRandom); }
     public void seed(UUID encounter, Random random) { gameTestAttackRandom.put(encounter, random); }
     public void forget(UUID encounter) { gameTestAttackRandom.remove(encounter); }
 

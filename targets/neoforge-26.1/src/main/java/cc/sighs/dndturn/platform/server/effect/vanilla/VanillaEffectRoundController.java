@@ -71,7 +71,7 @@ public final class VanillaEffectRoundController {
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8));
             if (engine.resultFor(root.encounterId(),operation)!=null) return;
             engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit,root.encounterId(),root.operationId(),root.owner(),
-                Set.of(target.getUUID()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE,EncounterPhase.ENVIRONMENT),1,engine.stateView(root.encounterId()).round()));
+                Set.of(target.getUUID()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE,EncounterPhase.ENVIRONMENT),1,engine.stateView(root.encounterId()).round(), false));
             var child=new OperationRecord.Snapshot(operation,root.operationId(),root.encounterId(),root.owner(),root.owner(),target.getUUID(),
                 service.clock(),engine.stateView(root.encounterId()).version(),root.sourceCell(),
                 cc.sighs.dndturn.platform.spatial.MinecraftCoordinates.cell(target.blockPosition()),OperationRecord.Kind.NATIVE_EFFECT,service.generation());
@@ -153,7 +153,7 @@ public final class VanillaEffectRoundController {
         if (runtime.engine.resultFor(root.encounterId(),operation)!=null)
             throw new IllegalStateException("omen callback already observed");
         runtime.engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit,root.encounterId(),root.operationId(),root.owner(),
-            Set.of(actor.getUUID()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE),1,runtime.engine.stateView(root.encounterId()).round()));
+            Set.of(actor.getUUID()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE),1,runtime.engine.stateView(root.encounterId()).round(), false));
         var child=new OperationRecord.Snapshot(operation,root.operationId(),root.encounterId(),root.owner(),root.owner(),actor.getUUID(),
             runtime.service.clock(),runtime.engine.stateView(root.encounterId()).version(),root.sourceCell(),
             cc.sighs.dndturn.platform.spatial.MinecraftCoordinates.cell(actor.blockPosition()),OperationRecord.Kind.NATIVE_EFFECT,runtime.service.generation());
@@ -535,7 +535,7 @@ public final class VanillaEffectRoundController {
         if(frame.effect.equals("minecraft:poison")) frame.amount=Math.min(frame.amount,Math.max(0,target.getHealth()-1));
         var engine=frame.runtime.engine; var root=frame.root; UUID permit=UUID.randomUUID(), operation=UUID.randomUUID();
         engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permit,root.encounterId(),root.operationId(),root.owner(),
-            Set.of(target.getUUID()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE,EncounterPhase.ENVIRONMENT),1,engine.stateView(root.encounterId()).round()));
+            Set.of(target.getUUID()),Set.of(EncounterPhase.CANDIDATE,EncounterPhase.ACTIVE,EncounterPhase.ENVIRONMENT),1,engine.stateView(root.encounterId()).round(), false));
         var child=new OperationRecord.Snapshot(operation,root.operationId(),root.encounterId(),root.owner(),root.owner(),target.getUUID(),
             frame.runtime.service.clock(),engine.stateView(root.encounterId()).version(),root.sourceCell(),root.sourceCell(),
             OperationRecord.Kind.DAMAGE,frame.runtime.service.generation());

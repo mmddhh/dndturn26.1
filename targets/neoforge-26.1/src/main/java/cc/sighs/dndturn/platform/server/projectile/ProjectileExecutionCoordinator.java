@@ -529,9 +529,7 @@ public final class ProjectileExecutionCoordinator {
             if (ownerId != null && state.members().containsKey(ownerId))
                 engine.setHostile(encounterId, ownerId, target.getUUID(), true);
             var defenseFacts = actorStates.snapshots().defense(target);
-            int armorClass = PlayerArmorRules.armorClass(target,
-                actorStates.state(target.getUUID()).persistent().character());
-            if (armorClass < 0) armorClass = RuleResolver.armorClass(defenseFacts);
+            int armorClass = RuleResolver.armorClass(defenseFacts);
             double toughness = defenseFacts.read(RuleFacts.DEFENSE, RuleFacts.TOUGHNESS);
             if (!Double.isFinite(toughness) || toughness > Integer.MAX_VALUE)
                 throw new IllegalStateException("unsupported target toughness");
@@ -547,7 +545,7 @@ public final class ProjectileExecutionCoordinator {
             } else {
                 profile = ownerId == null ? null : EncounterContentCache.server().attackProfile(encounterId, ownerId);
                 if (profile == null && !origin.ownerWasPlayer() && owner instanceof LivingEntity livingOwner)
-                    profile = MobAttackProfiles.of(livingOwner);
+                    profile = MobAttackProfiles.of(livingOwner, EncounterContentCache.server().find(encounterId).content());
             }
             // A captured launch already fixed the total with its own bonus; recompute from those dice only.
             int attackBonus = profile != null ? profile.attackBonus()
@@ -584,7 +582,7 @@ public final class ProjectileExecutionCoordinator {
             permitId = UUID.randomUUID();
             engine.issueOutcomePermit(new EncounterAuthority.OutcomePermit(permitId, encounterId,
                 operationId, arrow.getUUID(), Set.of(target.getUUID()),
-                Set.of(EncounterPhase.ENVIRONMENT), 1, engine.stateView(encounterId).round()));
+                Set.of(EncounterPhase.ENVIRONMENT), 1, engine.stateView(encounterId).round(), false));
             damageId = UUID.randomUUID();
             OperationRecord.Snapshot child = host.operationSnapshot(damageId, operationId,
                 encounterId, root.owner(), arrow.getUUID(), target.getUUID(), host.clock(),
@@ -654,9 +652,7 @@ public final class ProjectileExecutionCoordinator {
 
     private static boolean weaponSupported(String id) {
         if (id == null || id.isEmpty() || "minecraft:bow".equals(id) || "minecraft:crossbow".equals(id)) return true;
-        if (!id.startsWith("dndturn:iron_")) return false;
-        String path = id.substring("dndturn:iron_".length());
-        var spec = cc.sighs.dndturn.platform.server.character.DndEquipmentCatalog.WEAPONS.get(path);
+        var spec = cc.sighs.dndturn.domain.character.EquipmentRules.WEAPONS.get(id);
         return spec != null && spec.ranged();
     }
 

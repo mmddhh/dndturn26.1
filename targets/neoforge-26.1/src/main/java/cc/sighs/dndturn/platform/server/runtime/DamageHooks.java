@@ -30,6 +30,7 @@ public final class DamageHooks {
         return hurtObserved(level, target, source, amount, false, null).accepted();
     }
     public static void onIncoming(LivingIncomingDamageEvent event) {
+        if (cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter.incoming(event)) return;
         if (WorldOutcomeHooks.authorizesDamage(event.getEntity(), event.getSource())) return;
         if (VanillaEffectRoundController.authorizeIncoming(event)) return;
         if (TacticalDamageContext.configureIncoming(event)) return;

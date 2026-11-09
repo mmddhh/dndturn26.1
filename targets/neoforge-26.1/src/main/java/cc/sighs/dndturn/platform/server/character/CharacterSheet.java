@@ -47,7 +47,8 @@ public final class CharacterSheet {
         scores.addProperty("cha", abilities.charisma());
         root.add("abilities", scores);
         root.addProperty("weightCapacity", abilities.strength() * 15);
-        root.addProperty("ac", PlayerArmorRules.armorClass(player, character));
+        root.addProperty("ac", cc.sighs.dndturn.domain.resolution.RuleResolver.armorClass(
+            ServerRuntime.encounters(player.level().getServer()).actorStates().snapshots().defense(player)));
         root.addProperty("hp", player.getHealth());
         root.addProperty("hpMax", player.getMaxHealth());
         return root.toString();

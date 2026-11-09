@@ -121,7 +121,7 @@ public final class MinecraftSnapshotCapture {
         var resources = ActorCompilation.resources(state, keys);
         keys.removeAll(resources.keys());
         var nativeFacts = MinecraftFactProviders.capture(actor, new ReadContract(keys)).merge(resources);
-        var compiled = SnapshotCompiler.compileFacts(definition, nativeFacts).restrict(reads);
+        var compiled = characterArmor(actor, state, SnapshotCompiler.compileFacts(definition, nativeFacts)).restrict(reads);
         var modified = new HashMap<FactKey<?>, Object>();
         var modifiedKeys = new HashSet<FactKey<Double>>();
         for (var effect : state.runtime().effects().values()) for (var modifier : effect.definition().modifiers())
@@ -235,6 +235,8 @@ public final class MinecraftSnapshotCapture {
                 new ActorSnapshot.Revision(observed == null ? UUID.randomUUID() : observed.capture(), state.revision(), CombatRules.RULES_REVISION),
                 (observed == null ? MinecraftFactProviders.capture(actor, new ReadContract(reads))
                         : MinecraftFactProviders.captureObserved(actor, new ReadContract(reads), observed)).merge(resources), bindings);
+        compiled = new ActorSnapshot(compiled.actor(), compiled.instance(), compiled.definition(), compiled.revision(),
+            characterArmor(actor, state, compiled.facts()), compiled.abilities());
         if (derivations != null) {
             var keys = new LinkedHashSet<String>(List.of(ActorFacts.ARMOR_CLASS.id(), ActorFacts.DAMAGE_REDUCTION.id()));
             for (var effect : state.runtime().effects().values()) for (var modifier : effect.definition().modifiers()) keys.add(modifier.stat().id());
@@ -247,6 +249,17 @@ public final class MinecraftSnapshotCapture {
         }
         return new ActorSnapshot(compiled.actor(), compiled.instance(), compiled.definition(), compiled.revision(),
                 ActorCompilation.apply(compiled.facts(), state, expanded.modifiers()), compiled.abilities(), effects(actor, state));
+    }
+    private FactSlice characterArmor(LiveActorContext actor, ActorStates.State state, FactSlice captured) {
+        if (!captured.keys().contains(ActorFacts.ARMOR_CLASS)) return captured;
+        try { captured.read(new ReadContract(Set.of(ActorFacts.ARMOR_CLASS)), ActorFacts.ARMOR_CLASS); }
+        catch (FactSlice.MissingFact unavailable) { return captured; }
+        var character = state.persistent().character();
+        var encounter = facts.encounter(actor.id());
+        var content = encounter == null ? null : cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(encounter);
+        if (content != null && content.participants().containsKey(actor.id())) character = content.require(actor.id()).character();
+        int armor = cc.sighs.dndturn.platform.server.character.PlayerArmorRules.armorClass(actor.body(), character);
+        return armor < 0 ? captured : captured.derive(Map.of(ActorFacts.ARMOR_CLASS, (double) armor));
     }
     private List<EffectSnapshot> effects(LiveActorContext actor, ActorStates.State state) {
         if (actor.body().getActiveEffects().size() > 256)

@@ -14,7 +14,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 
 /** Current-format SavedData wrapper. The serialized body contains only common value records. */
 public final class CombatSavedData extends SavedData {
-    private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+    private static final Gson GSON = new GsonBuilder().serializeNulls().registerTypeAdapter(cc.sighs.dndturn.domain.mob.MobAction.class, new MobActionCodec()).create();
     private static final int NBT_STRING_CHUNK = 30000;
     private static final Codec<CombatSavedData> CODEC = Codec.STRING.listOf().xmap(
         chunks -> new CombatSavedData(String.join("", chunks)), data -> split(data.json));
@@ -136,4 +136,20 @@ public final class CombatSavedData extends SavedData {
             + ",\"mergeReceipts\":" + GSON.toJson(rules.mergeReceipts()) + "}";
     }
 
+    private static final class MobActionCodec implements com.google.gson.JsonSerializer<cc.sighs.dndturn.domain.mob.MobAction>, com.google.gson.JsonDeserializer<cc.sighs.dndturn.domain.mob.MobAction> {
+        public com.google.gson.JsonElement serialize(cc.sighs.dndturn.domain.mob.MobAction value, java.lang.reflect.Type type, com.google.gson.JsonSerializationContext context) {
+            var result = new com.google.gson.JsonObject();
+            result.addProperty("kind", value instanceof cc.sighs.dndturn.domain.mob.MobAction.Attack ? "attack" : "save_area");
+            result.add("value", context.serialize(value, value.getClass())); return result;
+        }
+        public cc.sighs.dndturn.domain.mob.MobAction deserialize(com.google.gson.JsonElement value, java.lang.reflect.Type type, com.google.gson.JsonDeserializationContext context) {
+            var json = value.getAsJsonObject();
+            if (!json.keySet().equals(java.util.Set.of("kind", "value"))) throw new IllegalArgumentException("mob action fields");
+            return switch (json.get("kind").getAsString()) {
+                case "attack" -> context.deserialize(json.get("value"), cc.sighs.dndturn.domain.mob.MobAction.Attack.class);
+                case "save_area" -> context.deserialize(json.get("value"), cc.sighs.dndturn.domain.mob.MobAction.SaveArea.class);
+                default -> throw new IllegalArgumentException("Unsupported saved mob action");
+            };
+        }
+    }
 }

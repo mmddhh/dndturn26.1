@@ -15,19 +15,17 @@ public final class PlayerWeaponRules {
         if (character == null || !character.created()) return null;
         ItemStack held = player.getMainHandItem();
         if (held.isEmpty()) return null;
-        return profileFor(character, BuiltInRegistries.ITEM.getKey(held.getItem()).getPath(),
+        return profileFor(character, BuiltInRegistries.ITEM.getKey(held.getItem()).toString(),
             player.getOffhandItem().isEmpty());
     }
 
-    public static AttackProfile profileFor(CharacterState character, String itemPath) {
-        return profileFor(character, itemPath, true);
+    public static AttackProfile profileFor(CharacterState character, String itemId) {
+        return profileFor(character, itemId, true);
     }
 
-    public static AttackProfile profileFor(CharacterState character, String itemPath, boolean offhandEmpty) {
-        if (character == null || !character.created() || itemPath == null || itemPath.isBlank()) return null;
-        String path = itemPath.contains(":") ? itemPath.substring(itemPath.indexOf(':') + 1) : itemPath;
-        if (path.startsWith("iron_")) path = path.substring("iron_".length());
-        var spec = DndEquipmentCatalog.WEAPONS.get(path);
+    public static AttackProfile profileFor(CharacterState character, String itemId, boolean offhandEmpty) {
+        if (character == null || !character.created() || itemId == null || itemId.isBlank()) return null;
+        var spec = cc.sighs.dndturn.domain.character.EquipmentRules.WEAPONS.get(itemId);
         if (spec == null) return null;
         Ability ability = spec.finesse()
             ? (character.modifier(Ability.DEX) > character.modifier(Ability.STR) ? Ability.DEX : Ability.STR)

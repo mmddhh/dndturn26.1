@@ -3,7 +3,7 @@ package cc.sighs.dndturn.platform.server.character;
 import cc.sighs.dndturn.domain.character.CharacterClass;
 import cc.sighs.dndturn.domain.character.CharacterRace;
 import cc.sighs.dndturn.domain.character.CharacterState;
-import cc.sighs.dndturn.domain.character.ContentSnapshot;
+import cc.sighs.dndturn.domain.character.RulesCatalog;
 import cc.sighs.dndturn.domain.resolution.AttackProfile;
 import java.util.Map;
 import java.util.Objects;

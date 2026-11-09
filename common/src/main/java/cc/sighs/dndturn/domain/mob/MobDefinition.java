@@ -47,8 +47,7 @@ public record MobDefinition(String id, int version, AbilityScores abilities,
         return new MobDefinition(entityId, 1,
             new AbilityScores(10, 10, 10, 10, 10, 10), Map.of(),
             Map.of(MovementMode.GROUND, 30), Set.of(), Set.of(), Set.of(), Set.of(),
-            List.of(), List.of(new MobAction("melee", MobAction.Kind.ATTACK, 5, 3, 0,
-                List.of(new DamageComponent(0, 0, 10, DamageType.BLUDGEONING)),
-                null, 0, false, null, 0, 0, 0, null, 0)), 1, 0, 0);
+            List.of(), List.of(new MobAction.Attack("melee", 5, 3, 0,
+                List.of(new DamageComponent(0, 0, 10, DamageType.BLUDGEONING)))), 1, 0, 0);
     }
 }

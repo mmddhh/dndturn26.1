@@ -15,6 +15,7 @@ public final class DNDTurnNeoForge {
 
     public DNDTurnNeoForge(IEventBus modBus) {
         BuiltinAdapters.install();
+        NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter::register);
         modBus.addListener(PayloadRegistration::register);
         cc.sighs.dndturn.platform.server.character.DndEquipmentItems.register(modBus);
         modBus.addListener((net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent event) ->

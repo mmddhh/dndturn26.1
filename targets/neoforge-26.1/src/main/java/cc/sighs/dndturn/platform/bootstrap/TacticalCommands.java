@@ -145,7 +145,8 @@ public final class TacticalCommands {
         }
         var p = character.progression();
         var a = character.abilities();
-        int ac = cc.sighs.dndturn.platform.server.character.PlayerArmorRules.armorClass(player, character);
+        int ac = cc.sighs.dndturn.domain.resolution.RuleResolver.armorClass(
+            cc.sighs.dndturn.platform.server.runtime.ServerRuntime.encounters(player.level().getServer()).actorStates().snapshots().defense(player));
         context.getSource().sendSuccess(() -> Component.literal(
             p.classId() + (p.subclassId() == null ? "" : " (" + p.subclassId() + ")") + " / " + p.raceId()
                 + (p.subraceId() == null ? "" : " (" + p.subraceId() + ")")
