@@ -85,7 +85,8 @@ neoForge {
 repositories.clear()
 
 repositories {
-    mavenLocal {
+    maven {
+        url = 'https://maven.sighs.cc/repository/maven-snapshots/'
         content { includeGroup 'io.github.fatalitaya.combatnexus' }
     }
     // 保留 Minecraft 官方库
