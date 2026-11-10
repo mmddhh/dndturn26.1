@@ -48,7 +48,10 @@ public final class SaveService {
                 content.content().requireClass(character.progression().classId()), character, ability) : 0;
         }
         String id = participant == null ? BuiltInRegistries.ENTITY_TYPE.getKey(actor.getType()).toString() : participant.definitionId();
-        MobDefinition definition = content.contentFor(actor.getUUID()).mobOrFallback(id);
+        var catalog = content.contentFor(actor.getUUID());
+        // An actor provider identity need not be the species key in the captured rules catalog.
+        if (!catalog.mobs().containsKey(id)) id = BuiltInRegistries.ENTITY_TYPE.getKey(actor.getType()).toString();
+        MobDefinition definition = catalog.mobOrFallback(id);
         Integer explicit = definition.saveBonuses().get(ability);
         return explicit != null ? explicit : definition.abilities().modifier(ability);
     }

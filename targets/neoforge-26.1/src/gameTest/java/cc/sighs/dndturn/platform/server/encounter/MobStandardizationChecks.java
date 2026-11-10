@@ -53,7 +53,7 @@ public final class MobStandardizationChecks {
         Runnable cleanup = () -> {
             net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(cancel);
             var id = service.encounterOf(player.getUUID()); if (id != null) service.lifecycle().stop(id);
-            ghast.discard(); boundary.discard(); corner.discard(); player.discard();
+            ghast.discard(); boundary.discard(); corner.discard(); level.getServer().getPlayerList().remove(player); player.discard();
             for (long key : forced) { var chunk=ChunkPos.unpack(key); level.setChunkForced(chunk.x(),chunk.z(),false); } forced.clear();
         };
         h.runAtTickTime(299, cleanup);
@@ -117,7 +117,91 @@ public final class MobStandardizationChecks {
                 catch (IllegalArgumentException expectedMissing) { missingRejected = expectedMissing.getMessage().contains("content binding"); }
                 h.assertTrue(missingRejected, "recovery accepted missing content and could recapture latest definitions");
             }
-        }).thenExecute(cleanup).thenSucceed();
+        }).thenExecute(cleanup).thenExecute(() -> {
+            if (mode.equals("hit")) contentDamage(h, false); else h.succeed();
+        });
+    }
+    // The existing numerical seam now also protects generic typed damage, AI selection and retry evidence.
+    private static void contentDamage(GameTestHelper h, boolean area) {
+        var level = h.getLevel(); var base = new BlockPos(area ? 227001 : 226001, 185, 1);
+        var forced = new HashSet<Long>();
+        for (int x = (base.getX()-24)>>4; x <= (base.getX()+24)>>4; x++) for (int z=-2; z<=2; z++) {
+            level.getChunk(x,z); if (level.setChunkForced(x,z,true)) forced.add(ChunkPos.pack(x,z));
+        }
+        level.waitForEntities(ChunkPos.containing(base),1);
+        var player = TestPlayers.survival(h);
+        player.setPos(base.getX()+.5, base.getY(), .5); player.connection.resetPosition(); player.setNoGravity(true);
+        player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(200);
+        player.setHealth(200);
+        Mob mob = area ? EntityType.WARDEN.create(level, EntitySpawnReason.COMMAND) : EntityType.BLAZE.create(level, EntitySpawnReason.COMMAND);
+        mob.setPos(player.getX()+(area ? 10 : 2), player.getY(), player.getZ());
+        mob.setNoAi(true); mob.setNoGravity(true); level.addFreshEntity(mob);
+        var boundary = EntityType.COW.create(level, EntitySpawnReason.COMMAND);
+        boundary.setPos(player.getX()+1, player.getY(), player.getZ()); boundary.setNoAi(true); boundary.setNoGravity(true); level.addFreshEntity(boundary);
+        var corner = EntityType.COW.create(level, EntitySpawnReason.COMMAND);
+        corner.setPos(player.getX()+1, player.getY(), player.getZ()+1); corner.setNoAi(true); corner.setNoGravity(true); level.addFreshEntity(corner);
+        var service = ServerRuntime.encounters(level.getServer());
+        java.util.function.Consumer<net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent> cancel = e -> {
+            if (e.getEntity() == boundary) e.setCanceled(true);
+        };
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(cancel);
+        Runnable cleanup = () -> {
+            net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(cancel);
+            var id = service.encounterOf(player.getUUID()); if (id != null) service.lifecycle().stop(id);
+            mob.discard(); boundary.discard(); corner.discard(); level.getServer().getPlayerList().remove(player); player.discard();
+            for (long key : forced) { var chunk=ChunkPos.unpack(key); level.setChunkForced(chunk.x(),chunk.z(),false); } forced.clear();
+        };
+        h.runAtTickTime(298, cleanup);
+        h.startSequence().thenIdle(20).thenExecute(() -> {
+            if (mob instanceof net.minecraft.world.entity.monster.warden.Warden warden) warden.setAttackTarget(player);
+            else mob.setTarget(player);
+            service.lifecycle().requestStart(player, UUID.randomUUID());
+        }).thenWaitUntil(() -> {
+            var id = service.encounterOf(mob.getUUID()); h.assertTrue(id != null, "content mob not admitted");
+            var state = service.state(id);
+            if (player.getUUID().equals(state.current())) service.combat().endTurn(id,player,UUID.randomUUID(),state.version());
+            h.assertTrue(mob.getUUID().equals(service.state(id).current()), "waiting for content turn");
+        }).thenExecute(() -> {
+            var id = service.encounterOf(mob.getUUID()); var state = service.state(id);
+            service.useAttackRandomForGameTest(id, new Random(1) { @Override public int nextInt(int bound) { return Math.min(14, bound-1); } });
+            var actor = service.actorStates().context(mob);
+            var pinned = cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(id);
+            var species = pinned.contentFor(mob.getUUID()).requireMob(area ? "minecraft:warden" : "minecraft:blaze");
+            int expectedSave = species.saveBonuses().getOrDefault(cc.sighs.dndturn.domain.character.Ability.CON,
+                species.abilities().modifier(cc.sighs.dndturn.domain.character.Ability.CON));
+            h.assertTrue(cc.sighs.dndturn.platform.server.character.SaveService.bonus(mob,
+                cc.sighs.dndturn.domain.character.Ability.CON,pinned)==expectedSave,
+                "generic provider identity erased captured species saving throws");
+            var ai = AiTestAccess.capture(actor,state,null,ActionTestAccess.authority(service.actions()),service.mobDecisionFacts());
+            var decision = AiPlanner.decide(ai);
+            h.assertTrue(decision instanceof AiPlanner.Propose proposal && proposal.intent().behaviorId().equals("dndturn:content_action"),
+                "content AI failed to propose captured action: " + decision);
+            var intent = ((AiPlanner.Propose) decision).intent();
+            h.assertTrue(intent.parameters().get("action").equals(area ? "1" : "0"), "AI chose wrong content action");
+            if (!area) {
+                player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_ABSORPTION).setBaseValue(20);
+                player.setAbsorptionAmount(20);
+            }
+            var operation = UUID.randomUUID();
+            service.actions().submit(actor,service.generation(),id,operation,state.version(),intent,false);
+            var checkpoint = service.abilityCheckpoint(operation);
+            h.assertTrue(checkpoint != null && checkpoint.damageSteps().size() == 2,
+                "content lost target/type steps: " + checkpoint);
+            h.assertTrue(!service.state(id).members().get(mob.getUUID()).action(), "content damage did not charge one action");
+            h.assertTrue(boundary.getHealth()==10 && corner.getHealth()==10, "area cancellation or spherical boundary failed");
+            h.assertTrue(player.getHealth()==(area ? 180 : 200), "content health differs: " + checkpoint.damageSteps());
+            if (area) h.assertTrue(checkpoint.damageSteps().stream().anyMatch(r -> r.target().equals(boundary.getUUID())
+                    && r.outcome()==OperationRecord.Outcome.REJECTED), "cancelled area target reported success");
+            else h.assertTrue(player.getAbsorptionAmount()==14 && checkpoint.damageSteps().stream().mapToDouble(r -> r.absorptionLoss()).sum()==6
+                    && checkpoint.damageSteps().stream().map(r -> r.channel()).collect(java.util.stream.Collectors.toSet())
+                        .equals(Set.of("dndturn:bludgeoning","combatnexus:fire")), "typed absorption receipt differs");
+            float health = player.getHealth(), absorption = player.getAbsorptionAmount();
+            service.actions().submit(actor,service.generation(),id,operation,state.version(),intent,false);
+            h.assertTrue(player.getHealth()==health && player.getAbsorptionAmount()==absorption, "content retry repeated application");
+            service.persistIfChanged();
+            var saved = level.getServer().getDataStorage().computeIfAbsent(cc.sighs.dndturn.platform.server.persistence.CombatSavedData.TYPE).envelope();
+            h.assertTrue(saved.abilities().get(operation).damageSteps().equals(checkpoint.damageSteps()), "content checkpoint lost typed evidence");
+        }).thenExecute(cleanup).thenExecute(() -> { if (area) h.succeed(); else contentDamage(h, true); });
     }
     public static void run(GameTestHelper h) { run(h, false, false, false, false); }
     public static void held(GameTestHelper h) { run(h, true, false, false, false); }

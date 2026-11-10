@@ -8,6 +8,12 @@
 
 文档整理基线为 `dev_` / `3933318` 加进入时已有未提交修改。field 源提交 `9c05747` 已确认是 HEAD 祖先，不重复合并。当前工作区目标配置为 Minecraft 26.1.2、NeoForge 26.1.2.126、JDK 25；ApricityUI/CombatNexus 等依赖以实际 build.gradle 为准，配置存在不等于联合运行验证通过。
 
+本次合并基线为 `dev_` / `81c8e54`，main 的最新远端提交为 `02029a3`，共同祖先为 `3933318`。远端 main 重写过历史，本地旧 main 不作为合并来源；保留 dev_ 的 CombatNexus 接入与文档结构。进入时已有的 target Maven 仓库修改保持未提交，不纳入合并提交。
+
+main 的怪物表已按当前类型化目录合并：37 种原版实体加既有 Ghast 专用档案。通用动作通过注册接入，优先级低于专用适配，AI 只读本次捕获的有界动作范围；执行读取参与者固定目录，普通攻击、多段类型伤害和范围豁免复用 `numericalStep` / CombatNexus，逐段保留命中、伤害、吸收、护盾、取消与 UNKNOWN，最多 63 个应用步骤。没有引入静态 Actor/冷却 owner、任意参数通配符或平行伤害入口。通用 provider 身份与物种目录键分开解析，避免丢失怪物豁免与抗性。
+
+按用户确认的此次范围，召唤、附加条件、充能、Guardian 引导及 Boss 动作不进入新通用执行器；其设计仍在现有 `data/vanilla-mobs.yaml`，不恢复删除的阶段文档。具有附加条件的已有怪物保留原先纯伤害档案；Witch、Evoker、Shulker、Guardian/ElderGuardian、Dragon/Wither 只导入基础定义，运行 actions 暂空，保持既有原生/专用入口。充能定义不伪装成回合冷却。通用动作支持至多 32 个动作的定义，超出此能力容量不授予通用动作；内容存在不表示全部特性可玩。
+
 ## 已有基础
 
 | 范围 | 已有实现及保留边界 |
@@ -43,6 +49,10 @@ Ghast 已通过 CombatNexus 的真实 NUMERICAL driver 应用：保留 +4 命中
 继续暂缓 PvP、HIDE、Enderman 定点传送、完整飞行/专属游泳/载具、Boss/大型部件玩法，以及未确认的流血/破甲/连击等内容。普通水中移动和既定危险过程保留。当前文档维护不自行解决 WIP 列出的产品选择；第一人称切换、战斗文本日志和本模组旧版本迁移仍不恢复。
 
 ## 验证证据与缺口
+
+本次 main 合并实际通过：`-p common test`；JDK 25 下 `-p targets/neoforge-26.1 build`（含架构/UI 检查）；串行 `runGameTestServer` 的 `ghast_numerical`、`ghast_numerical_miss/death/absorption/cancel/shield`、`character_creation`。复用 `MobStandardizationChecks`，未新增测试文件：`ghast_numerical` 保留原检查，并串联 Blaze 双类型伤害/吸收、Warden 范围/取消/球形边界、AI 槽位选择、一次收费、同操作重试、物种豁免和保存回执；这些平台接缝无法由纯规则测试证明。最终 `build runGameTestServer -PgameTestSelection=dndturn:ghast_numerical` 再次通过。
+
+运行中修正了动作参数容量及建场首回合早于目录安装的接入问题；夹具改用 Warden 的原生 `setAttackTarget` 并移除 PlayerList 中的临时玩家。六个 Ghast 场景并行运行曾在全局保存校验报 `active encounter lacks its captured content binding`，串行分别通过，不宣称并行隔离通过。额外 `mob_standardization` 在等待投射物时出现 `unknown encounter`；独立 detached 工作树 `81c8e54`、相同 Maven 仓库配置下复现相同异常，记录为基线失败，本次不关闭该缺口。未运行真实键鼠、双客户端或普通专服第二进程联合恢复。WIP 文件保持不变，用户的 build.gradle 修改未提交。
 
 当前重构已执行：CombatNexus 活动 target 的 clean build、本地 Maven 安装、common/制品/compat 边界检查、能力 AutoJS 与 business-time 含新进程恢复；DNDTurn common 测试、活动 target 构建及其架构/UI 检查。两模组共同加载的 Ghast 检查覆盖命中、未命中、首段致死、逐目标取消、原版吸收、全护盾吸收、球形边界、同操作重试和当前格式证据/类型化目录往返；character_creation 独立检查已实际运行通过。普通近战/场外首击、12 项箭场景、部件根 Actor 结算、盾牌耐久、身体击退、角色目录及 Ghast 共 24 项相关 GameTest 已联合运行；覆盖全护盾吸收、请求重试、原生无敌拒绝、跨场箭、护甲不重复减伤、目录装备解析和发射后不重掷。修正了内置怪物攻击缺少必填 range_ticks 导致目录被拒绝的问题；箭夹具改用生存玩家与明确敌对，独立布置场地。CombatNexus 外部驱动 AutoJS 28 项断言覆盖原生请求数值/类型/来源匹配、错误身体拒绝及无敌预检。
 
