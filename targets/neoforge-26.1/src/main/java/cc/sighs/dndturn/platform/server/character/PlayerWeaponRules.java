@@ -11,12 +11,13 @@ import net.minecraft.world.item.ItemStack;
 public final class PlayerWeaponRules {
     private PlayerWeaponRules() {}
 
-    public static AttackProfile profile(ServerPlayer player, CharacterState character) {
-        if (character == null || !character.created()) return null;
+    public static AttackProfile profile(ServerPlayer player, EncounterContent content) {
+        var character = content.require(player.getUUID()).character();
+        if (!character.created()) return null;
         ItemStack held = player.getMainHandItem();
         if (held.isEmpty()) return null;
         return profileFor(character, BuiltInRegistries.ITEM.getKey(held.getItem()).toString(),
-            player.getOffhandItem().isEmpty());
+            player.getOffhandItem().isEmpty(), content.contentFor(player.getUUID()));
     }
 
     public static AttackProfile profileFor(CharacterState character, String itemId) {
@@ -24,8 +25,13 @@ public final class PlayerWeaponRules {
     }
 
     public static AttackProfile profileFor(CharacterState character, String itemId, boolean offhandEmpty) {
+        return profileFor(character, itemId, offhandEmpty, cc.sighs.dndturn.domain.character.RulesCatalog.empty());
+    }
+
+    public static AttackProfile profileFor(CharacterState character, String itemId, boolean offhandEmpty,
+            cc.sighs.dndturn.domain.character.RulesCatalog catalog) {
         if (character == null || !character.created() || itemId == null || itemId.isBlank()) return null;
-        var spec = cc.sighs.dndturn.domain.character.EquipmentRules.WEAPONS.get(itemId);
+        var spec = catalog.weapons().get(itemId);
         if (spec == null) return null;
         Ability ability = spec.finesse()
             ? (character.modifier(Ability.DEX) > character.modifier(Ability.STR) ? Ability.DEX : Ability.STR)

@@ -393,6 +393,7 @@ public final class EncounterLifecycleCoordinator {
                 if (!regionChunksLoaded(level, chunks)
                     || !world.scheduledTicks().canRebindMerge(working.encounters(), sampled))
                     throw new IllegalStateException("merged region or held tick chunks are not loaded and ticking");
+                var mergedContent = EncounterContentCache.server().prepareMerge(working.primary(), working.encounters());
                 long mergedProjectionSequence = projections.nextSequence();
                 UUID mergeOperation = UUID.randomUUID();
                 var binding = new CombatPersistenceEnvelope.MergeBinding(mergeOperation, working.primary(), working.encounters(),
@@ -402,6 +403,7 @@ public final class EncounterLifecycleCoordinator {
                 engine.commitMerge(working, sampled,
                     mergeOperation, host.clock());
                 ruleCommitted = true;
+                EncounterContentCache.server().commitMerge(mergedContent);
                 mergeBindings.put(working.primary(), binding.at(CombatPersistenceEnvelope.MergePhase.RULES_COMMITTED));
                 host.persistNow();
                 ruleCommitted = true;

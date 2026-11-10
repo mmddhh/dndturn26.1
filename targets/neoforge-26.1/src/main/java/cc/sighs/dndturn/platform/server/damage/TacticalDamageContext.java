@@ -31,7 +31,7 @@ public final class TacticalDamageContext {
         Identifier.fromNamespaceAndPath(DNDTurnNeoForge.MOD_ID, "tactical"));
     private static final class Frame {
         final LivingEntity target;
-        final DamageSource source;
+        DamageSource source;
         final boolean knockback;
         final UUID operationId;
         boolean sawKnockback;
@@ -55,7 +55,8 @@ public final class TacticalDamageContext {
 
     public record HurtObservation(boolean accepted, float shieldBlockedContribution,
                                   boolean shieldWearCalled, boolean knockbackEventObserved,
-                                  boolean knockbackMoved, boolean knockbackEnabled, DamageTrace.Displacement displacement) {}
+                                  boolean knockbackMoved, boolean knockbackEnabled, DamageTrace.Displacement displacement,
+                                  CombatNexusAdapter.Receipt application) {}
 
     private TacticalDamageContext() {}
 
@@ -126,18 +127,29 @@ public final class TacticalDamageContext {
 
     public static HurtObservation hurtObserved(ServerLevel level, LivingEntity target, DamageSource source,
                                                float amount, boolean knockback, UUID operationId, DamageAttempt runtime) {
+        return hurtObserved(level, target, source, amount, knockback, operationId, runtime, "dndturn:bludgeoning");
+    }
+
+    public static HurtObservation hurtObserved(ServerLevel level, LivingEntity target, DamageSource source,
+            float amount, boolean knockback, UUID operationId, DamageAttempt runtime, String channel) {
         if (!level.getServer().isSameThread() || target.level() != level
-            || !source.is(DAMAGE_TYPE) || !Float.isFinite(amount) || amount < 0)
+            || !(source.is(DAMAGE_TYPE) || source.is(net.minecraft.world.damagesource.DamageTypes.PLAYER_ATTACK)
+                || source.is(net.minecraft.world.damagesource.DamageTypes.MOB_ATTACK) || source.is(net.minecraft.world.damagesource.DamageTypes.ARROW))
+            || !Float.isFinite(amount) || amount < 0)
             throw new IllegalArgumentException("invalid tactical damage call");
         if (CURRENT.get() != null) throw new IllegalStateException("nested tactical damage needs a child operation");
         if (runtime != null && runtime.cancelDamageAttempt(target, source, amount, operationId))
-            return new HurtObservation(false, 0, false, false, false, knockback, null);
-        Frame frame = new Frame(target, source, knockback, operationId);
+            return new HurtObservation(false, 0, false, false, false, knockback, null,
+                new CombatNexusAdapter.Receipt(operationId == null ? UUID.randomUUID() : operationId, channel, source.typeHolder().unwrapKey().orElseThrow().identifier().toString(), cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Outcome.REJECTED, 0, 0, 0, "reaction cancelled"));
+        Frame frame = new Frame(target, source, knockback, operationId == null ? UUID.randomUUID() : operationId);
         CURRENT.set(frame);
         try {
             Vec3 velocityBefore = target.getDeltaMovement();
             var body = runtime == null ? target : runtime.damageBody(target, operationId);
-            boolean accepted = body.hurtServer(level, source, amount);
+            CombatNexusAdapter.Receipt application = CombatNexusAdapter.apply(level, source, target, body,
+                frame.operationId, channel, amount, null);
+            boolean accepted = application.outcome() == cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Outcome.COMPLETED
+                || application.outcome() == cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Outcome.PARTIAL;
             if (accepted && amount > 0 && frame.blockingItem != null
                 && target.getItemInHand(frame.blockingHand) == frame.blockingItem) {
                 frame.blocking.hurtBlockingItem(level, frame.blockingItem, target,
@@ -168,7 +180,7 @@ public final class TacticalDamageContext {
             }
             if (accepted) target.invulnerableTime = 0;
             return new HurtObservation(accepted, frame.blockedContribution, frame.shieldWearCalled,
-                frame.sawKnockback, frame.knockbackMoved, frame.knockback, frame.displacement);
+                frame.sawKnockback, frame.knockbackMoved, frame.knockback, frame.displacement, application);
         } finally {
             CURRENT.remove();
         }
@@ -182,6 +194,11 @@ public final class TacticalDamageContext {
             if (frame.knockback) frame.sawKnockback = true;
             else event.setCanceled(true);
         }
+    }
+    /** Called only after the adapter matched CombatNexus's exact native application request. */
+    static void bindResolvedSource(LivingEntity target, DamageSource source, UUID operation) {
+        Frame frame = CURRENT.get();
+        if (frame != null && frame.target == target && frame.operationId.equals(operation)) frame.source = source;
     }
     public static boolean configureIncoming(LivingIncomingDamageEvent event) {
         Frame frame = CURRENT.get();

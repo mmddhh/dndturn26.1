@@ -151,11 +151,26 @@ public final class CombatStructureChecks {
                     }
                 } finally { net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(listener); }
                 engine.publish(encounter, attack, 0, OperationRecord.Outcome.COMPLETED, "test attack settled", 0, 0, true);
-                var part = EntityType.ARMOR_STAND.create(level, EntitySpawnReason.COMMAND);
+                var part = new net.minecraft.world.entity.decoration.ArmorStand(EntityType.ARMOR_STAND, level) {
+                    @Override public boolean hurtServer(net.minecraft.server.level.ServerLevel world, net.minecraft.world.damagesource.DamageSource hit, float amount) {
+                        return cow.hurtServer(world, hit, amount);
+                    }
+                };
                 var replacement = EntityType.ARMOR_STAND.create(level, EntitySpawnReason.COMMAND);
                 ROOTS.put(part, cow); PARTS.put(cow, part);
                 var target = BodyTargets.identify(part);
                 h.assertTrue(target.entity().equals(cow.getUUID()) && BodyTargets.resolve(cow, target.facet()).body() == part, "facet lost root mapping");
+                cow.setHealth(cow.getMaxHealth()); cow.invulnerableTime = 0;
+                float bodyHealth = cow.getHealth();
+                UUID bodyRequest = UUID.randomUUID();
+                var bodyReceipt = cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter.apply(level, source, cow, part,
+                    bodyRequest, "dndturn:bludgeoning", 1, null);
+                h.assertTrue(bodyReceipt.outcome() == OperationRecord.Outcome.COMPLETED && bodyReceipt.health() == 1
+                    && cow.getHealth() == bodyHealth - 1, "registered body did not settle against its root exactly once");
+                var repeatedBody = cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter.apply(level, source, cow, part,
+                    bodyRequest, "dndturn:bludgeoning", 1, null);
+                h.assertTrue(repeatedBody.outcome() == OperationRecord.Outcome.REJECTED && cow.getHealth() == bodyHealth - 1,
+                    "registered body replayed the same numerical request");
                 ROOTS.remove(part); ROOTS.put(replacement, cow); PARTS.put(cow, replacement);
                 boolean rejected = false;
                 try { BodyTargets.resolve(cow, target.facet()); } catch (IllegalStateException expected) { rejected = true; }

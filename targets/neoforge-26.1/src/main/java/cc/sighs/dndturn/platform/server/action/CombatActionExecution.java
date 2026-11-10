@@ -393,7 +393,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         AttackProfile profile;
         if (actor instanceof ServerPlayer player) {
             profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profile(player,
-                actorStates.state(player.getUUID()).persistent().character());
+                EncounterContentCache.server().find(encounterId));
         } else {
             profile = EncounterContentCache.server().attackProfile(encounterId, actor.getUUID());
             if (profile == null) profile = MobAttackProfiles.of(actor, EncounterContentCache.server().find(encounterId).content());
@@ -475,7 +475,8 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             engine.stateView(encounterId).version(), root.sourceCell(), root.targetCell(),
             OperationRecord.Kind.DAMAGE);
         if (!engine.beginOperation(child, permitId)) throw new IllegalStateException("damage permit rejected");
-        DamageSource source = level.damageSources().source(TacticalDamageContext.DAMAGE_TYPE, actor);
+        DamageSource source = level.damageSources().source(actor instanceof ServerPlayer
+            ? net.minecraft.world.damagesource.DamageTypes.PLAYER_ATTACK : net.minecraft.world.damagesource.DamageTypes.MOB_ATTACK, actor);
         float healthBefore = target.getHealth();
         float absorptionBefore = target.getAbsorptionAmount();
         Map<EquipmentKey, EquipmentValue> equipmentBefore = equipmentSnapshot(actor, target);
@@ -483,7 +484,8 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         outcomes.enterOutcome();
         try {
             var observed = TacticalDamageContext.hurtObserved(level, target, source, tacticalDamage,
-                effects.knockback(), damageId, this);
+                effects.knockback(), damageId, this, cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter.channel(
+                    profile == null ? cc.sighs.dndturn.domain.mob.DamageType.BLUDGEONING : profile.damageType()));
             boolean accepted = observed.accepted();
             if (accepted && roll.critical()) level.getChunkSource().sendToTrackingPlayersAndSelf(target,
                 new net.minecraft.network.protocol.game.ClientboundAnimatePacket(target,
@@ -494,19 +496,17 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             }
             float healthLoss = Math.max(0, healthBefore - target.getHealth());
             float absorptionLoss = Math.max(0, absorptionBefore - target.getAbsorptionAmount());
-            OperationRecord.Outcome effectOutcome = accepted ? OperationRecord.Outcome.COMPLETED
-                : healthLoss > 0 || absorptionLoss > 0 ? OperationRecord.Outcome.PARTIAL
-                : OperationRecord.Outcome.REJECTED;
+            OperationRecord.Outcome effectOutcome = observed.application().outcome();
             DamageTrace trace = attackTrace(operationId, targetId, rollMode, roll, ac,
                 baseDamage, reduction, tacticalDamage, accepted, absorptionLoss, healthLoss,
-                damageEvidence(actor, state, accepted ? DamageTrace.Stage.VANILLA_ACCEPTED
+                damageEvidence(actor, state, effectOutcome == OperationRecord.Outcome.UNKNOWN ? DamageTrace.Stage.UNKNOWN : accepted ? DamageTrace.Stage.VANILLA_ACCEPTED
                     : DamageTrace.Stage.VANILLA_REJECTED, observed,
                     equipmentChanges(equipmentBefore, equipmentSnapshot(actor, target))));
             engine.publish(encounterId, damageId, 0, effectOutcome,
                 "vanilla hurtServer=" + accepted + " absorptionLoss=" + absorptionLoss
                     + " healthLoss=" + healthLoss, 0, healthLoss, true);
             actorStates.observedHit(damageId, actor, target, accepted, healthLoss + absorptionLoss);
-            return engine.publish(encounterId, operationId, 0, OperationRecord.Outcome.COMPLETED,
+            return engine.publish(encounterId, operationId, 0, effectOutcome,
                 "attack hit: die=" + roll.die() + " effect=" + effectOutcome, 0, healthLoss, true, trace);
         } catch (RuntimeException error) {
             if (engine.resultFor(encounterId, damageId) == null)
@@ -515,7 +515,11 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
             LOGGER.error("Tactical damage {} requires reconciliation", damageId, error);
             if (engine.resultFor(encounterId, operationId) == null)
                 return engine.publish(encounterId, operationId, 0, OperationRecord.Outcome.UNKNOWN,
-                    "world damage outcome unknown", 0, 0, true);
+                    "world damage outcome unknown", 0, Math.max(0, healthBefore - target.getHealth()), true,
+                    attackTrace(operationId, targetId, rollMode, roll, ac, baseDamage, reduction, tacticalDamage,
+                        false, Math.max(0, absorptionBefore - target.getAbsorptionAmount()), Math.max(0, healthBefore - target.getHealth()),
+                        damageEvidence(actor, state, DamageTrace.Stage.UNKNOWN, null,
+                            equipmentChanges(equipmentBefore, equipmentSnapshot(actor, target)))));
             return engine.resultFor(encounterId, operationId);
         } finally {
             outcomes.exitOutcome();
@@ -559,7 +563,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         AttackProfile profile;
         if (player instanceof ServerPlayer shooter) {
             profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profile(shooter,
-                actorStates.state(shooter.getUUID()).persistent().character());
+                EncounterContentCache.server().find(state.id()));
         } else {
             profile = EncounterContentCache.server().attackProfile(state.id(), player.getUUID());
             if (profile == null) profile = MobAttackProfiles.of(player, EncounterContentCache.server().find(state.id()).content());

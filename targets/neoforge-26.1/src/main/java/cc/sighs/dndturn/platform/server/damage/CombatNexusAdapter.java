@@ -19,36 +19,60 @@ public final class CombatNexusAdapter {
     private static final ThreadLocal<Applying> APPLYING = new ThreadLocal<>();
     private CombatNexusAdapter() {}
     public static void register(CombatRegisterEvent event) {
+        event.registrar().damageBody(NexusId.parse("dndturn:body_facet"), BodyTargets::registeredOwner);
+        event.registrar().nativeDamageIngress(NexusId.parse("dndturn:melee_intrusion"),
+            cc.sighs.dndturn.platform.server.runtime.DamageHooks::replaceNativeDamage);
         var local = DriverDefinition.ApplicationOwner.COMBATNEXUS;
         registration = event.registrar().externalDriver(new DriverDefinition(NexusId.parse("dndturn:tactical"),
             Set.of(DriverScope.NUMERICAL), local, local, local));
     }
-    public record Receipt(OperationRecord.Outcome outcome, float health, float absorption, double shields, String reason) {}
+    public static String channel(cc.sighs.dndturn.domain.mob.DamageType type) {
+        return type == cc.sighs.dndturn.domain.mob.DamageType.FIRE ? "combatnexus:fire" : "dndturn:" + type.id();
+    }
+    public record Receipt(UUID request, String channel, String nativeType, OperationRecord.Outcome outcome, float health, float absorption, double shields, String reason) {}
     public static boolean incoming(LivingIncomingDamageEvent event) {
         var applying = APPLYING.get();
         if (applying == null || !applying.session().applyingDamage(event.getEntity(), event.getSource())
                 .filter(applying.request()::equals).isPresent()) return false;
-        if (applying.reactions().cancelDamageAttempt(event.getEntity(), event.getSource(), event.getAmount(), applying.request()))
+        TacticalDamageContext.bindResolvedSource(event.getEntity(), event.getSource(), applying.request());
+        if (applying.reactions() != null && applying.reactions().cancelDamageAttempt(event.getEntity(), event.getSource(), event.getAmount(), applying.request()))
             event.setCanceled(true);
         event.setInvulnerabilityTicks(1);
         return true;
     }
     public static Receipt apply(ServerLevel level, LivingEntity source, LivingEntity target, UUID request,
             String nativeType, String channel, float amount, DamageAttempt reactions) {
-        if (!level.getServer().isSameThread() || target.level() != level || source.level() != level
+        return apply(level, level.damageSources().source(net.minecraft.resources.ResourceKey.create(
+            net.minecraft.core.registries.Registries.DAMAGE_TYPE, net.minecraft.resources.Identifier.parse(nativeType)), source),
+            target, request, channel, amount, reactions);
+    }
+    public static Receipt apply(ServerLevel level, net.minecraft.world.damagesource.DamageSource source,
+            LivingEntity target, UUID request, String channel, float amount, DamageAttempt reactions) {
+        return apply(level, source, target, target, request, channel, amount, reactions);
+    }
+    public static Receipt apply(ServerLevel level, net.minecraft.world.damagesource.DamageSource source,
+            LivingEntity target, net.minecraft.world.entity.Entity body, UUID request, String channel, float amount, DamageAttempt reactions) {
+        String nativeType = source.typeHolder().unwrapKey().orElseThrow().identifier().toString();
+        if (!level.getServer().isSameThread() || target.level() != level
+                || source.getEntity() != null && source.getEntity().level() != level
                 || target.isRemoved() || !target.isAlive() || level.getEntity(target.getUUID()) != target)
-            return new Receipt(OperationRecord.Outcome.REJECTED, 0, 0, 0, "target instance unavailable");
+            return new Receipt(request, channel, nativeType, OperationRecord.Outcome.REJECTED, 0, 0, 0, "target instance unavailable");
         if (APPLYING.get() != null) throw new IllegalStateException("Nested numerical application requires a child boundary");
         var world = CombatAccess.find((io.github.fatalitaya.combatnexus.combat.api.WorldLookup) level).orElseThrow();
         try (var session = world.drivers().bind(Objects.requireNonNull(registration), target.getUUID(), Set.of(DriverScope.NUMERICAL), Optional.empty())) {
             var damage = new ResolvedDamage(request,
-                new CombatSource(NexusId.parse("dndturn:tactical"), Optional.of(source.getUUID()), Optional.empty()),
+                new CombatSource(NexusId.parse("dndturn:tactical"), Optional.ofNullable(source.getEntity()).map(net.minecraft.world.entity.Entity::getUUID), Optional.empty()),
                 NexusId.parse(nativeType), List.of(new ResolvedDamage.Component(NexusId.parse(channel), amount)));
             APPLYING.set(new Applying(request, session, reactions));
             try {
-                var result = session.damage(damage);
+                var nativeRequest = io.github.fatalitaya.combatnexus.combat.damage.api.damage.DamageRequest.builder(level, target,
+                    io.github.fatalitaya.combatnexus.combat.damage.api.damage.DamageSourceDescriptor.of(damage.damageType()), amount)
+                    .kind(io.github.fatalitaya.combatnexus.combat.damage.api.damage.DamageRequestKind.CUSTOM).applicationBody(body)
+                    .directEntity(source.getDirectEntity()).effectOwner(source.getEntity())
+                    .logicalAttacker(source.getEntity() instanceof LivingEntity living ? living : null).build();
+                var result = session.damage(damage, nativeRequest);
                 var settlement = result.settlement();
-                if (settlement.isEmpty()) return new Receipt(result.status() == io.github.fatalitaya.combatnexus.combat.damage.api.damage.DamageSubmissionStatus.REJECTED
+                if (settlement.isEmpty()) return new Receipt(request, channel, nativeType, result.status() == io.github.fatalitaya.combatnexus.combat.damage.api.damage.DamageSubmissionStatus.REJECTED
                     ? OperationRecord.Outcome.REJECTED : OperationRecord.Outcome.UNKNOWN, 0, 0, 0, result.status().name());
                 var value = settlement.get();
                 var evidence = value.evidence();
@@ -59,7 +83,7 @@ public final class CombatNexusAdapter {
                     : written > 0 ? OperationRecord.Outcome.PARTIAL
                     : result.status() == io.github.fatalitaya.combatnexus.combat.damage.api.damage.DamageSubmissionStatus.FAILED ? OperationRecord.Outcome.UNKNOWN
                     : OperationRecord.Outcome.REJECTED;
-                return new Receipt(outcome, evidence.healthLoss(), value.absorptionDamage(), evidence.shieldLoss(), result.status().name());
+                return new Receipt(request, channel, nativeType, outcome, evidence.healthLoss(), value.absorptionDamage(), evidence.shieldLoss(), result.status().name());
             } finally { APPLYING.remove(); }
         }
     }

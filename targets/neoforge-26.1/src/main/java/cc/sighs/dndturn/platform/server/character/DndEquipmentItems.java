@@ -44,11 +44,11 @@ public final class DndEquipmentItems {
             if (spec.dice() > 0) {
                 String dice = spec.dice() + "d" + spec.sides();
                 lore.add(Component.translatable("tooltip.dndturn.damage", dice,
-                    Component.translatable("damage_type.dndturn." + spec.damageType())));
+                    Component.translatable("damage_type.dndturn." + spec.damageType().id())));
                 if (spec.versatileSides() > 0) {
                     String versatile = spec.dice() + "d" + spec.versatileSides();
                     lore.add(Component.translatable("tooltip.dndturn.versatile", versatile,
-                        Component.translatable("damage_type.dndturn." + spec.damageType())));
+                        Component.translatable("damage_type.dndturn." + spec.damageType().id())));
                 }
             }
             if (!spec.properties().isEmpty()) lore.add(tagLine(spec.properties()));

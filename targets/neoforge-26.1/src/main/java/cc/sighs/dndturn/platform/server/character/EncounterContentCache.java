@@ -43,10 +43,32 @@ public final class EncounterContentCache {
         if (character.created() && (characterClass == null || characterRace == null))
             throw new IllegalStateException("character content is not present in the encounter snapshot");
         var participant = new ParticipantContent(actor, definition.id(), definition.version(), character,
-                characterClass, characterRace, MobAttackProfiles.of(entity, content));
+                characterClass, characterRace, MobAttackProfiles.of(entity, content), content.revision());
         var participants = new LinkedHashMap<>(current.participants());
         participants.put(actor, participant);
-        byEncounter.put(encounterId, new EncounterContent(encounterId.toString(), content, participants));
+        byEncounter.put(encounterId, new EncounterContent(encounterId.toString(), content, participants, current.catalogs()));
+    }
+
+    /** Prepare bounded, immutable owner transfer before the Encounter commits its merge. */
+    public EncounterContent prepareMerge(UUID primary, java.util.Collection<UUID> sources) {
+        var base = Objects.requireNonNull(byEncounter.get(primary), "primary content");
+        var participants = new LinkedHashMap<>(base.participants());
+        var catalogs = new LinkedHashMap<>(base.catalogs());
+        for (UUID source : sources) {
+            var captured = Objects.requireNonNull(byEncounter.get(source), "merge source content");
+            captured.catalogs().forEach((revision, value) -> {
+                var prior = catalogs.putIfAbsent(revision, value);
+                if (prior != null && !prior.equals(value)) throw new IllegalStateException("conflicting catalog identity");
+            });
+            captured.participants().forEach((actor, value) -> {
+                var prior = participants.putIfAbsent(actor, value);
+                if (prior != null && !prior.equals(value)) throw new IllegalStateException("conflicting participant content");
+            });
+        }
+        return new EncounterContent(primary.toString(), base.content(), participants, catalogs);
+    }
+    public void commitMerge(EncounterContent prepared) {
+        byEncounter.put(UUID.fromString(prepared.encounterId()), prepared);
     }
 
     public EncounterContent find(UUID encounterId) { return byEncounter.get(encounterId); }

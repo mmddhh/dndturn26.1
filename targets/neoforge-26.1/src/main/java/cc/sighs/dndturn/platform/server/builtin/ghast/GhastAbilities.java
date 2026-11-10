@@ -158,7 +158,7 @@ public final class GhastAbilities {
             var participant = content.participants().get(target.getUUID());
             String id = participant == null ? net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString()
                 : participant.definitionId();
-            var mob = content.content().mobOrFallback(id);
+            var mob = content.contentFor(target.getUUID()).mobOrFallback(id);
             return new cc.sighs.dndturn.domain.mob.DefenseProfile(mob.resistances(), mob.immunities(), mob.vulnerabilities()).apply(type, amount);
         }
 

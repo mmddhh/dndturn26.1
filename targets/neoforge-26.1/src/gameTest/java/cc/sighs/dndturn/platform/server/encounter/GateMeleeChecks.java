@@ -89,6 +89,17 @@ public final class GateMeleeChecks {
                         service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND,3,2,selection.item()));
                     var offer = options.offers().stream().filter(o -> o.intent().behaviorId().equals("dndturn:melee")).findFirst().orElseThrow();
                     h.assertTrue(offer.reason().isEmpty(),item + " discovery rejected: " + offer.reason());
+                    service.useAttackRandomForGameTest(encounter, new Random() {
+                        @Override public int nextInt(int bound) { return Math.min(14, bound - 1); }
+                    });
+                    var nexus = io.github.fatalitaya.combatnexus.combat.api.CombatAccess.find((io.github.fatalitaya.combatnexus.combat.api.WorldLookup)level).orElseThrow();
+                    var shieldId = io.github.fatalitaya.combatnexus.api.id.NexusId.parse("dndturn:melee_fixture");
+                    if (item == Items.IRON_AXE) {
+                        var source = new io.github.fatalitaya.combatnexus.combat.api.CombatSource(shieldId,Optional.empty(),Optional.empty());
+                        var definition = new io.github.fatalitaya.combatnexus.combat.shield.api.ShieldDefinition(100,0,Set.of(),Set.of(),Set.of(),0,0,
+                            io.github.fatalitaya.combatnexus.combat.shield.api.ShieldDefinition.Stacking.REPLACE_SAME_SOURCE);
+                        h.assertTrue(nexus.shields().grant(UUID.randomUUID(),mob.getUUID(),new io.github.fatalitaya.combatnexus.combat.shield.api.ShieldGrant(source,definition,100,OptionalLong.empty())).applied(),"melee shield grant rejected");
+                    }
                     UUID op = UUID.randomUUID();
                     var request = new ActionProtocol.Request(service.generation(),encounter,op,options.version(),offer.intent(),false);
                     service.actions().request(player,request);
@@ -99,17 +110,27 @@ public final class GateMeleeChecks {
                         .map(OperationRecord.Result::damageTrace).filter(Objects::nonNull).findFirst().orElseThrow();
                     h.assertTrue(item == Items.STONE ? trace.weaponDamage()==0 : trace.weaponDamage()>0,"wrong item damage input");
                     if (trace.hit() && trace.tacticalDamage()>0)
-                        h.assertTrue(trace.vanillaAccepted() && trace.healthLoss()>0,"legal hit never reached native damage");
+                        h.assertTrue(trace.vanillaAccepted() && trace.evidence().application() != null
+                            && trace.evidence().application().outcome() == OperationRecord.Outcome.COMPLETED
+                            && (item == Items.IRON_AXE ? trace.evidence().application().shieldLoss() == trace.tacticalDamage() && trace.healthLoss() == 0
+                                : trace.healthLoss() > 0),"legal hit lost its actual application evidence");
                     System.out.println("GATE_MELEE item="+item+" hit="+trace.hit()+" healthLoss="+trace.healthLoss());
                     h.assertTrue(!service.state(encounter).members().get(player.getUUID()).action(),"attack did not spend action");
+                    float beforeRetry = mob.getHealth();
+                    double shieldBeforeRetry = nexus.shields().snapshot(mob.getUUID()).stream().mapToDouble(v -> v.balance()).sum();
                     int count = results.size();
                     service.actions().request(player,request);
                     h.assertTrue(service.lifecycle().results(encounter,0,128).results().size()==count,"retry duplicated attack");
+                    h.assertTrue(mob.getHealth() == beforeRetry
+                        && nexus.shields().snapshot(mob.getUUID()).stream().mapToDouble(v -> v.balance()).sum() == shieldBeforeRetry,
+                        "retry applied health or shield damage twice");
+                    nexus.shields().remove(UUID.randomUUID(),mob.getUUID(),shieldId);
                     service.lifecycle().stop(encounter);
                 }
                 // Native damage interception must settle before the callback returns, not at tick end.
                 mob.setTarget(null);
                 player.setHealth(player.getMaxHealth());
+                player.setItemSlot(EquipmentSlot.CHEST,new ItemStack(Items.IRON_CHESTPLATE));
                 player.invulnerableTime = 0;
                 service.lifecycle().requestStart(player, UUID.randomUUID());
                 UUID intrusionEncounter = service.encounterOf(player.getUUID());
@@ -126,6 +147,7 @@ public final class GateMeleeChecks {
                     && Math.abs(health - player.getHealth() - intrusion.actualDamage()) < .001,
                     "intrusion was deferred or repeated native damage: result=" + intrusion
                         + " healthBefore=" + health + " healthAfter=" + player.getHealth());
+                h.assertTrue(player.getItemBySlot(EquipmentSlot.CHEST).getDamageValue()>0,"resolved melee lost native player armor durability");
                 h.assertTrue(service.state(intrusionEncounter).phase() == cc.sighs.dndturn.domain.encounter.EncounterPhase.ACTIVE,
                     "legal intrusion left encounter in candidate phase");
                 var intruderState = cc.sighs.dndturn.platform.server.action.ActionTestAccess.authority(service.actions())

@@ -20,7 +20,7 @@
 | 玩家角色 | 六维/购点/成长纯值、职业/种族内容快照、创建/角色卡/ASI/子职页面、C 键入口、装备与武器/护甲映射；子职 ID 不等于特性已执行 |
 | Mob | 通用近战/普通箭、物种攻击档案、每 Mob 移动预算、Creeper、怪物内容与豁免基础、Ghast 显式能力/AI；设计数据不等于全部特殊能力完成 |
 
-Ghast 已通过 CombatNexus 的真实 NUMERICAL driver 应用：保留 +4 命中、6 火焰及 DC 15 DEX 后 10/5 力场；火焰使用 combatnexus:fire，力场独立通道。执行开始固定爆心，半径 6 按球形判定，各目标在提交及反应边界重新检查范围。未命中或首段致死仍继续区域段。既有行动 owner 保存逐目标子操作、掷骰输入、应用状态及生命/吸收/护盾损失；未知请求不重投。NUMERICAL 目前仅在单次应用期间开启，普通近战、箭、药效、环境与反应数值旧链仍待迁移。
+Ghast 已通过 CombatNexus 的真实 NUMERICAL driver 应用：保留 +4 命中、6 火焰及 DC 15 DEX 后 10/5 力场；火焰使用 combatnexus:fire，力场独立通道。执行开始固定爆心，半径 6 按球形判定，各目标在提交及反应边界重新检查范围。未命中或首段致死仍继续区域段。既有行动 owner 保存逐目标子操作、掷骰输入、应用状态及生命/吸收/护盾损失；未知请求不重投。普通近战与普通箭也已通过 CombatNexus 应用，注册部件复验身体归属后向根 Actor 结算；保留盾牌耐久和击退，父操作采用实际子操作终态。原生玩家/生物攻击、箭与战术伤害通道分别记录。箭固定发射时档案及伤害骰结果，命中时不重掷。NUMERICAL 仍仅在单次应用期间开启；药效、环境与其余反应数值路径待迁移。
 
 旧资料中“没有通用豁免”“全部 Mob 共用移动预算”“尚无玩家职业基础”“长期能力管理未接入”等状态已过时；其未完成的真实消费者和运行验证仍保留在下表。
 
@@ -30,7 +30,7 @@ Ghast 已通过 CombatNexus 的真实 NUMERICAL driver 应用：保留 +4 命中
 
 | 优先范围 | 下一可用切片与关闭条件 |
 | --- | --- |
-| 当前 WIP：模型与战斗接入 | 已接通必需 CombatNexus 依赖、完整 ID 装备、RulesCatalog、内容固定豁免、统一 AC 快照和 Ghast 逐目标应用。CombatNexus 已增加定义绑定保存恢复、执行器语义校验、短期数值委托和释放状态。仍需完成全 Actor 属性/能力/条件目录、其余数值入口、真实装备 grant、TIME/ACTIVE 生命周期及两模组联合恢复；旧链退出生产执行前不关闭五阶段重构 |
+| 当前 WIP：模型与战斗接入 | 已接通必需 CombatNexus 依赖、完整 ID 装备、RulesCatalog、内容固定豁免、统一 AC 快照、Ghast 逐目标应用及普通近战/箭应用。武器和护甲执行读取固定目录；跨场合并同时迁移参与者及原目录，不重读 latest。CombatNexus 已增加定义绑定保存恢复、执行器语义校验、短期数值委托和释放状态。仍需完成全 Actor 属性/能力/条件目录、其余数值入口、真实装备 grant、TIME/ACTIVE 生命周期及两模组联合恢复；旧链退出生产执行前不关闭五阶段重构 |
 | 玩家操作与角色 | 真实键鼠走选槽/空手→远目标→预览→接近→执行→继续移动/结束/EXIT；补消耗品、免费方块、取消/满库存/容器守恒。验证角色创建/卡片/ASI/子职的服务端复验、缩放/滚动/重载和装备发放，不以页面存在关闭任务 |
 | 过程、环境与恢复 | 以已定跨回合能力补有限阶段驱动、actor/environment 时钟、完整队列移交、来源/实例/控制恢复；覆盖合并、卸载、停服及普通专服第二进程续战，未知结果不重放/退款 |
 | HELP、借机与效果 | 先完成 HELP 的合法盟友和一次优势消费，再落实主动离开前暂停、反应窗口、稳定先攻和续走；补虫蚀/渗浆/盘丝/蓄风、第三方特殊回调受限端口、喷溅距离/亡灵/取消/吸收与显示 |
@@ -44,9 +44,11 @@ Ghast 已通过 CombatNexus 的真实 NUMERICAL driver 应用：保留 +4 命中
 
 ## 验证证据与缺口
 
-当前重构已执行：CombatNexus 活动 target 的 clean build、本地 Maven 安装、common/制品/compat 边界检查、能力 AutoJS 与 business-time 含新进程恢复；DNDTurn common 测试、活动 target 构建及其架构/UI 检查。两模组共同加载的 Ghast 检查覆盖命中、未命中、首段致死、逐目标取消、原版吸收、全护盾吸收、球形边界、同操作重试和当前格式证据/类型化目录往返；character_creation 独立检查已实际运行通过。
+当前重构已执行：CombatNexus 活动 target 的 clean build、本地 Maven 安装、common/制品/compat 边界检查、能力 AutoJS 与 business-time 含新进程恢复；DNDTurn common 测试、活动 target 构建及其架构/UI 检查。两模组共同加载的 Ghast 检查覆盖命中、未命中、首段致死、逐目标取消、原版吸收、全护盾吸收、球形边界、同操作重试和当前格式证据/类型化目录往返；character_creation 独立检查已实际运行通过。普通近战/场外首击、12 项箭场景、部件根 Actor 结算、盾牌耐久、身体击退、角色目录及 Ghast 共 24 项相关 GameTest 已联合运行；覆盖全护盾吸收、请求重试、原生无敌拒绝、跨场箭、护甲不重复减伤、目录装备解析和发射后不重掷。修正了内置怪物攻击缺少必填 range_ticks 导致目录被拒绝的问题；箭夹具改用生存玩家与明确敌对，独立布置场地。CombatNexus 外部驱动 AutoJS 28 项断言覆盖原生请求数值/类型/来源匹配、错误身体拒绝及无敌预检。
 
-这些检查没有覆盖最终双发布 jar 的普通专服联合续战、真实客户端/双客户端、写入后异常的联合场景或未迁移的数值入口。CombatNexus 的 verify-vanilla-combat-boundary.py 仍引用已移动的 common 文件，本轮调用因路径失效而未通过；不计入边界通过证据。CombatNexus 独立新进程时间恢复不能替代两模组联合恢复。整份 WIP 尚未完成。
+后续实现补充了 CombatNexus 精确时间增量取消：校验原 sequence/request/ticks，保留已消费量和未消费余额，取消与完成分别投影；原请求重试不推进，取消后可幂等释放，当前格式保存恢复保留取消终态。DNDTurn 恢复预检拒绝缺失场次目录、成员绑定和错误场次身份；参与者职业/种族语义必须与绑定目录一致。复用既有测试，未新增测试文件。实际通过 CombatNexus target clean build、common clean build、common/制品边界检查、defense-inputs AutoJS（11 项）及 business-time 全套含普通专服第二进程取消恢复（10 项重启断言）；DNDTurn common test、target build、character_creation 与 6 项 ghast_numerical GameTest，补充正常恢复候选与缺失目录拒绝检查后单独重跑 ghast_numerical 通过。
+
+这些检查没有覆盖最终双发布 jar 的普通专服联合续战、真实客户端/双客户端、写入后异常的联合场景或未迁移的数值入口。CombatNexus 的 verify-vanilla-combat-boundary.py 已修正 bridge 和说明类的源码定位，保留原断言；修复保护与抗性桥接的内部调用后，仍在 CombatControlEvents 等平台生命周期/投影路径发现内部引用，检查未通过。CombatNexus 独立新进程时间恢复不能替代两模组联合恢复。统一 Actor 解析、装备来源 grant、其余数值入口及 DNDTurn TIME/ACTIVE 生命周期接线仍未完成，整份 WIP 尚未完成。
 
 以下为原文档保留的历史证据，未由上述检查完整重跑：
 

@@ -77,7 +77,7 @@ EXIT 免费，但只允许自己空闲回合且无反应窗口。到本场最近
 
 怪物设计仅取用户提供资料及其规范化数据 [vanilla-mobs.yaml](docs/data/vanilla-mobs.yaml)，不自行引用外部图鉴补玩法。该表的 design 字段是设计输入、status 是历史标签，不是运行验收表。怪物 HP/AC 沿原生 1:1（盾另 +2），设计 ac/hp_avg/hp_dice 不覆盖运行时；速度中的尺直接按 tick 预算解释。无数据第三方 Mob 的默认模板为六维 10、原生 HP/AC、30 tick 地面移动、+5 命中和 10 钝击近战。
 
-内容从内置 dndturn-content/defaults.json、default-mobs.json 及世界目录 classes/races/mobs JSON 加载；无效文件拒绝，不悄悄修补。Encounter 固定内容快照，后加入者复用，reload 只生成新快照；保存恢复保留原语义。装备按完整注册 ID 映射，不按 namespace 被剥离后的同名物品猜属性。
+内容从内置 dndturn-content/defaults.json、default-mobs.json 及世界目录 classes/races/mobs JSON 加载；无效文件拒绝，不悄悄修补。Encounter 固定内容快照，后加入者复用，reload 只生成新快照；合并保留各参与者原目录，新增参与者采用主场目录，保存恢复保留原语义。装备按完整注册 ID 映射，不按 namespace 被剥离后的同名物品猜属性。
 
 豁免由服务端 d20 + 属性/明确豁免加值对 DC，玩家熟练来自职业，Mob 显式 saveBonuses 优先，否则取六维修正；自然 1/20 不自动成败。SaveRollEvent 在掷骰后提交前允许调整 die/bonus/DC，玩家动作栏显示结果，无 QTE、自动重掷或重试。多段伤害、抗性、免疫、条件和特殊能力必须贯穿实际执行及逐项结果，类型定义存在不表示已接通。
 

@@ -29,6 +29,12 @@ public final class DamageHooks {
     public static boolean hurt(ServerLevel level, LivingEntity target, DamageSource source, float amount) {
         return hurtObserved(level, target, source, amount, false, null).accepted();
     }
+    public static boolean replaceNativeDamage(LivingEntity target, DamageSource source, float amount) {
+        if (!(target.level() instanceof ServerLevel level) || source.is(TacticalDamageContext.DAMAGE_TYPE)
+                || WorldOutcomePolicy.unscopedDamage(AuthorityProjection.incomingDamage(target, source)).allowed()) return false;
+        var runtime = ServerRuntime.existingEncounter(level.getServer());
+        return runtime != null && runtime.combat().interceptMeleeIntrusion(target, source);
+    }
     public static void onIncoming(LivingIncomingDamageEvent event) {
         if (cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter.incoming(event)) return;
         if (WorldOutcomeHooks.authorizesDamage(event.getEntity(), event.getSource())) return;
@@ -37,8 +43,6 @@ public final class DamageHooks {
         if (event.getEntity().level() instanceof ServerLevel
                 && !WorldOutcomePolicy.unscopedDamage(AuthorityProjection.incomingDamage(event.getEntity(), event.getSource())).allowed()) {
             event.setCanceled(true);
-            var runtime = ServerRuntime.existingEncounter(((ServerLevel)event.getEntity().level()).getServer());
-            if (runtime != null && runtime.combat().interceptMeleeIntrusion(event.getEntity(), event.getSource())) return;
             if (event.getEntity() instanceof ServerPlayer player)
                 player.sendOverlayMessage(Component.literal("DNDTurn: unsupported external damage rejected"));
         }

@@ -32,9 +32,15 @@ public final class CombatRecoveryCandidate {
         saved.pendingProjectileAttacks().forEach((id, pending) -> {
             Objects.requireNonNull(pending.targetId()); Objects.requireNonNull(pending.sourceEncounterId());
         });
+        if (!saved.encounterContent().keySet().equals(candidate.encounterIds()))
+            throw new IllegalArgumentException("active encounter lacks its captured content binding");
         saved.encounterContent().forEach((encounterId, content) -> {
+            if (!encounterId.toString().equals(content.encounterId()))
+                throw new IllegalArgumentException("content snapshot encounter identity mismatch");
             if (!candidate.encounterIds().contains(encounterId))
                 throw new IllegalArgumentException("content snapshot belongs to an inactive encounter");
+            if (!content.participants().keySet().containsAll(candidate.stateView(encounterId).members().keySet()))
+                throw new IllegalArgumentException("member lacks its captured participant binding");
             content.participants().forEach((actor, participant) -> {
                 if (!encounterId.equals(candidate.encounterOf(actor)))
                     throw new IllegalArgumentException("content participant is not a member of its encounter");

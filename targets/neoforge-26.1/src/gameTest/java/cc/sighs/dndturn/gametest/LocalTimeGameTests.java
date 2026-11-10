@@ -763,9 +763,9 @@ public final class LocalTimeGameTests {
 
     private static void arrowTacticalImpact(GameTestHelper helper, int scenario) {
         helper.runAtTickTime(5, () -> {
-            int arenaX = scenario == 0 ? 128 : 4096 + scenario * 128;
+            int arenaX = 260000 + scenario * 1024;
             int arenaY = 121;
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            ServerPlayer player = TestPlayers.survival(helper);
             player.connection.markClientLoaded();
             BlockPos anchor = helper.absolutePos(new BlockPos(arenaX + 1, arenaY, 1));
             player.teleportTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
@@ -790,6 +790,10 @@ public final class LocalTimeGameTests {
             Zombie target = helper.spawn(EntityType.ZOMBIE, new BlockPos(arenaX + 2, arenaY, 1));
             target.setNoGravity(true);
             target.setNoAi(true);
+            target.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST,new ItemStack(Items.IRON_CHESTPLATE));
+            target.setTarget(player);
+            for (BlockPos roof : BlockPos.betweenClosed(target.blockPosition().offset(-1,3,-1), target.blockPosition().offset(1,3,1)))
+                helper.getLevel().setBlockAndUpdate(roof, Blocks.OBSIDIAN.defaultBlockState());
             if (scenario == 2) target.getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(64);
             if (scenario == 3) target.setInvulnerable(true);
             if (scenario == 4) {
@@ -817,7 +821,7 @@ public final class LocalTimeGameTests {
             helper.startSequence().thenWaitUntil(() -> helper.assertTrue(
                 service.lifecycle().results(created.id(), 0, 100).results().stream().anyMatch(result ->
                     result.snapshot().kind() == OperationRecord.Kind.ATTACK
-                        && result.snapshot().source().equals(arrow.getUUID())), "waiting for scheduled arrow collision"))
+                        && result.snapshot().source().equals(arrow.getUUID())), "waiting for scheduled arrow collision: arrow=" + arrow.position() + " removed=" + arrow.isRemoved() + " target=" + target.position() + " member=" + service.encounterOf(target.getUUID()) + " results=" + service.lifecycle().results(created.id(),0,100).results()))
                 .thenExecute(() -> {
                 try {
                     var attacks = service.lifecycle().results(created.id(), 0, 100).results().stream()
@@ -844,6 +848,16 @@ public final class LocalTimeGameTests {
                     };
                     helper.assertTrue(trace.evidence().stage() == expectedStage,
                         "arrow trace stage mismatch: " + trace);
+                    if (scenario == 0 || scenario == 3 || scenario == 4) {
+                        helper.assertTrue(trace.evidence().application() != null && attacks.getFirst().outcome() == trace.evidence().application().outcome(),
+                            "arrow terminal outcome differs from numerical child");
+                        helper.assertTrue(trace.evidence().application().nativeType().equals("minecraft:arrow")
+                            && trace.evidence().application().channel().equals("dndturn:piercing")
+                            && trace.evidence().application().healthLoss() == trace.healthLoss()
+                            && trace.evidence().application().absorptionLoss() == trace.absorptionLoss(), "arrow native and application receipts differ");
+                    }
+                    if (scenario == 0) helper.assertTrue(trace.tacticalDamage() == 4 && trace.healthLoss() == 4,
+                        "resolved arrow applied native armor reduction a second time");
                     if (scenario == 4) helper.assertTrue(trace.absorptionLoss() > 0,
                         "accepted absorbed arrow lost its absorption evidence");
                     service.persistIfChanged();
@@ -857,6 +871,7 @@ public final class LocalTimeGameTests {
                     helper.succeed();
                 } finally {
                     service.lifecycle().stop(created.id());
+                    arrow.discard(); target.discard();
                     for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
                         for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
                             helper.getLevel().setChunkForced(x, z, false);

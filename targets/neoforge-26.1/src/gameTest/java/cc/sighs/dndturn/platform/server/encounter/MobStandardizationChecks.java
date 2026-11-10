@@ -105,6 +105,17 @@ public final class MobStandardizationChecks {
                 h.assertTrue(saved.abilities().get(operation).damageSteps().equals(checkpoint.damageSteps()), "saved application evidence changed");
                 h.assertTrue(saved.encounterContent().get(id).content().equals(
                     cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(id).content()), "typed catalog roundtrip changed definitions");
+                cc.sighs.dndturn.platform.server.persistence.CombatRecoveryCandidate.validate(saved, new Random(0));
+                var missingContent = new cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope(
+                    saved.rules(), saved.cumulativeServerTicks(), saved.nextSessionSequence(), saved.sessionSequences(),
+                    saved.capturedSettings(), saved.projectileOrigins(), saved.projectileDomains(), saved.pendingProjectileAttacks(),
+                    saved.pendingMerges(), saved.startReceipts(), saved.exitReceipts(), saved.leases(), saved.quarantinedProjectiles(),
+                    saved.exitAuthorizations(), saved.abilities(), saved.mergeBindings(), saved.projectileAbilities(),
+                    saved.recoveryAudits(), saved.participantEffects(), saved.turnSettlements(), saved.processes(), Map.of());
+                boolean missingRejected = false;
+                try { cc.sighs.dndturn.platform.server.persistence.CombatRecoveryCandidate.validate(missingContent, new Random(0)); }
+                catch (IllegalArgumentException expectedMissing) { missingRejected = expectedMissing.getMessage().contains("content binding"); }
+                h.assertTrue(missingRejected, "recovery accepted missing content and could recapture latest definitions");
             }
         }).thenExecute(cleanup).thenSucceed();
     }

@@ -48,7 +48,7 @@ public final class SaveService {
                 content.content().requireClass(character.progression().classId()), character, ability) : 0;
         }
         String id = participant == null ? BuiltInRegistries.ENTITY_TYPE.getKey(actor.getType()).toString() : participant.definitionId();
-        MobDefinition definition = content.content().mobOrFallback(id);
+        MobDefinition definition = content.contentFor(actor.getUUID()).mobOrFallback(id);
         Integer explicit = definition.saveBonuses().get(ability);
         return explicit != null ? explicit : definition.abilities().modifier(ability);
     }

@@ -17,8 +17,11 @@ public record RulesCatalog(String revision, Map<String, CharacterClass> classes,
         races = Map.copyOf(races);
         mobs = mobs == null ? Map.of() : Map.copyOf(mobs);
         if (revision.isBlank() || revision.length() > 128
+                || weapons.size() > MAX_ENTRIES || armor.size() > MAX_ENTRIES
                 || classes.size() > MAX_ENTRIES || races.size() > MAX_ENTRIES || mobs.size() > MAX_ENTRIES)
             throw new IllegalArgumentException("content snapshot");
+        weapons.keySet().forEach(cc.sighs.dndturn.domain.fact.FactKey::requireId);
+        armor.keySet().forEach(cc.sighs.dndturn.domain.fact.FactKey::requireId);
         classes.forEach((id, value) -> {
             if (!id.equals(value.id())) throw new IllegalArgumentException("class key mismatch");
         });
@@ -37,6 +40,8 @@ public record RulesCatalog(String revision, Map<String, CharacterClass> classes,
     public RulesCatalog(String revision, Map<String, CharacterClass> classes, Map<String, CharacterRace> races) {
         this(revision, classes, races, Map.of());
     }
+
+    public Map<String, EquipmentRules.ArmorBinding> armorBindings() { return EquipmentRules.armorBindings(armor); }
 
     public static RulesCatalog empty() { return new RulesCatalog("empty", Map.of(), Map.of(), Map.of()); }
 
@@ -65,9 +70,9 @@ public record RulesCatalog(String revision, Map<String, CharacterClass> classes,
             if (!(action instanceof cc.sighs.dndturn.domain.mob.MobAction.Attack attack) || action.damage().size() != 1) continue;
             var damage = action.damage().get(0);
             return new cc.sighs.dndturn.domain.resolution.AttackProfile(attack.attackBonus(), damage.dice(),
-                damage.sides(), damage.flatBonus(), "dndturn:" + damage.type().id());
+                damage.sides(), damage.flatBonus(), damage.type());
         }
-        return new cc.sighs.dndturn.domain.resolution.AttackProfile(5, 0, 0, 10, "dndturn:bludgeoning");
+        return new cc.sighs.dndturn.domain.resolution.AttackProfile(5, 0, 0, 10, cc.sighs.dndturn.domain.mob.DamageType.BLUDGEONING);
     }
 
     public MobDefinition mobOrFallback(String id) {

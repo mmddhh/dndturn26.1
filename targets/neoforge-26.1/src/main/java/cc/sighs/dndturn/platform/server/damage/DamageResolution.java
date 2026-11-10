@@ -35,7 +35,7 @@ public final class DamageResolution {
             double damage, CombatRules.RollMode mode, DamageTrace captured, int attackBonus,
             AttackProfile profile) {
         var random = gameTestAttackRandom.getOrDefault(encounter, attackRandom);
-        if (profile != null) damage = profile.roll(random);
+        if (profile != null) damage = captured == null ? profile.roll(random) : captured.weaponDamage();
         int first = captured == null ? 1 + random.nextInt(20) : captured.firstDie();
         int second = captured == null ? mode == CombatRules.RollMode.NORMAL ? first : 1 + random.nextInt(20) : captured.secondDie();
         return AttackResolution.resolve(new AttackResolution.Input(
@@ -73,7 +73,9 @@ public final class DamageResolution {
             observed != null && observed.knockbackMoved(), equipmentChanges,
             origin == null ? actor.getUUID() : origin.ownerId(),
             origin == null ? state.id() : origin.sourceEncounterId(),
-            origin == null ? null : origin.rootOperationId(), observed == null ? null : observed.displacement());
+            origin == null ? null : origin.rootOperationId(), observed == null ? null : observed.displacement(),
+            observed == null || observed.application() == null ? null : new DamageTrace.Application(observed.application().request(), observed.application().channel(), observed.application().nativeType(), observed.application().outcome(),
+                observed.application().health(), observed.application().absorption(), observed.application().shields(), observed.application().reason()));
     }
 
     public record EquipmentKey(UUID ownerId, String slot) {}

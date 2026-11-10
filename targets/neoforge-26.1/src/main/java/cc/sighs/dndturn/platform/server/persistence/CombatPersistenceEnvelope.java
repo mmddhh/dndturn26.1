@@ -62,7 +62,7 @@ public record CombatPersistenceEnvelope(EncounterStateSnapshot rules,
         participantEffects = Map.copyOf(participantEffects);
         turnSettlements = Map.copyOf(turnSettlements);
         processes = Map.copyOf(processes);
-        encounterContent = encounterContent == null ? Map.of() : Map.copyOf(encounterContent);
+        encounterContent = Map.copyOf(encounterContent);
         if (processes.size() > 16384 || processes.entrySet().stream().anyMatch(e -> !e.getKey().equals(e.getValue().id())))
             throw new IllegalArgumentException("process checkpoint bounds");
         if (exitAuthorizations.stream().map(ExitAuthorizations.Grant::owner).distinct().count() != exitAuthorizations.size())

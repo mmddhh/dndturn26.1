@@ -51,6 +51,14 @@ public final class BodyTargets {
         if (resolve(root, facet).body() != hit) throw new IllegalStateException("body adapter roundtrip mismatch");
         return target;
     }
+    /** Native framework bridge reuses the registered facet identity and roundtrip checks. */
+    public static synchronized LivingEntity registeredOwner(Entity body) {
+        boolean supported = adapters.values().stream().anyMatch(value -> value.adapter().root(body) != null);
+        if (!supported) return null;
+        var target = identify(body);
+        var root = (LivingEntity)((ServerLevel)body.level()).getEntity(target.entity());
+        return resolve(root, target.facet()).actor();
+    }
     public static synchronized Hit resolve(LivingEntity root, ActionIntent.BodyFacet facet) {
         if (!(root.level() instanceof ServerLevel level) || !level.getServer().isSameThread()
                 || level.getEntity(root.getUUID()) != root || root.isRemoved())

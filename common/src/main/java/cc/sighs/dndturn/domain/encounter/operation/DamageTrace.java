@@ -20,7 +20,7 @@ public record DamageTrace(UUID operationId, UUID targetId, CombatRules.RollMode 
                                  float shieldBlockedContribution, boolean shieldWearCalled,
                                  boolean knockbackEventObserved, boolean knockbackMoved,
                                  List<EquipmentChange> equipmentChanges,
-                                 UUID historicalOwnerId, UUID sourceEncounterId, UUID rootOperationId, Displacement displacement) {
+                                 UUID historicalOwnerId, UUID sourceEncounterId, UUID rootOperationId, Displacement displacement, Application application) {
         public DamageEvidence(UUID sourceId, String rulesRevision, long regionVersion,
                               boolean knockbackEnabled, Stage stage,
                               float shieldBlockedContribution, boolean shieldWearCalled,
@@ -28,7 +28,7 @@ public record DamageTrace(UUID operationId, UUID targetId, CombatRules.RollMode 
                               List<EquipmentChange> equipmentChanges) {
             this(sourceId, rulesRevision, regionVersion, knockbackEnabled, stage,
                 shieldBlockedContribution, shieldWearCalled, knockbackEventObserved,
-                knockbackMoved, equipmentChanges, null, null, null, null);
+                knockbackMoved, equipmentChanges, null, null, null, null, null);
         }
         public DamageEvidence {
             Objects.requireNonNull(sourceId);
@@ -38,6 +38,18 @@ public record DamageTrace(UUID operationId, UUID targetId, CombatRules.RollMode 
             if (rulesRevision.isBlank() || regionVersion < 0
                 || !Float.isFinite(shieldBlockedContribution) || shieldBlockedContribution < 0)
                 throw new IllegalArgumentException("invalid damage evidence");
+        }
+    }
+
+    /** Application evidence belongs to the exact numerical child, independently of hit adjudication. */
+    public record Application(UUID request, String channel, String nativeType, OperationRecord.Outcome outcome, float healthLoss, float absorptionLoss,
+                              double shieldLoss, String reason) {
+        public Application {
+            Objects.requireNonNull(request); cc.sighs.dndturn.domain.fact.FactKey.requireId(channel);
+            cc.sighs.dndturn.domain.fact.FactKey.requireId(nativeType);
+            Objects.requireNonNull(outcome); Objects.requireNonNull(reason);
+            if (!Float.isFinite(healthLoss) || healthLoss < 0 || !Float.isFinite(absorptionLoss) || absorptionLoss < 0
+                    || !Double.isFinite(shieldLoss) || shieldLoss < 0) throw new IllegalArgumentException("invalid application evidence");
         }
     }
 

@@ -89,7 +89,7 @@ public final class BodyControlChecks {
             helper.assertTrue(AiDefinitions.definition(ActorDefinitions.capture(new LiveActorContext(creeper)), creeper).planner()
                 .equals(CreeperAbilities.CHARGE), "Creeper did not use its explicit charge provider");
             helper.assertTrue(AiDefinitions.definition(ActorDefinitions.capture(new LiveActorContext(snow)), snow).targetPreference()
-                == AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_PLAYERS, "default neutral AI changed into indiscriminate player targeting");
+                == AiDefinition.TargetPreference.COMMITTED_OR_HOSTILE_ACTORS, "default neutral AI lost its committed-or-hostile target restriction");
             var view=AiTestAccess.capture(new LiveActorContext(mob),service.state(id),null,ActionTestAccess.authority(service.actions()), service.mobDecisionFacts());
             var seen=view.perception().actors().stream().filter(t->t.id().equals(player.getUUID())).findFirst().orElseThrow();
             // A real target lock is the hostility entry point: it joins the mob and records the

@@ -111,6 +111,14 @@ public final class ProjectileExecutionCoordinator {
         ItemStack ammunition = arrow.getPickupItemStackOrigin();
         String ammoId = ammunition.isEmpty() ? ""
             : BuiltInRegistries.ITEM.getKey(ammunition.getItem()).toString();
+        AttackProfile capturedProfile = null;
+        var launchContent = owner == null ? null : EncounterContentCache.server().find(engine.encounterOf(owner.getUUID()));
+        if (launchContent != null) {
+            capturedProfile = owner instanceof ServerPlayer player
+                ? cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profileFor(launchContent.require(player.getUUID()).character(),
+                    weaponId, player.getOffhandItem().isEmpty(), launchContent.contentFor(player.getUUID()))
+                : launchContent.require(owner.getUUID()).attackProfile();
+        }
         projectileOrigins.putIfAbsent(arrow.getUUID(), new ProjectileOrigin(arrow.getUUID(),
             owner == null ? null : owner.getUUID(), TacticalLaunchContext.current() == null ? null : TacticalLaunchContext.current().operation(),
             owner == null ? null : engine.encounterOf(owner.getUUID()),
@@ -119,7 +127,7 @@ public final class ProjectileExecutionCoordinator {
             owner instanceof ServerPlayer, true,
             weapon != null && weapon.getOrDefault(DataComponents.ENCHANTMENTS,
                 net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY).size() > 0,
-            TacticalLaunchContext.current() == null ? null : TacticalLaunchContext.current().trace()));
+            TacticalLaunchContext.current() == null ? null : TacticalLaunchContext.current().trace(), capturedProfile));
         if (TacticalLaunchContext.current() != null) {
             var launch = TacticalLaunchContext.current();
             if (owner == null || !launch.owner().equals(owner.getUUID())) throw new IllegalStateException("launch owner mismatch");
@@ -539,9 +547,12 @@ public final class ProjectileExecutionCoordinator {
             DamageTrace launchTrace = origin.launchTrace();
             if (launchTrace != null) { mode = launchTrace.rollMode(); armorClass = launchTrace.targetArmorClass(); reduction = launchTrace.toughnessReduction(); }
             AttackProfile profile;
-            if (origin.ownerWasPlayer() && ownerId != null && owner instanceof ServerPlayer player) {
+            if (origin.launchTrace() != null) {
+                profile = origin.attackProfile();
+            } else if (origin.ownerWasPlayer() && ownerId != null && owner instanceof ServerPlayer player) {
                 profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profileFor(
-                    actorStates.state(player.getUUID()).persistent().character(), origin.weaponId());
+                    EncounterContentCache.server().find(encounterId).require(player.getUUID()).character(), origin.weaponId(),
+                    true, EncounterContentCache.server().find(encounterId).contentFor(player.getUUID()));
             } else {
                 profile = ownerId == null ? null : EncounterContentCache.server().attackProfile(encounterId, ownerId);
                 if (profile == null && !origin.ownerWasPlayer() && owner instanceof LivingEntity livingOwner)
@@ -591,26 +602,26 @@ public final class ProjectileExecutionCoordinator {
                 throw new IllegalStateException("arrow damage permit rejected");
             host.enterOutcome();
             try {
-                DamageSource source = level.damageSources().source(TacticalDamageContext.DAMAGE_TYPE,
+                DamageSource source = level.damageSources().source(net.minecraft.world.damagesource.DamageTypes.ARROW,
                     arrow, owner);
                 var observation = TacticalDamageContext.hurtObserved(level, target, source,
-                    tacticalDamage, host.knockback(encounterId), damageId, host.damageAttempt());
+                    tacticalDamage, host.knockback(encounterId), damageId, host.damageAttempt(),
+                    cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter.channel(profile == null ? cc.sighs.dndturn.domain.mob.DamageType.PIERCING : profile.damageType()));
                 float healthLoss = Math.max(0, healthBefore - target.getHealth());
                 float absorptionLoss = Math.max(0, absorptionBefore - target.getAbsorptionAmount());
+                var effectOutcome = observation.application().outcome();
                 DamageTrace trace = attackTrace(operationId, target.getUUID(), mode, roll, armorClass,
                     baseDamage, reduction, tacticalDamage, observation.accepted(),
                     absorptionLoss, healthLoss,
-                    damageEvidence(arrow, state, observation.accepted() ? DamageTrace.Stage.VANILLA_ACCEPTED
+                    damageEvidence(arrow, state, effectOutcome == OperationRecord.Outcome.UNKNOWN ? DamageTrace.Stage.UNKNOWN : observation.accepted() ? DamageTrace.Stage.VANILLA_ACCEPTED
                         : DamageTrace.Stage.VANILLA_REJECTED, observation,
                         equipmentChanges(equipmentBefore, equipmentSnapshot(equipmentOwner, target))));
                 engine.publish(encounterId, damageId, 0,
-                    observation.accepted() ? OperationRecord.Outcome.COMPLETED
-                        : healthLoss > 0 || absorptionLoss > 0 ? OperationRecord.Outcome.PARTIAL
-                        : OperationRecord.Outcome.REJECTED,
+                    effectOutcome,
                     "arrow hurtServer=" + observation.accepted() + " absorptionLoss=" + absorptionLoss,
                     0, healthLoss, true);
                 actorStates.observedHit(damageId, equipmentOwner, target, observation.accepted(), healthLoss + absorptionLoss);
-                engine.publish(encounterId, operationId, 0, OperationRecord.Outcome.COMPLETED,
+                engine.publish(encounterId, operationId, 0, effectOutcome,
                     "arrow hit: die=" + roll.die(), 0, healthLoss, true, trace);
                 arrow.discard();
                 host.sync(engine.stateView(encounterId));

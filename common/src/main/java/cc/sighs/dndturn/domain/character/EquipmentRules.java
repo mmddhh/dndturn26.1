@@ -5,13 +5,35 @@ import java.util.Map;
 
 /** Data-only iron equipment catalog copied from the classes 5e tables (no real-time hooks). */
 public final class EquipmentRules {
-    public record Weapon(int dice, int sides, int versatileSides, String damageType, Ability ability,
+    public record Weapon(int dice, int sides, int versatileSides, cc.sighs.dndturn.domain.mob.DamageType damageType, Ability ability,
                          boolean ranged, java.util.Set<Property> properties) {
         public Weapon { properties = java.util.Set.copyOf(properties); }
         public boolean finesse() { return properties.contains(Property.FINESSE); }
     }
     public enum Property { LIGHT, FINESSE, THROWN, TWO_HANDED, VERSATILE, AMMUNITION, LOADING, HEAVY, REACH, SPECIAL }
     public record Armor(ArmorCategory category, int baseAc, int strength, boolean stealth) {}
+
+    public enum ArmorSlot { HEAD, CHEST, LEGS, FEET }
+    public record ArmorBinding(String setId, ArmorSlot slot, Armor rule) {}
+
+    /** Explicit full-ID bindings; a slot cannot borrow another set's numerically equal rule. */
+    public static Map<String, ArmorBinding> armorBindings(Map<String, Armor> armor) {
+        var bindings = new LinkedHashMap<String, ArmorBinding>();
+        bindArmor(bindings,"minecraft:leather",new Armor(ArmorCategory.LIGHT,11,0,false));
+        bindArmor(bindings,"minecraft:chainmail",new Armor(ArmorCategory.HEAVY,16,0,false));
+        bindArmor(bindings,"minecraft:iron",new Armor(ArmorCategory.HEAVY,16,0,false));
+        bindArmor(bindings,"minecraft:golden",new Armor(ArmorCategory.MEDIUM,14,0,false));
+        bindArmor(bindings,"minecraft:diamond",new Armor(ArmorCategory.HEAVY,18,0,false));
+        bindArmor(bindings,"minecraft:netherite",new Armor(ArmorCategory.HEAVY,18,0,false));
+        armor.forEach((id, rule) -> bindArmor(bindings,id,rule));
+        return Map.copyOf(bindings);
+    }
+    private static void bindArmor(Map<String, ArmorBinding> bindings, String id, Armor rule) {
+        bindings.put(id+"_helmet",new ArmorBinding(id,ArmorSlot.HEAD,rule));
+        bindings.put(id+"_chestplate",new ArmorBinding(id,ArmorSlot.CHEST,rule));
+        bindings.put(id+"_leggings",new ArmorBinding(id,ArmorSlot.LEGS,rule));
+        bindings.put(id+"_boots",new ArmorBinding(id,ArmorSlot.FEET,rule));
+    }
 
     public static final Map<String, Weapon> WEAPONS;
     public static final Map<String, Armor> ARMOR;
@@ -77,7 +99,7 @@ public final class EquipmentRules {
 
     private static void weapon(Map<String, Weapon> weapons, String id, int dice, int sides, int versatile, String type,
                                Ability ability, boolean ranged, Property... properties) {
-        weapons.put("dndturn:iron_" + id, new Weapon(dice, sides, versatile, type, ability, ranged, java.util.Set.of(properties)));
+        weapons.put("dndturn:iron_" + id, new Weapon(dice, sides, versatile, cc.sighs.dndturn.domain.mob.DamageType.byId(type), ability, ranged, java.util.Set.of(properties)));
     }
 
     private static void armor(Map<String, Armor> armor, String id, ArmorCategory category, int ac, int strength, boolean stealth) {

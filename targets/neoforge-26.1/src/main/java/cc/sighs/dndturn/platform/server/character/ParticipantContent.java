@@ -12,11 +12,13 @@ import java.util.UUID;
 /** One participant's immutable content evidence, captured when the encounter starts. */
 public record ParticipantContent(UUID actor, String definitionId, int definitionVersion,
                                  CharacterState character, CharacterClass characterClass,
-                                 CharacterRace characterRace, AttackProfile attackProfile) {
+                                 CharacterRace characterRace, AttackProfile attackProfile, String catalogRevision) {
     public ParticipantContent {
         Objects.requireNonNull(actor);
         Objects.requireNonNull(definitionId);
         Objects.requireNonNull(character);
+        Objects.requireNonNull(catalogRevision);
+        if (catalogRevision.isBlank()) throw new IllegalArgumentException("participant catalog revision");
         if (definitionId.isBlank() || definitionVersion < 1)
             throw new IllegalArgumentException("participant definition evidence");
         if (character.created() != (characterClass != null) || character.created() != (characterRace != null))

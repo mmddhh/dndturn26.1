@@ -8,13 +8,20 @@ public record ProjectileOrigin(UUID projectileId, UUID ownerId, UUID rootOperati
                                UUID sourceEncounterId, String dimension, long launchedServerTick,
                                double arrowBaseDamage, String weaponId, String ammoId,
                                boolean ownerWasPlayer, boolean launchVerified,
-                               boolean weaponEnchanted, DamageTrace launchTrace) {
+                               boolean weaponEnchanted, DamageTrace launchTrace, cc.sighs.dndturn.domain.resolution.AttackProfile attackProfile) {
     public ProjectileOrigin(UUID projectileId, UUID ownerId, UUID rootOperationId,
                             UUID sourceEncounterId, String dimension, long launchedServerTick,
                             double arrowBaseDamage, String weaponId, String ammoId,
                             boolean ownerWasPlayer, boolean launchVerified, boolean weaponEnchanted) {
         this(projectileId, ownerId, rootOperationId, sourceEncounterId, dimension, launchedServerTick,
-            arrowBaseDamage, weaponId, ammoId, ownerWasPlayer, launchVerified, weaponEnchanted, null);
+            arrowBaseDamage, weaponId, ammoId, ownerWasPlayer, launchVerified, weaponEnchanted, null, null);
+    }
+    public ProjectileOrigin(UUID projectileId, UUID ownerId, UUID rootOperationId,
+                            UUID sourceEncounterId, String dimension, long launchedServerTick,
+                            double arrowBaseDamage, String weaponId, String ammoId,
+                            boolean ownerWasPlayer, boolean launchVerified, boolean weaponEnchanted, DamageTrace launchTrace) {
+        this(projectileId, ownerId, rootOperationId, sourceEncounterId, dimension, launchedServerTick,
+            arrowBaseDamage, weaponId, ammoId, ownerWasPlayer, launchVerified, weaponEnchanted, launchTrace, null);
     }
     public ProjectileOrigin {
         Objects.requireNonNull(projectileId);

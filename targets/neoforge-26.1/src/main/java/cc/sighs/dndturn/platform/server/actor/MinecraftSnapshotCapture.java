@@ -258,7 +258,8 @@ public final class MinecraftSnapshotCapture {
         var encounter = facts.encounter(actor.id());
         var content = encounter == null ? null : cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(encounter);
         if (content != null && content.participants().containsKey(actor.id())) character = content.require(actor.id()).character();
-        int armor = cc.sighs.dndturn.platform.server.character.PlayerArmorRules.armorClass(actor.body(), character);
+        int armor = cc.sighs.dndturn.platform.server.character.PlayerArmorRules.armorClass(actor.body(), character,
+            content == null ? cc.sighs.dndturn.platform.server.character.CharacterContentService.current() : content.contentFor(actor.id()));
         return armor < 0 ? captured : captured.derive(Map.of(ActorFacts.ARMOR_CLASS, (double) armor));
     }
     private List<EffectSnapshot> effects(LiveActorContext actor, ActorStates.State state) {
