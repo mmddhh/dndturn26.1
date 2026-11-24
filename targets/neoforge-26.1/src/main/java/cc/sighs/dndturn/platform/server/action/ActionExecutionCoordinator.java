@@ -660,6 +660,16 @@ public final class ActionExecutionCoordinator {
             }
     }
     public void worldOutcome(Runnable action) { worldOutcomes.completeWorldOutcome(action); }
+    /** Admit a mob created by a summon action into the current encounter. */
+    public void joinGeneratedMob(net.minecraft.server.level.ServerPlayer owner, net.minecraft.world.entity.Mob mob,
+                                 UUID encounter) {
+        effects.joinGeneratedMob(owner, mob, encounter);
+    }
+    /** Set the symmetric combat relation required before a generated mob can choose a target. */
+    public void setHostile(UUID encounter, UUID source, UUID target) {
+        engine.setHostile(encounter, source, target, true);
+        engine.setHostile(encounter, target, source, true);
+    }
     public void beginStep(LivingEntity player, Execution execution) {
         var root = execution.root;
         var snapshot = new OperationRecord.Snapshot(UUID.randomUUID(), root.operationId(), root.encounterId(), player.getUUID(), player.getUUID(),
