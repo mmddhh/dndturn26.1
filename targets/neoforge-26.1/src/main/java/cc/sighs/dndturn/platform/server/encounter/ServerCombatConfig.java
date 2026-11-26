@@ -6,7 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.NoSuchFileException;
 import java.util.Properties;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -54,15 +54,17 @@ public record ServerCombatConfig(double discoveryHorizontal,
         // Seven in-game days of actual server ticks; pause still counts and /time does not shorten.
         defaults.setProperty("historyRetentionTicks", "168000");
         Properties values = new Properties();
-        try {
-            if (Files.exists(path)) {
-                try (InputStream in = Files.newInputStream(path)) { values.load(in); }
-            }
+        boolean create = false;
+        try (InputStream in = Files.newInputStream(path)) {
+            values.load(in);
+            if (!values.keySet().equals(defaults.keySet()))
+                throw new IllegalArgumentException("missing or unexpected combat configuration keys: " + path);
+        } catch (NoSuchFileException missing) {
+            values.putAll(defaults);
+            create = true;
         } catch (IOException error) {
             throw new IllegalStateException("cannot load DNDTurn server configuration: " + path, error);
         }
-        boolean write = defaults.keySet().stream().anyMatch(key -> !values.containsKey(key));
-        defaults.forEach(values::putIfAbsent);
         ServerCombatConfig config = new ServerCombatConfig(
             Double.parseDouble(values.getProperty("discoveryHorizontal")),
             Double.parseDouble(values.getProperty("discoveryVertical")),
@@ -75,15 +77,14 @@ public record ServerCombatConfig(double discoveryHorizontal,
             Long.parseLong(values.getProperty("turnIdleSkipTicks")),
             Long.parseLong(values.getProperty("historyRetentionTicks")),
             Double.parseDouble(values.getProperty("escapeDistance")));
-        // Validate before replacing the file; retain deprecated and unknown values verbatim as properties.
-        if (write) {
+        if (create) {
             try {
                 Path temp = Files.createTempFile(path.toAbsolutePath().getParent(), "dndturn-config-", ".tmp");
                 try {
                     try (OutputStream out = Files.newOutputStream(temp)) {
-                        values.store(out, "DNDTurn: roundTicks replaces movementTicks/environmentTicks. Deprecated values retained but ignored; active sessions retain captured time.");
+                        values.store(out, "DNDTurn combat settings");
                     }
-                    Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                    Files.move(temp, path);
                 } finally { Files.deleteIfExists(temp); }
             } catch (IOException error) {
                 throw new IllegalStateException("cannot update DNDTurn server configuration: " + path, error);

@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
+import cc.sighs.dndturn.gametest.TestPlayers;
+
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.BlockPos;
@@ -17,7 +19,7 @@ public final class EnvironmentClockChecks {
                 level.getChunk(x,z);if(level.setChunkForced(x,z,true))forced.add(ChunkPos.pack(x,z));
             }
         level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base), 1);
-        var player=helper.makeMockServerPlayerInLevel();player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+        var player=TestPlayers.creative(helper);player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
         level.setBlockAndUpdate(base.below(),Blocks.OBSIDIAN.defaultBlockState());
         var service=ServerRuntime.encounters(level.getServer());
         Runnable cleanup=()->{

@@ -5,8 +5,8 @@ import java.util.*;
 
 /** Startup-frozen schemas. A new observation requires no switch in a gameplay owner or persistence writer. */
 public final class ObservationRegistry {
-    public record Key(String id, int version) {
-        public Key { FactKey.requireId(id); if (version < 1) throw new IllegalArgumentException("observation version"); }
+    public record Key(String id) {
+        public Key { FactKey.requireId(id); }
     }
     public record Definition(Key key, Map<String, NativeObservation.Type> fields, Set<String> required) {
         public Definition {
@@ -24,7 +24,7 @@ public final class ObservationRegistry {
     }
     public void freeze() { frozen = true; }
     public void validate(NativeObservation observation) {
-        var definition = definitions.get(new Key(observation.type(), observation.version()));
+        var definition = definitions.get(new Key(observation.type()));
         if (definition == null) throw new IllegalArgumentException("OBSERVATION_TYPE_UNSUPPORTED");
         if (observation.fields().entrySet().stream().anyMatch(e -> definition.fields().get(e.getKey()) != e.getValue().type())
                 || observation.certainty() == NativeObservation.Certainty.KNOWN && !observation.fields().keySet().containsAll(definition.required()))
@@ -37,7 +37,7 @@ public final class ObservationRegistry {
         for (var observation : observations) {
             validate(observation);
             if (!observation.operation().equals(operation)) throw new IllegalArgumentException("observation operation mismatch");
-            if (observation.certainty() == NativeObservation.Certainty.KNOWN) confirmed.add(new Key(observation.type(), observation.version()));
+            if (observation.certainty() == NativeObservation.Certainty.KNOWN) confirmed.add(new Key(observation.type()));
         }
         if (!confirmed.containsAll(required)) throw new IllegalStateException("REQUIRED_OBSERVATION_UNKNOWN");
         return observations;

@@ -28,7 +28,7 @@ public final class TacticalCommands {
                 .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))
                 .then(Commands.literal("reload").executes(context -> {
                     try {
-                        var snapshot = cc.sighs.dndturn.platform.server.character.CharacterContentService.reload();
+                        var snapshot = ServerRuntime.content(context.getSource().getServer()).reload();
                         context.getSource().sendSuccess(() -> Component.literal("Character content reloaded: "
                             + snapshot.classes().size() + " classes, " + snapshot.races().size()
                             + " races, revision " + snapshot.revision()), true);

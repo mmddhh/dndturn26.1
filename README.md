@@ -1,7 +1,7 @@
 # DNDTurn
 
-把 Minecraft 战斗变成战术回合制：用俯视镜头观察战场，点击目标安排移动、攻击和物品使用，与怪物按先攻轮流行动。战场随参战玩家移动，普通世界更新与物理继续运行。
+DNDTurn adds turn-based tactical combat to Minecraft. A top-down camera lets you select a target, plan movement and choose an action. Participants act in initiative order. The battlefield follows participating players while the surrounding world continues to tick.
 
-使用 `/dndturn tactical start` 开始，`/dndturn tactical end` 结束自己的回合，满足脱战条件后用 `/dndturn tactical exit` 离场。默认 `C` 键打开角色创建或角色卡。
+On the NeoForge build for Minecraft 26.1.2, press **C** to create a character or open your character sheet. Use `/dndturn tactical start` to start combat, `/dndturn tactical end` to end your turn and `/dndturn tactical exit` to leave when disengagement is allowed.
 
-当前主要开发 Minecraft 26.1.2 / NeoForge 版本，仍在开发中；部分怪物能力、角色成长与联机体验尚未完成。
+The character and mob catalogs come inside the DNDTurn jar for this target. Use the matching CombatNexus dependency and install ApricityUI on the client. This version is in development. Character progression, some creature abilities and multiplayer play are still being worked on.

@@ -104,6 +104,6 @@ public final class ProjectionPublisher {
         subscriptions.publish(player, new EncounterProtocol.EncounterState(
             generation, encounterId, sessionSequences.getOrDefault(encounterId, 0L), false,
             version, EncounterPhase.ENDED,
-            0, null, 0, 0, false, false, 0, false, null, List.of(), 0, false, revision));
+            0, null, 0, 0, false, false, 0, false, null, List.of(), 0, false, revision, 0, null, List.of()));
     }
 }

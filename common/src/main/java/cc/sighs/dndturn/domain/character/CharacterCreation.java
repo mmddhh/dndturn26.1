@@ -1,53 +1,45 @@
 package cc.sighs.dndturn.domain.character;
 
+import java.util.Set;
+import java.util.Map;
+import java.util.List;
+import java.util.EnumMap;
 import java.util.Objects;
 
-/** Pure creation rule shared by the server command and the future character-creation screen. */
+/** Pure creation rule shared by the server command and the character-creation screen. */
 public final class CharacterCreation {
     private CharacterCreation() {}
 
     /** Validates the 27-point buy, applies racial boosts and creates a level-1 character. */
     public static CharacterState create(CharacterClass characterClass, CharacterRace race,
                                         AbilityScores boughtScores, String subclassId) {
-        Objects.requireNonNull(characterClass);
-        Objects.requireNonNull(race);
-        Objects.requireNonNull(boughtScores);
-        if (!PointBuy.isValid(boughtScores)) throw new IllegalArgumentException("point buy must spend exactly 27 points");
-        if (subclassId != null && !subclassId.isBlank()
-                && (!subclassId.startsWith("dndturn:") || subclassId.length() > 128))
-            throw new IllegalArgumentException("subclass id");
-        AbilityScores finalScores = race.apply(boughtScores);
-        Progression progression = new Progression(race.id(), null, characterClass.id(),
-                subclassId == null ? null : subclassId, 1, 0, 0, java.util.Set.of());
-        return new CharacterState(progression, finalScores);
+        return resolve(characterClass, race, boughtScores, race.abilityBoosts(), null, subclassId);
     }
 
-    /** Creation from the classes page: the page already selected the complete racial bonus multiset. */
     public static CharacterState createFromScreen(CharacterClass characterClass, CharacterRace race,
-                                                  AbilityScores boughtScores, java.util.Map<Ability, Integer> racialBonuses,
-                                                  String subraceId, String subclassId) {
-        Objects.requireNonNull(characterClass);
-        Objects.requireNonNull(race);
-        Objects.requireNonNull(boughtScores);
-        Objects.requireNonNull(racialBonuses);
-        if (!PointBuy.isValid(boughtScores)) throw new IllegalArgumentException("point buy must spend exactly 27 points");
-        if (subraceId != null && !subraceId.isBlank()
-                && (!subraceId.startsWith("dndturn:") || subraceId.length() > 128))
-            throw new IllegalArgumentException("subrace id");
-        if (subclassId != null && !subclassId.isBlank()
-                && (!subclassId.startsWith("dndturn:") || subclassId.length() > 128))
-            throw new IllegalArgumentException("subclass id");
-        AbilityScores finalScores = boughtScores;
-        for (var entry : racialBonuses.entrySet()) {
-            if (entry.getValue() == null || entry.getValue() < 0 || entry.getValue() > 3)
-                throw new IllegalArgumentException("racial bonus");
-            finalScores = finalScores.plus(entry.getKey(), entry.getValue());
-            if (finalScores.score(entry.getKey()) > 20) throw new IllegalArgumentException("racial bonus cap");
+            AbilityScores boughtScores, List<Ability> targets, String subraceId, String subclassId) {
+        var slots = race.subraces().get(subraceId);
+        if (slots == null || targets.size() != slots.size())
+            throw new IllegalArgumentException("invalid subrace allocation");
+        var boosts = new EnumMap<Ability,Integer>(Ability.class);
+        for (int i = 0; i < targets.size(); i++)
+            if (boosts.put(targets.get(i), slots.get(i)) != null)
+                throw new IllegalArgumentException("duplicate allocation target");
+        return resolve(characterClass, race, boughtScores, boosts, subraceId, subclassId);
+    }
+
+    private static CharacterState resolve(CharacterClass definition, CharacterRace race, AbilityScores bought,
+            Map<Ability,Integer> boosts, String subrace, String subclass) {
+        if (!PointBuy.isValid(bought)) throw new IllegalArgumentException("point buy must spend exactly 27 points");
+        if (subclass != null && (definition.subclassLevel() > 1 || !definition.subclasses().contains(subclass)))
+            throw new IllegalArgumentException("invalid starting subclass");
+        var scores = subrace == null ? race.apply(bought) : bought;
+        if (subrace != null) for (var boost : boosts.entrySet()) {
+            scores = scores.plus(boost.getKey(), boost.getValue());
+            if (scores.score(boost.getKey()) > 20) throw new IllegalArgumentException("ability cap");
         }
-        Progression progression = new Progression(race.id(), subraceId == null || subraceId.isBlank() ? null : subraceId,
-                characterClass.id(), subclassId == null || subclassId.isBlank() ? null : subclassId,
-                1, 0, 0, java.util.Set.of());
-        return new CharacterState(progression, finalScores);
+        return new CharacterState(new Progression(race.id(), subrace, definition.id(), subclass,
+            1, 0, 0, Set.of()), scores);
     }
 
     public static int maxHp(CharacterClass characterClass, CharacterState character) {

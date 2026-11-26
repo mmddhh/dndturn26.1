@@ -8,7 +8,7 @@ import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.actor.ActorDefinitions;
 import cc.sighs.dndturn.platform.server.ai.AiDefinitions;
 import cc.sighs.dndturn.platform.server.ai.AiTestAccess;
-import cc.sighs.dndturn.platform.server.builtin.creeper.CreeperAbilities;
+import cc.sighs.dndturn.content.mobs.server.creeper.CreeperAbilities;
 import cc.sighs.dndturn.platform.server.control.ActorControlPolicy;
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;

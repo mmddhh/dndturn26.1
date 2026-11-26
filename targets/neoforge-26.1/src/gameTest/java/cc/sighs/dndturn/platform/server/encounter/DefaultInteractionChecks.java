@@ -49,7 +49,7 @@ public final class DefaultInteractionChecks {
                     var pos=scenario==2?destination:clicked;
                     var target=new ActionIntent.Target(ActionIntent.TargetKind.BLOCK,level.dimension().identifier().toString(),null,
                         MinecraftCoordinates.cell(pos),Direction.UP.ordinal(),.5,1,.5);
-                    var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
+                    var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND, 0, System.nanoTime(), null));
                     String behavior=scenario==0?"dndturn:place":scenario==2?"dndturn:block":"dndturn:tool";
                     var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals(behavior)).findFirst().orElseThrow(()->new IllegalStateException("missing "+behavior+": "+options));
                     h.assertTrue(offer.reason().isEmpty(),behavior+" unavailable: "+offer.reason());
@@ -91,7 +91,7 @@ public final class DefaultInteractionChecks {
                     for(int n=0;n<service.state(encounter).members().size() && !player.getUUID().equals(service.state(encounter).current());n++)
                         service.combat().endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
                     var target=new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,level.dimension().identifier().toString(),cow.getUUID(),null,-1,0,0,0);
-                    var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
+                    var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND, 0, System.nanoTime(), null));
                     var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:entity_item")).findFirst().orElseThrow();
                     h.assertTrue(offer.reason().isEmpty(),"cow item interaction unavailable: "+offer.reason());
                     h.assertTrue(player.getMainHandItem().is(Items.BUCKET),"discovery milked cow");

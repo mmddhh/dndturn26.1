@@ -1,0 +1,73 @@
+// Inspect compiler output so imports, comments and source layout cannot change a verdict.
+def isCommon = project.projectDir.name == 'common'
+def mainClasses = tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory }
+def compiler = tasks.named('compileJava', JavaCompile).flatMap { it.javaCompiler }
+def commonClasses = isCommon ? mainClasses : project(':common').layout.buildDirectory.dir('classes/java/main')
+def mixinTarget = project.projectDir.name == 'neoforge-26.1'
+def mixinConfig = layout.projectDirectory.file('src/main/resources/dndturn.mixins.json')
+
+def compiledBoundaries = tasks.register('verifyCompiledBoundaries') {
+    dependsOn tasks.named('classes')
+    inputs.dir(mainClasses)
+    inputs.dir(commonClasses)
+    if (mixinTarget) inputs.file(mixinConfig)
+    doLast {
+        def classes = mainClasses.get().asFile
+        def sharedPackages = fileTree(commonClasses).matching { include '**/*.class' }.files.collect {
+            commonClasses.get().asFile.toPath().relativize(it.parentFile.toPath()).join('.')
+        }.toSet()
+        def base = 'cc.sighs.dndturn.'
+        def platform = base + 'platform.'
+        fileTree(classes).matching { include '**/*.class' }.each { entry ->
+            def pkg = classes.toPath().relativize(entry.parentFile.toPath()).join('.')
+            if (isCommon && !['domain', 'application'].any { pkg == base + it || pkg.startsWith(base + it + '.') })
+                throw new GradleException("Unexpected common package: ${pkg}")
+            if (!isCommon && sharedPackages.contains(pkg))
+                throw new GradleException("Split common/target package: ${pkg}")
+        }
+        def home = compiler.get().metadata.installationPath.asFile
+        def tool = new File(home, System.getProperty('os.name').startsWith('Windows') ? 'bin/jdeps.exe' : 'bin/jdeps')
+        def output = providers.exec {
+            commandLine tool, '-verbose:class', '-filter:none', classes
+        }.standardOutput.asText.get()
+        def seen = false
+        def clientReferences = [] as Set
+        output.eachLine { line ->
+            def match = line =~ /^\s+(\S+)\s+->\s+(\S+)\s+.+$/
+            if (!match.matches()) return
+            seen = true
+            def from = match[0][1], to = match[0][2]
+            def forbidden = isCommon && (
+                ['net.minecraft.', 'net.neoforged.', 'net.minecraftforge.', 'net.fabricmc.',
+                 'org.spongepowered.asm.mixin.', 'com.mojang.serialization.', platform].any { to.startsWith(it) } ||
+                from.startsWith(base + 'domain.') && to.startsWith(base + 'application.'))
+            forbidden |= to.startsWith(base + 'content.')
+            def server = platform + 'server.'
+            if (to.startsWith('net.minecraft.client.') || to.startsWith(platform + 'client.')) clientReferences.add(from)
+            def shared = ['network', 'projection', 'observation', 'spatial'].any { from.startsWith(platform + it + '.') }
+            forbidden |= (shared || from.startsWith(platform + 'client.')) && to.startsWith(server)
+            forbidden |= (shared || from.startsWith(server)) && (to.startsWith(platform + 'client.') || to.startsWith('net.minecraft.client.'))
+            forbidden |= from.startsWith(server) && !from.startsWith(server + 'builtin.') &&
+                (to.startsWith(server + 'builtin.') || to.startsWith('net.minecraft.world.entity.monster.') && to != 'net.minecraft.world.entity.monster.Enemy')
+            forbidden |= from.startsWith(server + 'checkpoint.') && (to.startsWith('net.minecraft.') ||
+                to.startsWith(platform) && !to.startsWith(server + 'checkpoint.'))
+            forbidden |= from.startsWith(platform + 'network.') && (to.startsWith(platform + 'bootstrap.') || to.endsWith('.PacketDistributor'))
+            forbidden |= from.startsWith(platform + 'client.state.') &&
+                ['input.', 'ui.'].any { to.startsWith(platform + 'client.' + it) }
+            if (forbidden) throw new GradleException("Forbidden compiled dependency: ${from} -> ${to}")
+        }
+        if (!seen) throw new GradleException("No compiled dependencies inspected in ${classes}")
+        if (mixinTarget) {
+            def config = new groovy.json.JsonSlurper().parse(mixinConfig.asFile)
+            ['client', 'server', 'mixins'].each { side ->
+                (config[side] ?: []).each { name ->
+                    def type = config.package + '.' + name
+                    if (side != 'client' && clientReferences.contains(type))
+                        throw new GradleException("Client dependency in ${side} Mixin: ${type}")
+                }
+            }
+        }
+    }
+}
+
+tasks.named('check') { dependsOn compiledBoundaries }

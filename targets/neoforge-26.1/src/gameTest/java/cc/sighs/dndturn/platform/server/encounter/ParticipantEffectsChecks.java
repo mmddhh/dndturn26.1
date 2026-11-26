@@ -36,10 +36,9 @@ public final class ParticipantEffectsChecks {
     public static void register(net.neoforged.bus.api.IEventBus bus) { EFFECTS.register(bus); }
 
     private static float exhaustion(ServerPlayer player) {
-        try {
-            var field=net.minecraft.world.food.FoodData.class.getDeclaredField("exhaustionLevel");
-            field.setAccessible(true); return field.getFloat(player.getFoodData());
-        } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
+        var output = net.minecraft.world.level.storage.TagValueOutput.createWithoutContext(net.minecraft.util.ProblemReporter.DISCARDING);
+        player.getFoodData().addAdditionalSaveData(output);
+        return output.buildResult().getFloat("foodExhaustionLevel").orElseThrow();
     }
     private record Arena(ServerPlayer player,EncounterRuntime service,BlockPos base,Runnable cleanup) {}
     private static Arena arena(GameTestHelper h,int offset) {
@@ -98,7 +97,8 @@ public final class ParticipantEffectsChecks {
             player.addEffect(new MobEffectInstance(MobEffects.SPEED,91,0));
             player.addEffect(new MobEffectInstance(MobEffects.SPEED,31,1));bodyTicks[0]=player.tickCount;
         }).thenIdle(37).thenExecute(()->{
-            h.assertTrue(player.getHealth()==10 && player.getEffect(MobEffects.REGENERATION).getDuration()==60,
+            var regeneration = player.getEffect(MobEffects.REGENERATION);
+            h.assertTrue(player.getHealth()==10 && regeneration != null && regeneration.getDuration()==60,
                 "real waiting consumed effect duration or regenerated health");
             h.assertTrue(player.tickCount>bodyTicks[0],"effect pause froze ordinary player body");
             var basic=player.getEffect(net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.wrapAsHolder(BASIC.get()));
@@ -159,7 +159,7 @@ public final class ParticipantEffectsChecks {
             player.getInventory().setItem(0,potion);
             var id=service.encounterOf(player.getUUID());
             var self=new ActionIntent.Target(ActionIntent.TargetKind.SELF,player.level().dimension().identifier().toString(),null,null,-1,0,0,0);
-            var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),id,UUID.randomUUID(),self,ActionIntent.Hand.MAIN_HAND));
+            var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),id,UUID.randomUUID(),self,ActionIntent.Hand.MAIN_HAND, 0, System.nanoTime(), null));
             var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:consume")).findFirst().orElseThrow();
             h.assertTrue(offer.reason().isEmpty(),"healing potion unavailable: "+offer.reason());
             drink[0]=new ActionProtocol.Request(service.generation(),id,UUID.randomUUID(),options.version(),offer.intent(),false);
@@ -188,7 +188,7 @@ public final class ParticipantEffectsChecks {
             player.getInventory().setItem(0,potion);
             var id=service.encounterOf(player.getUUID());
             var self=new ActionIntent.Target(ActionIntent.TargetKind.SELF,player.level().dimension().identifier().toString(),null,null,-1,0,0,0);
-            var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),id,UUID.randomUUID(),self,ActionIntent.Hand.MAIN_HAND));
+            var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),id,UUID.randomUUID(),self,ActionIntent.Hand.MAIN_HAND, 0, System.nanoTime(), null));
             var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:consume")).findFirst().orElseThrow();
             drink[0]=new ActionProtocol.Request(service.generation(),id,UUID.randomUUID(),options.version(),offer.intent(),false);
             service.actions().request(player,drink[0]);

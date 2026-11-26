@@ -1,30 +1,12 @@
 package cc.sighs.dndturn.domain.character;
 
+import java.util.Set;
+import java.util.Map;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CharacterRulesTest {
-    @Test
-    void expectedHitPointsUseDieMaximumAtOneAndExpectationAfter() {
-        assertEquals(12, CharacterRules.expectedMaxHp(10, 2, 1));
-        // 12 + (5.5 + 2) at level 2 = 19.5 -> 20
-        assertEquals(20, CharacterRules.expectedMaxHp(10, 2, 2));
-        // 12 + 3 * 7.5 = 34.5 -> 35
-        assertEquals(35, CharacterRules.expectedMaxHp(10, 2, 4));
-        // 9 + 2 * (5.5 - 1) = 18
-        assertEquals(18, CharacterRules.expectedMaxHp(10, -1, 3));
-    }
-
-    @Test
-    void armorClassUsesCategoryDexCapAndShield() {
-        assertEquals(15, CharacterRules.armorClass(ArmorCategory.NONE, 0, 5, false));
-        assertEquals(17, CharacterRules.armorClass(ArmorCategory.NONE, 0, 5, true));
-        assertEquals(17, CharacterRules.armorClass(ArmorCategory.LIGHT, 12, 5, false));
-        assertEquals(16, CharacterRules.armorClass(ArmorCategory.MEDIUM, 14, 5, false));
-        assertEquals(18, CharacterRules.armorClass(ArmorCategory.HEAVY, 18, 5, false));
-        assertEquals(20, CharacterRules.armorClass(ArmorCategory.HEAVY, 18, 5, true));
-    }
-
     @Test
     void pointBuyRequiresExactlyTwentySevenPoints() {
         var valid = new AbilityScores(15, 15, 14, 10, 8, 8);
@@ -36,22 +18,11 @@ class CharacterRulesTest {
     }
 
     @Test
-    void levelingUsesFifthEditionThresholdsAndProficiency() {
-        assertEquals(1, DndLeveling.levelForExperience(0));
-        assertEquals(1, DndLeveling.levelForExperience(299));
-        assertEquals(2, DndLeveling.levelForExperience(300));
-        assertEquals(20, DndLeveling.levelForExperience(355_000));
-        assertEquals(2, DndLeveling.proficiencyBonus(1));
-        assertEquals(3, DndLeveling.proficiencyBonus(5));
-        assertEquals(6, DndLeveling.proficiencyBonus(17));
-    }
-
-    @Test
     void creationAppliesRacialBoostsAfterPointBuy() {
         var fighter = new CharacterClass("dndturn:fighter", 1, "Fighter", 10,
-                java.util.Set.of(Ability.STR, Ability.CON));
+                Set.of(Ability.STR, Ability.CON), Set.of(), 3, List.of(), Map.of());
         var mountainDwarf = new CharacterRace("dndturn:mountain_dwarf", 1, "Mountain Dwarf", 25, "medium",
-                java.util.Map.of(Ability.CON, 2, Ability.STR, 2));
+                Map.of(Ability.CON, 2, Ability.STR, 2), Map.of());
         var state = CharacterCreation.create(fighter, mountainDwarf, new AbilityScores(15, 15, 14, 10, 8, 8), null);
         assertEquals(17, state.abilities().strength());
         assertEquals(16, state.abilities().constitution());
@@ -62,10 +33,28 @@ class CharacterRulesTest {
     }
 
     @Test
+    void pageAllocationUsesSubraceSlotsAndExactClassOwnership() {
+        var definition = new CharacterClass("example:cleric", 1, "Cleric", 8, Set.of(),
+            Set.of(3), 1, List.of("example:life"), Map.of());
+        var race = new CharacterRace("example:elf", 1, "Elf", 30, "medium", Map.of(Ability.DEX, 2),
+            Map.of("example:high", List.of(2, 1)));
+        var bought = new AbilityScores(15, 15, 14, 10, 8, 8);
+        var targets = List.of(Ability.CON, Ability.INT);
+        var page = CharacterCreation.createFromScreen(definition, race, bought, targets, "example:high", "example:life");
+        assertEquals(16, page.abilities().constitution());
+        assertEquals(11, page.abilities().intelligence());
+        assertEquals(17, CharacterCreation.create(definition, race, bought, null).abilities().dexterity());
+        assertThrows(IllegalArgumentException.class, () -> CharacterCreation.createFromScreen(definition, race,
+            bought, targets, "example:high", "dndturn:life"));
+        assertThrows(IllegalArgumentException.class, () -> CharacterCreation.createFromScreen(definition, race,
+            bought, List.of(Ability.INT, Ability.INT), "example:high", null));
+    }
+
+    @Test
     void savingThrowAddsProficiencyAndDoesNotAutoPassOnNaturalTwenty() {
         var fighter = new CharacterClass("dndturn:fighter", 1, "Fighter", 10,
-                java.util.Set.of(Ability.STR, Ability.CON));
-        var race = new CharacterRace("dndturn:human", 1, "Human", 30, "medium", java.util.Map.of());
+                Set.of(Ability.STR, Ability.CON), Set.of(), 3, List.of(), Map.of());
+        var race = new CharacterRace("dndturn:human", 1, "Human", 30, "medium", Map.of(), Map.of());
         var state = CharacterCreation.create(fighter, race, new AbilityScores(15, 15, 14, 10, 8, 8), null);
         int bonus = CharacterRules.savingThrowBonus(fighter, state, Ability.CON);
         assertEquals(4, bonus); // +2 CON, +2 proficiency

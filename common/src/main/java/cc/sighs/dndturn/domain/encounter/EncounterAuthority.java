@@ -219,13 +219,34 @@ public final class EncounterAuthority {
     public record Revision(Map<UUID, Long> versions, Map<UUID, Long> structures,
                            int closedCount, int aliasCount, int receiptCount) {}
 
+    private long changeToken;
+    private Revision cachedRevision;
+
+    public long changeToken() { return changeToken; }
+
+    private void invalidateRevision() {
+        changeToken++;
+        cachedRevision = null;
+    }
+
+    private void setVersion(Encounter encounter, long value) {
+        encounter.version = value;
+        invalidateRevision();
+    }
+
+    private void setStructure(Encounter encounter, long value) {
+        encounter.structuralRevision = value;
+        invalidateRevision();
+    }
+
     public Revision revision() {
+        if (cachedRevision != null) return cachedRevision;
         Map<UUID, Long> versions = new HashMap<>(), structures = new HashMap<>();
         for (Encounter encounter : encounters.values()) {
             versions.put(encounter.id, encounter.version);
             structures.put(encounter.id, encounter.structuralRevision);
         }
-        return new Revision(Map.copyOf(versions), Map.copyOf(structures),
+        return cachedRevision = new Revision(Map.copyOf(versions), Map.copyOf(structures),
             closedEncounters.size(), mergedInto.size(), committedMerges.size());
     }
 
@@ -298,7 +319,7 @@ public final class EncounterAuthority {
         Encounter encounter = require(encounterId);
         int count = encounter.permits.size();
         if (count > 0) {
-            encounter.version = Math.addExact(encounter.version, 1);
+            setVersion(encounter, Math.addExact(encounter.version, 1));
             encounter.permits.clear();
         }
         return count;
@@ -355,7 +376,7 @@ public final class EncounterAuthority {
         encounter.operations.finalResults.put(operationId, result);
         encounter.operations.stepResults.put(operationId, Map.of(0, result));
         encounter.operations.history.add(result);
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return result;
     }
 
@@ -392,6 +413,7 @@ public final class EncounterAuthority {
             new Member(member, movementBudgets.getOrDefault(member, encounter.movementTicksPerTurn))));
         reroll(encounter);
         encounters.put(id, encounter);
+        invalidateRevision();
         for (UUID member : members) membership.put(member, id);
         actorTurnObserver.accept(new TurnBoundary(id, encounter.round, currentId(encounter)));
         return id;
@@ -415,8 +437,8 @@ public final class EncounterAuthority {
         applyRoll(joined, sampleRoll());
         encounter.members.put(member, joined);
         membership.put(member, encounterId);
-        encounter.version = nextVersion;
-        encounter.structuralRevision = nextStructuralRevision;
+        setVersion(encounter, nextVersion);
+        setStructure(encounter, nextStructuralRevision);
         return true;
     }
 
@@ -442,7 +464,7 @@ public final class EncounterAuthority {
         boolean wasCurrent = index == encounter.cursor && encounter.phase != EncounterPhase.ENVIRONMENT;
         encounter.members.remove(memberId);
         membership.remove(memberId);
-        encounter.structuralRevision = nextStructuralRevision;
+        setStructure(encounter, nextStructuralRevision);
         encounter.hostile.removeIf(relation -> relation.source().equals(memberId) || relation.target().equals(memberId));
         // A later join with the same UUID is a new membership, not the old target scope.
         encounter.permits.values().removeIf(state -> state.permit.targets().contains(memberId));
@@ -454,12 +476,12 @@ public final class EncounterAuthority {
             end(encounterId);
         } else if (encounter.phase == EncounterPhase.ENVIRONMENT) {
             // Roster changes do not start a new simulation cycle.
-            encounter.version++;
+            setVersion(encounter, encounter.version + 1);
         } else if (encounter.order.isEmpty() || encounter.cursor >= encounter.order.size() - 1) {
             enterEnvironment(encounter);
-            encounter.version++;
+            setVersion(encounter, encounter.version + 1);
         } else {
-            encounter.version++;
+            setVersion(encounter, encounter.version + 1);
             if (wasCurrent) beginMemberTurn(encounter, encounter.members.get(encounter.order.get(encounter.cursor)));
         }
         return true;
@@ -479,8 +501,8 @@ public final class EncounterAuthority {
         long nextVersion = Math.addExact(encounter.version, 1);
         long nextStructuralRevision = Math.addExact(encounter.structuralRevision, 1);
         encounter.region = region;
-        encounter.version = nextVersion;
-        encounter.structuralRevision = nextStructuralRevision;
+        setVersion(encounter, nextVersion);
+        setStructure(encounter, nextStructuralRevision);
     }
 
     public void setHostile(UUID encounterId, UUID source, UUID target, boolean hostile) {
@@ -493,7 +515,7 @@ public final class EncounterAuthority {
             long nextVersion = Math.addExact(encounter.version, 1);
             if (hostile) encounter.hostile.add(relation);
             else encounter.hostile.remove(relation);
-            encounter.version = nextVersion;
+            setVersion(encounter, nextVersion);
         }
     }
 
@@ -602,6 +624,7 @@ public final class EncounterAuthority {
             // No timestamp means the archive cannot be aged safely; keep it.
             if (newest == 0 || now - newest < retentionTicks) continue;
             closedEncounters.remove(id);
+            invalidateRevision();
             removed.add(id);
         }
         if (removed.isEmpty()) return Set.of();
@@ -644,8 +667,8 @@ public final class EncounterAuthority {
             long targetRevision = Math.addExact(target.structuralRevision, 1);
             source.causalMergeNeighbors.add(target.id);
             target.causalMergeNeighbors.add(source.id);
-            source.structuralRevision = sourceRevision;
-            target.structuralRevision = targetRevision;
+            setStructure(source, sourceRevision);
+            setStructure(target, targetRevision);
         }
         return planMerge(source.id);
     }
@@ -841,8 +864,8 @@ public final class EncounterAuthority {
         primary.operations.stepResults.put(operationId, Map.of(0, result));
         primary.operations.history.add(result);
         primary.region = sampledRegion;
-        primary.version = nextVersion;
-        primary.structuralRevision = nextStructuralRevision;
+        setVersion(primary, nextVersion);
+        setStructure(primary, nextStructuralRevision);
         committedMerges.put(operationId, new MergeReceipt(plan, sampledRegion, serverTick, primary.id));
         return result;
     }
@@ -916,7 +939,7 @@ public final class EncounterAuthority {
             throw new IllegalArgumentException("permit target is not a member");
         long nextVersion = Math.addExact(encounter.version, 1);
         encounter.permits.put(permit.id(), new PermitState(permit));
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
     }
 
     public boolean revokeEffectPermit(UUID encounterId, UUID permitId) {
@@ -924,7 +947,7 @@ public final class EncounterAuthority {
         if (!encounter.permits.containsKey(permitId)) return false;
         long nextVersion = Math.addExact(encounter.version, 1);
         encounter.permits.remove(permitId);
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return true;
     }
 
@@ -976,7 +999,7 @@ public final class EncounterAuthority {
         }
         encounter.operations.childrenByRoot.merge(rootOf(encounter, parent), 1, Integer::sum);
         encounter.operations.pending.put(snapshot.operationId(), snapshot); encounter.operations.causes.put(snapshot.operationId(), snapshot);
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return true;
     }
 
@@ -995,7 +1018,7 @@ public final class EncounterAuthority {
         if (encounter == null) return false;
         Member member = encounter.members.get(owner);
         if (member == null || !member.economy.refundAction()) return false;
-        encounter.version = Math.addExact(encounter.version, 1);
+        setVersion(encounter, Math.addExact(encounter.version, 1));
         return true;
     }
 
@@ -1021,7 +1044,7 @@ public final class EncounterAuthority {
         encounter.operations.causes.put(snapshot.operationId(), snapshot);
         if (encounter.members.containsKey(principal))
             encounter.attackersWithRegisteredAttempt.add(principal);
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return true;
     }
 
@@ -1061,7 +1084,7 @@ public final class EncounterAuthority {
         encounter.operations.pending.put(snapshot.operationId(), snapshot);
         encounter.operations.causes.put(snapshot.operationId(), snapshot);
         encounter.attackersWithRegisteredAttempt.add(snapshot.owner());
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         if (activated) notifyActorTurn(encounter);
         return true;
     }
@@ -1147,7 +1170,7 @@ public final class EncounterAuthority {
         encounter.operations.finalResults.put(operationId, result);
         encounter.operations.stepResults.put(operationId, Map.of(0, result));
         encounter.operations.history.add(result);
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return result;
     }
 
@@ -1230,7 +1253,7 @@ public final class EncounterAuthority {
             encounter.operations.childrenByRoot.merge(rootId, 1, Integer::sum);
             encounter.operations.pending.put(snapshot.operationId(), snapshot);
             encounter.operations.causes.put(snapshot.operationId(), snapshot);
-            encounter.version = nextVersion;
+            setVersion(encounter, nextVersion);
             return true;
         }
         if (permitId != null || !encounter.members.containsKey(snapshot.owner())) return false;
@@ -1275,7 +1298,7 @@ public final class EncounterAuthority {
         encounter.operations.causes.put(snapshot.operationId(), snapshot);
         if (snapshot.kind() == OperationRecord.Kind.ATTACK)
             encounter.attackersWithRegisteredAttempt.add(snapshot.owner());
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         if (activated) notifyActorTurn(encounter);
         return true;
     }
@@ -1303,7 +1326,7 @@ public final class EncounterAuthority {
         encounter.operations.history.add(result);
         encounter.operations.stepResults.put(snapshot.operationId(), new HashMap<>(Map.of(0, result)));
         encounter.operations.finalResults.put(snapshot.operationId(), result);
-        encounter.version = version;
+        setVersion(encounter, version);
         return result;
     }
 
@@ -1380,7 +1403,7 @@ public final class EncounterAuthority {
             else member.economy.spendAction();
         }
         if (member != null) member.economy.spendMovement(movementTicks);
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         encounter.operations.history.add(result);
         encounter.operations.stepResults.computeIfAbsent(operationId, ignored -> new HashMap<>()).put(step, result);
         if (terminal) {
@@ -1414,7 +1437,7 @@ public final class EncounterAuthority {
         long nextVersion = Math.addExact(encounter.version, 1);
         Map<UUID, InitiativeRoll> rolls = encounter.phase == EncounterPhase.CANDIDATE
             && !encounter.hostile.isEmpty() ? sampleInitiatives(encounter) : Map.of();
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         boolean activated = finishMemberTurnState(encounter, rolls);
         return activated;
     }
@@ -1442,7 +1465,7 @@ public final class EncounterAuthority {
         long version = Math.addExact(encounter.version, 1);
         encounter.operations.pending.put(snapshot.operationId(), snapshot);
         encounter.operations.causes.put(snapshot.operationId(), snapshot);
-        encounter.version = version;
+        setVersion(encounter, version);
         return true;
     }
 
@@ -1461,7 +1484,7 @@ public final class EncounterAuthority {
         long nextVersion = Math.addExact(encounter.version, 1);
         encounter.authorizedEnvironmentStep = stepId;
         encounter.environmentStepAuthorized = true;
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return true;
     }
 
@@ -1472,7 +1495,7 @@ public final class EncounterAuthority {
         if (!Objects.equals(encounter.authorizedEnvironmentStep, stepId)) return false;
         long nextVersion = Math.addExact(encounter.version, 1);
         encounter.authorizedEnvironmentStep = null;
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return true;
     }
 
@@ -1505,7 +1528,7 @@ public final class EncounterAuthority {
         encounter.operations.finalResults.put(stepId, result);
         encounter.operations.stepResults.computeIfAbsent(stepId, ignored -> new HashMap<>()).put(0, result);
         encounter.operations.history.add(result);
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         return result;
     }
 
@@ -1537,7 +1560,7 @@ public final class EncounterAuthority {
         encounter.completedEnvironmentSteps.add(stepId);
         encounter.authorizedEnvironmentStep = null;
         encounter.environmentTime = nextEnvironmentTime;
-        encounter.version = nextVersion;
+        setVersion(encounter, nextVersion);
         if (--encounter.environmentRemaining == 0) {
             encounter.phase = encounter.hostile.isEmpty() ? EncounterPhase.CANDIDATE : EncounterPhase.ACTIVE;
             encounter.round = nextRound;
@@ -1559,12 +1582,12 @@ public final class EncounterAuthority {
                 "encounter ended before world outcome was confirmed", 0, 0, true);
         }
         encounter.phase = EncounterPhase.ENDED;
-        encounter.version++;
+        setVersion(encounter, encounter.version + 1);
         closedEncounters.put(encounterId, view(encounterId));
         encounters.remove(encounterId);
         for (Encounter remaining : encounters.values())
             if (remaining.causalMergeNeighbors.remove(encounterId))
-                remaining.structuralRevision = Math.addExact(remaining.structuralRevision, 1);
+                setStructure(remaining, Math.addExact(remaining.structuralRevision, 1));
         for (UUID member : encounter.members.keySet()) membership.remove(member);
         return Set.copyOf(encounter.members.keySet());
     }

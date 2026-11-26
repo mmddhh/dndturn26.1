@@ -51,8 +51,13 @@ class EncounterAuthorityReviewRegressionTest {
             UUID target = owner.equals(id(1)) ? id(2) : id(1);
             var attack = new OperationRecord.Snapshot(id(400), null, encounter, owner, owner, target,
                 1, engine.stateView(encounter).version(), null, null, OperationRecord.Kind.ATTACK);
+            var before = engine.revision();
+            var token = engine.changeToken();
+            assertSame(before, engine.revision());
             long acceptedVersion = attack.encounterVersion() + 1;
             engine.bindActorTurnObserver(boundary -> {
+                assertNotEquals(token, engine.changeToken());
+                assertEquals(acceptedVersion, engine.revision().versions().get(encounter));
                 assertEquals(acceptedVersion, engine.stateView(encounter).version());
                 assertNotNull(engine.pendingOperation(encounter, attack.operationId()));
                 engine.updateRegion(encounter, projectedRegion(2, 0, 1));

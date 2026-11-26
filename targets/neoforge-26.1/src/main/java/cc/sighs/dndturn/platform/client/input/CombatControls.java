@@ -42,11 +42,9 @@ public final class CombatControls {
     private static final KeyMapping HOME = key("camera_home", GLFW.GLFW_KEY_HOME);
     private static final KeyMapping PRESET = key("camera_preset", GLFW.GLFW_KEY_O);
     private static final KeyMapping CHARACTER = key("character", GLFW.GLFW_KEY_C);
-    private static boolean exitRetryPending;
+    private static final ExitRequests exits = new ExitRequests();
     private static boolean exitAfterStart;
-    private static long lastExitVersion;
     private static UUID startOperationId;
-    private static UUID exitOperationId;
 
     private CombatControls() {}
 
@@ -249,10 +247,9 @@ public final class CombatControls {
     }
 
     public static void reset() {
-        exitRetryPending = false;
+        exits.reset();
         exitAfterStart = false;
         startOperationId = null;
-        exitOperationId = null;
     }
 
     public static void resetForNewEncounter() {
@@ -267,10 +264,7 @@ public final class CombatControls {
             exitAfterStart = false;
             requestExit();
         }
-        if (exitRetryPending && state.version() != lastExitVersion) {
-            exitRetryPending = false;
-            requestExit();
-        }
+        if (exits.needsRefresh(state.version())) requestExit();
     }
 
     public static void onIntentStatus(EncounterProtocol.IntentStatus status) {
@@ -281,18 +275,36 @@ public final class CombatControls {
             }
             return;
         }
-        if (status.kind() != EncounterProtocol.IntentKind.EXIT
-            || !status.operationId().equals(exitOperationId)) return;
-        exitOperationId = null;
-        if (!status.accepted()
-            && status.code() == ActionFailure.Code.STALE_ENCOUNTER
-            && status.retry() == ActionFailure.Retry.REFRESH_AND_REPROPOSE) {
-            exitRetryPending = true;
-            var state = ClientCombatState.encounter();
-            if (state != null && state.version() != lastExitVersion) {
-                exitRetryPending = false;
-                requestExit();
-            }
+        exits.receive(status);
+        var state = ClientCombatState.encounter();
+        if (state != null && exits.needsRefresh(state.version())) requestExit();
+    }
+
+    /** Correlates EXIT replies with the operation sent for a particular projection. */
+    public static final class ExitRequests {
+        private UUID pending;
+        private long version;
+        private boolean refresh;
+
+        public UUID request(long currentVersion) {
+            if (pending == null || version != currentVersion) pending = UUID.randomUUID();
+            version = currentVersion;
+            refresh = false;
+            return pending;
+        }
+
+        public void receive(EncounterProtocol.IntentStatus status) {
+            if (status.kind() != EncounterProtocol.IntentKind.EXIT || !status.operationId().equals(pending)) return;
+            pending = null;
+            refresh = !status.accepted() && status.code() == ActionFailure.Code.STALE_ENCOUNTER
+                && status.retry() == ActionFailure.Retry.REFRESH_AND_REPROPOSE;
+        }
+
+        public boolean needsRefresh(long currentVersion) { return refresh && version != currentVersion; }
+
+        public void reset() {
+            pending = null;
+            refresh = false;
         }
     }
 
@@ -302,10 +314,7 @@ public final class CombatControls {
             if (startOperationId != null) exitAfterStart = true;
             return;
         }
-        lastExitVersion = state.version();
-        exitRetryPending = false;
-        exitOperationId = UUID.randomUUID();
-        send(EncounterProtocol.IntentKind.EXIT, null, exitOperationId);
+        send(EncounterProtocol.IntentKind.EXIT, null, exits.request(state.version()));
     }
 
     private static void send(EncounterProtocol.IntentKind kind, UUID target) {

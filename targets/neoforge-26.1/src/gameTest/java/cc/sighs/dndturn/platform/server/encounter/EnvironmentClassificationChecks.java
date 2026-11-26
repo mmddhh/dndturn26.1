@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
+import cc.sighs.dndturn.gametest.TestPlayers;
+
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.BlockPos;
@@ -17,7 +19,7 @@ public final class EnvironmentClassificationChecks {
         Set<Long> forced = new HashSet<>();
         List<Entity> spawned = new ArrayList<>();
         var service = ServerRuntime.encounters(level.getServer());
-        var player = helper.makeMockServerPlayerInLevel();
+        var player = TestPlayers.creative(helper);
         player.setPos(base.getX() + .5, base.getY(), base.getZ() + .5);
         for (int x = (base.getX()-24)>>4; x <= (base.getX()+24)>>4; x++)
             for (int z = (base.getZ()-24)>>4; z <= (base.getZ()+24)>>4; z++) {

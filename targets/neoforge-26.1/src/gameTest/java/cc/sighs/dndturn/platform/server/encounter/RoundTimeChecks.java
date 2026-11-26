@@ -4,7 +4,6 @@ import cc.sighs.dndturn.platform.network.EncounterProtocol;
 import cc.sighs.dndturn.platform.projection.PresentationState;
 import cc.sighs.dndturn.platform.server.damage.MeleeAdapters;
 import java.nio.file.Files;
-import java.util.Properties;
 import java.util.Set;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -16,22 +15,18 @@ public final class RoundTimeChecks {
             var directory = Files.createTempDirectory("dndturn-round-config-");
             var file = directory.resolve("world.properties");
             try {
-                Files.writeString(file, "movementTicks=28\nenvironmentTicks=20\nregionRadius=7\ncustom=value\n");
                 var first = ServerCombatConfig.load(file);
-                helper.assertTrue(first.roundTicks() == 30 && first.regionRadius() == 7, "old config did not adopt unified default");
-                var values = new Properties();
-                try (var input = Files.newInputStream(file)) { values.load(input); }
-                helper.assertTrue(values.getProperty("movementTicks").equals("28")
-                    && values.getProperty("environmentTicks").equals("20")
-                    && values.getProperty("custom").equals("value") && values.getProperty("roundTicks").equals("30"),
-                    "config conversion lost old values or unrelated settings");
-                Files.writeString(file, Files.readString(file).replace("roundTicks=30", "roundTicks=17"));
+                helper.assertTrue(first.roundTicks() == 30 && first.regionRadius() == 35, "initial settings incorrect");
+                String current = Files.readString(file);
+                Files.writeString(file, current.replace("roundTicks=30", "roundTicks=17"));
                 helper.assertTrue(ServerCombatConfig.load(file).roundTicks() == 17, "nondefault time ignored");
-                Files.writeString(file, "roundTicks=0\ncustom=unchanged\n");
-                var before = Files.readString(file);
-                boolean rejected = false;
-                try { ServerCombatConfig.load(file); } catch (IllegalArgumentException expected) { rejected = true; }
-                helper.assertTrue(rejected && Files.readString(file).equals(before), "invalid config was overwritten");
+                for (String invalid : java.util.List.of(current.replace("roundTicks=30", "roundTicks=0"),
+                        current.replace("roundTicks=30", ""), current + "\nmovementTicks=28\n")) {
+                    Files.writeString(file, invalid);
+                    boolean rejected = false;
+                    try { ServerCombatConfig.load(file); } catch (IllegalArgumentException expected) { rejected = true; }
+                    helper.assertTrue(rejected && Files.readString(file).equals(invalid), "invalid config accepted or rewritten");
+                }
             } finally { Files.deleteIfExists(file); Files.deleteIfExists(directory); }
             var registry = new MeleeAdapters();
             var zombie = EntityType.ZOMBIE.create(helper.getLevel(), EntitySpawnReason.COMMAND);

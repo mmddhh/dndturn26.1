@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.bootstrap;
 
+import cc.sighs.dndturn.platform.network.CharacterProtocol;
+import cc.sighs.dndturn.platform.client.ui.CharacterCreationScreen;
 import cc.sighs.dndturn.platform.client.action.ClientTacticalPlan;
 import cc.sighs.dndturn.platform.client.input.CombatControls;
 import cc.sighs.dndturn.platform.client.presentation.ClientPresentation;
@@ -38,8 +40,10 @@ public final class DNDTurnNeoForgeClient {
 
     private static void registerPayloads(RegisterClientPayloadHandlersEvent event) {
         event.register(InspectionProtocol.Reply.TYPE, ClientInspection::receive);
-        event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.Options.TYPE,
-            cc.sighs.dndturn.platform.client.ui.CharacterOverlay::receiveOptions);
+        event.register(CharacterProtocol.Detail.TYPE,
+            CharacterCreationScreen::receiveDetail);
+        event.register(CharacterProtocol.CreationResult.TYPE,
+            CharacterCreationScreen::receiveResult);
         event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.Open.TYPE,
             cc.sighs.dndturn.platform.client.ui.CharacterCreationScreen::receiveOpen);
         event.register(cc.sighs.dndturn.platform.network.CharacterProtocol.Sheet.TYPE,

@@ -1,6 +1,6 @@
 package cc.sighs.dndturn.platform.server.character;
 
-import cc.sighs.dndturn.domain.character.Ability;
+import com.google.gson.Gson;
 import cc.sighs.dndturn.domain.character.CharacterState;
 import cc.sighs.dndturn.domain.character.DndLeveling;
 import cc.sighs.dndturn.platform.network.CharacterProtocol;
@@ -26,8 +26,17 @@ public final class CharacterSheet {
         var abilities = character.abilities();
         JsonObject root = new JsonObject();
         root.addProperty("mode", "sheet");
-        root.addProperty("class", bare(progression.classId()));
-        root.addProperty("subclass", bare(progression.subclassId()));
+        var runtime = ServerRuntime.encounters(player.level().getServer());
+        var encounter = runtime.encounterOf(player.getUUID());
+        var catalog = encounter == null ? ServerRuntime.content(player.level().getServer()).current()
+            : runtime.contentCache().find(encounter).contentFor(player.getUUID());
+        var definition = catalog.requireClass(progression.classId());
+        root.addProperty("class", definition.id());
+        root.addProperty("className", definition.name());
+        root.addProperty("hitDie", definition.hitDie());
+        root.add("subclasses", new Gson().toJsonTree(definition.subclasses()));
+        root.addProperty("subclassLevel", definition.subclassLevel());
+        root.addProperty("subclass", progression.subclassId());
         root.addProperty("level", progression.level());
         root.addProperty("exp", progression.experience());
         root.addProperty("expLevelStart", DndLeveling.experienceForLevel(progression.level()));
@@ -36,7 +45,7 @@ public final class CharacterSheet {
         root.addProperty("proficiency", progression.proficiencyBonus());
         root.addProperty("created", true);
         root.addProperty("pendingAsi", progression.pendingAsi());
-        root.addProperty("subclassAvailable", CharacterSubclass.available(character));
+        root.addProperty("subclassAvailable", encounter == null && CharacterSubclass.available(definition, character));
 
         JsonObject scores = new JsonObject();
         scores.addProperty("str", abilities.strength());
@@ -54,9 +63,4 @@ public final class CharacterSheet {
         return root.toString();
     }
 
-    private static String bare(String id) {
-        if (id == null || id.isBlank()) return "";
-        int colon = id.indexOf(':');
-        return colon < 0 ? id : id.substring(colon + 1);
-    }
 }

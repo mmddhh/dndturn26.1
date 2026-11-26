@@ -16,9 +16,6 @@ public final class PlayerArmorRules {
     private PlayerArmorRules() {}
 
     /** Returns -1 when the target is not a created player character and native AC must remain authoritative. */
-    public static int armorClass(LivingEntity target, CharacterState character) {
-        return armorClass(target,character,cc.sighs.dndturn.domain.character.RulesCatalog.empty());
-    }
     public static int armorClass(LivingEntity target, CharacterState character, cc.sighs.dndturn.domain.character.RulesCatalog catalog) {
         if (!(target instanceof Player player) || character == null || !character.created()) return -1;
         var set = wornSet(player,catalog.armorBindings());

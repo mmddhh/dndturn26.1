@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
+import cc.sighs.dndturn.gametest.TestPlayers;
+
 import cc.sighs.dndturn.domain.encounter.TurnParticipant;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
@@ -33,7 +35,7 @@ public final class EnvironmentProcessChecks {
         level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base), 1);
         for(var p:BlockPos.betweenClosed(base.offset(-6,-1,-6),base.offset(6,3,6)))
             level.setBlockAndUpdate(p,p.getY()<base.getY()?Blocks.STONE.defaultBlockState():Blocks.AIR.defaultBlockState());
-        var player=helper.makeMockServerPlayerInLevel(); player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+        var player=TestPlayers.creative(helper); player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
         var service=ServerRuntime.encounters(level.getServer());
         BlockPos tntPos=base.east(2), hopperPos=base.south(2), delayed=base.north(3);
         helper.runAtTickTime(30,()-> {

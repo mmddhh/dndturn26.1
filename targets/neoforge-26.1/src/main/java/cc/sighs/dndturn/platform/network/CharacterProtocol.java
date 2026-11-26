@@ -1,7 +1,6 @@
 package cc.sighs.dndturn.platform.network;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.UUID;
 import java.util.Objects;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -13,13 +12,36 @@ public final class CharacterProtocol {
     private CharacterProtocol() {}
 
     public record ClassOption(String id, String name, int hitDie) {}
-    public record RaceOption(String id, String name) {}
 
-    /** Empty request that opens the client's linked class-creation screen. */
-    public record Open() implements CustomPacketPayload {
+    public record DetailRequest(UUID page, String revision, String classId) implements CustomPacketPayload {
+        public static final Type<DetailRequest> TYPE = new Type<>(Identifier.fromNamespaceAndPath("dndturn", "character_detail_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, DetailRequest> CODEC = StreamCodec.of(
+            (buffer, value) -> { buffer.writeUUID(value.page()); buffer.writeUtf(value.revision(), 128); buffer.writeUtf(value.classId(), 128); },
+            buffer -> new DetailRequest(buffer.readUUID(), buffer.readUtf(128), buffer.readUtf(128)));
+        public Type<DetailRequest> type() { return TYPE; }
+    }
+
+    public record Detail(String json) implements CustomPacketPayload {
+        public Detail { if (json.isEmpty() || json.length() > 32767) throw new IllegalArgumentException("character projection bound"); }
+        public static final Type<Detail> TYPE = new Type<>(Identifier.fromNamespaceAndPath("dndturn", "character_detail"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Detail> CODEC = StreamCodec.of(
+            (buffer, value) -> buffer.writeUtf(value.json(), 32767), buffer -> new Detail(buffer.readUtf(32767)));
+        public Type<Detail> type() { return TYPE; }
+    }
+
+    public record CreationResult(String json) implements CustomPacketPayload {
+        public CreationResult { if (json.isEmpty() || json.length() > 32767) throw new IllegalArgumentException("character projection bound"); }
+        public static final Type<CreationResult> TYPE = new Type<>(Identifier.fromNamespaceAndPath("dndturn", "character_creationresult"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, CreationResult> CODEC = StreamCodec.of(
+            (buffer, value) -> buffer.writeUtf(value.json(), 32767), buffer -> new CreationResult(buffer.readUtf(32767)));
+        public Type<CreationResult> type() { return TYPE; }
+    }
+
+    public record Open(String json) implements CustomPacketPayload {
+        public Open { if (json.isEmpty() || json.length() > 32767) throw new IllegalArgumentException("character projection bound"); }
         public static final Type<Open> TYPE = new Type<>(Identifier.fromNamespaceAndPath("dndturn", "character_open"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Open> CODEC = StreamCodec.of(
-            (buffer, value) -> {}, buffer -> new Open());
+            (buffer, value) -> buffer.writeUtf(value.json(), 32767), buffer -> new Open(buffer.readUtf(32767)));
         public Type<Open> type() { return TYPE; }
     }
 
@@ -67,36 +89,6 @@ public final class CharacterProtocol {
         public Type<SheetAction> type() { return TYPE; }
     }
 
-    public record Options(List<ClassOption> classes, List<RaceOption> races) implements CustomPacketPayload {
-        public Options {
-            classes = List.copyOf(classes); races = List.copyOf(races);
-            if (classes.size() > 128 || races.size() > 128) throw new IllegalArgumentException("character option bound");
-        }
-        public static final Type<Options> TYPE = new Type<>(Identifier.fromNamespaceAndPath("dndturn", "character_options"));
-        public static final StreamCodec<RegistryFriendlyByteBuf, Options> CODEC = StreamCodec.of((buffer, value) -> {
-            buffer.writeVarInt(value.classes.size());
-            for (var option : value.classes) {
-                buffer.writeUtf(option.id(), 128); buffer.writeUtf(option.name(), 128); buffer.writeVarInt(option.hitDie());
-            }
-            buffer.writeVarInt(value.races.size());
-            for (var option : value.races) {
-                buffer.writeUtf(option.id(), 128); buffer.writeUtf(option.name(), 128);
-            }
-        }, buffer -> {
-            int classCount = buffer.readVarInt();
-            if (classCount < 0 || classCount > 128) throw new IllegalArgumentException("character class option bound");
-            var classes = new ArrayList<ClassOption>(classCount);
-            for (int i = 0; i < classCount; i++)
-                classes.add(new ClassOption(buffer.readUtf(128), buffer.readUtf(128), buffer.readVarInt()));
-            int raceCount = buffer.readVarInt();
-            if (raceCount < 0 || raceCount > 128) throw new IllegalArgumentException("character race option bound");
-            var races = new ArrayList<RaceOption>(raceCount);
-            for (int i = 0; i < raceCount; i++) races.add(new RaceOption(buffer.readUtf(128), buffer.readUtf(128)));
-            return new Options(classes, races);
-        });
-        public Type<Options> type() { return TYPE; }
-    }
-
     /** Server-opened ASI page data. */
     public record AsiOpen(String json) implements CustomPacketPayload {
         public AsiOpen {
@@ -142,24 +134,6 @@ public final class CharacterProtocol {
         public static final StreamCodec<RegistryFriendlyByteBuf, SubclassChoice> CODEC = StreamCodec.of(
             (buffer, value) -> buffer.writeUtf(value.id(), 128), buffer -> new SubclassChoice(buffer.readUtf(128)));
         public Type<SubclassChoice> type() { return TYPE; }
-    }
-
-    public record Create(String classId, String raceId, int strength, int dexterity, int constitution,                         int intelligence, int wisdom, int charisma) implements CustomPacketPayload {
-        public Create {
-            Objects.requireNonNull(classId); Objects.requireNonNull(raceId);
-            if (classId.isBlank() || classId.length() > 128 || raceId.isBlank() || raceId.length() > 128)
-                throw new IllegalArgumentException("character ids");
-            for (int value : new int[] {strength, dexterity, constitution, intelligence, wisdom, charisma})
-                if (value < 1 || value > 30) throw new IllegalArgumentException("character ability range");
-        }
-        public static final Type<Create> TYPE = new Type<>(Identifier.fromNamespaceAndPath("dndturn", "character_create"));
-        public static final StreamCodec<RegistryFriendlyByteBuf, Create> CODEC = StreamCodec.of((buffer, value) -> {
-            buffer.writeUtf(value.classId(), 128); buffer.writeUtf(value.raceId(), 128);
-            buffer.writeByte(value.strength()); buffer.writeByte(value.dexterity()); buffer.writeByte(value.constitution());
-            buffer.writeByte(value.intelligence()); buffer.writeByte(value.wisdom()); buffer.writeByte(value.charisma());
-        }, buffer -> new Create(buffer.readUtf(128), buffer.readUtf(128), buffer.readByte(), buffer.readByte(),
-            buffer.readByte(), buffer.readByte(), buffer.readByte(), buffer.readByte()));
-        public Type<Create> type() { return TYPE; }
     }
 
     public record Reply(boolean success, String message) implements CustomPacketPayload {

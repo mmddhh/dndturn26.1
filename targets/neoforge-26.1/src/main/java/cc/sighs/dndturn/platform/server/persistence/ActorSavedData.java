@@ -6,6 +6,7 @@ import cc.sighs.dndturn.domain.actor.ActorStates;
 import cc.sighs.dndturn.domain.effect.EffectDefinition;
 import cc.sighs.dndturn.domain.effect.EffectInstance;
 import cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord;
+import cc.sighs.dndturn.domain.encounter.operation.NativeObservation;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
 import com.google.gson.*;
 import com.mojang.serialization.Codec;
@@ -25,14 +26,26 @@ public final class ActorSavedData extends SavedData {
             Map.entry("add_stacks", ActorStates.AddStacks.class), Map.entry("consume_stacks", ActorStates.ConsumeStacks.class),
             Map.entry("refresh_duration", ActorStates.RefreshDuration.class));
     private static final Gson GSON = new GsonBuilder().registerTypeAdapter(ActorStates.Change.class, new ChangeCodec())
+            .registerTypeAdapter(NativeObservation.class, (JsonDeserializer<NativeObservation>) ActorSavedData::readObservation)
             .registerTypeAdapter(EffectDefinition.class, new DefinitionCodec())
             .registerTypeAdapter(AbilityDefinition.class, new AbilityDefinitionCodec()).create();
+    private static NativeObservation readObservation(JsonElement json, java.lang.reflect.Type type, JsonDeserializationContext context) {
+        var value = json.getAsJsonObject();
+        if (!value.keySet().equals(Set.of("type", "operation", "subject", "certainty", "fields")))
+            throw new IllegalArgumentException("unexpected native observation fields");
+        return new NativeObservation(value.get("type").getAsString(),
+                context.deserialize(value.get("operation"), UUID.class), context.deserialize(value.get("subject"), UUID.class),
+                context.deserialize(value.get("certainty"), NativeObservation.Certainty.class),
+                context.deserialize(value.get("fields"), new com.google.gson.reflect.TypeToken<Map<String, NativeObservation.Value>>() {}.getType()));
+    }
+
     private static final class AbilityDefinitionCodec implements JsonSerializer<AbilityDefinition>, JsonDeserializer<AbilityDefinition> {
         public JsonElement serialize(AbilityDefinition value, java.lang.reflect.Type type, JsonSerializationContext context) {
             var result = new JsonObject(); result.addProperty("id", value.id()); result.addProperty("version", value.version()); return result;
         }
         public AbilityDefinition deserialize(JsonElement json, java.lang.reflect.Type type, JsonDeserializationContext context) {
             var value = json.getAsJsonObject();
+            if (!value.keySet().equals(Set.of("id", "version"))) throw new IllegalArgumentException("invalid definition reference");
             return AbilityAdapterRegistry.definitions().require(value.get("id").getAsString(), value.get("version").getAsInt());
         }
     }
@@ -43,6 +56,7 @@ public final class ActorSavedData extends SavedData {
         }
         public EffectDefinition deserialize(JsonElement json, java.lang.reflect.Type type, JsonDeserializationContext context) {
             var value = json.getAsJsonObject();
+            if (!value.keySet().equals(Set.of("id", "version"))) throw new IllegalArgumentException("invalid definition reference");
             return AbilityAdapterRegistry.effects().require(value.get("id").getAsString(), value.get("version").getAsInt());
         }
     }
@@ -53,16 +67,19 @@ public final class ActorSavedData extends SavedData {
             result.addProperty("kind", kind); result.add("value", context.serialize(value, value.getClass())); return result;
         }
         public ActorStates.Change deserialize(JsonElement json, java.lang.reflect.Type type, JsonDeserializationContext context) {
-            var root = json.getAsJsonObject(); var target = CHANGES.get(root.get("kind").getAsString());
+            var root = json.getAsJsonObject();
+            if (!root.keySet().equals(Set.of("kind", "value"))) throw new IllegalArgumentException("invalid actor command fields");
+            var target = CHANGES.get(root.get("kind").getAsString());
             if (target == null) throw new JsonParseException("unknown actor command kind");
             return context.deserialize(root.get("value"), target);
         }
     }
     private record Checkpoint(Map<UUID, ActorStates.State> actors, List<ActorStates.Receipt> receipts,
+                              Map<UUID, ActorStates.CreationOutcome> creations,
                               Map<UUID, String> faults, List<ActorStates.ReactionDelivery> deliveries, List<TriggeredExecutionRecord> invocations,
                               Map<UUID, List<ActorStates.SimulationRange>> simulationArchive) {
         Checkpoint {
-            actors = Map.copyOf(actors); receipts = List.copyOf(receipts);
+            actors = Map.copyOf(actors); receipts = List.copyOf(receipts); creations = Map.copyOf(creations);
             faults = Map.copyOf(faults);
             deliveries = List.copyOf(deliveries);
             invocations = List.copyOf(invocations);
@@ -89,7 +106,7 @@ public final class ActorSavedData extends SavedData {
     String json() { return json; }
     public ActorStates restore() {
         var owner = new ActorStates();
-        if (json.isBlank()) return owner;
+        if (json.isEmpty()) return owner;
         int depth = 0; boolean quoted = false, escaped = false;
         for (int index = 0; index < json.length(); index++) {
             char ch = json.charAt(index);
@@ -108,7 +125,7 @@ public final class ActorSavedData extends SavedData {
         var document = JsonParser.parseString(json).getAsJsonObject();
         if (document.size() != Checkpoint.class.getRecordComponents().length)
             throw new IllegalArgumentException("unexpected actor checkpoint fields");
-        for (String field : List.of("actors", "receipts", "faults", "deliveries", "invocations", "simulationArchive"))
+        for (String field : List.of("actors", "receipts", "creations", "faults", "deliveries", "invocations", "simulationArchive"))
             if (!document.has(field) || document.get(field).isJsonNull())
                 throw new IllegalArgumentException("missing actor checkpoint field: " + field);
         var saved = GSON.fromJson(document, Checkpoint.class);
@@ -122,12 +139,13 @@ public final class ActorSavedData extends SavedData {
             states.put(id, new ActorStates.State(revision, state.persistent(), new ActorRuntimeState(effects), state.clocks()));
         });
         owner.restore(states, saved.receipts()); owner.restoreFaults(saved.faults()); owner.restoreDeliveries(saved.deliveries());
+        saved.creations().forEach(owner::finishCreation);
         owner.restoreInvocations(saved.invocations());
         owner.restoreSimulationArchive(saved.simulationArchive());
         return owner;
     }
     public void update(ActorStates owner) {
-        String encoded = GSON.toJson(new Checkpoint(owner.snapshot(), owner.receipts(), owner.faults(), owner.deliveries(), owner.invocations(),
+        String encoded = GSON.toJson(new Checkpoint(owner.snapshot(), owner.receipts(), owner.creations(), owner.faults(), owner.deliveries(), owner.invocations(),
                 owner.simulationArchive()));
         if (encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_BYTES) throw new IllegalStateException("actor checkpoint capacity");
         if (!encoded.equals(json)) { json = encoded; setDirty(); }

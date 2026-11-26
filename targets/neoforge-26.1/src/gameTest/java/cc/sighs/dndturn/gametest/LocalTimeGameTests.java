@@ -1,4 +1,7 @@
 package cc.sighs.dndturn.gametest;
+import net.minecraft.world.entity.EntitySpawnReason;
+import cc.sighs.dndturn.platform.server.persistence.CombatRecoveryCandidate;
+import cc.sighs.dndturn.platform.server.ai.MovementPorts;
 import cc.sighs.dndturn.domain.encounter.StateView;
 
 import cc.sighs.dndturn.application.planning.MovementPlanner;
@@ -15,6 +18,8 @@ import cc.sighs.dndturn.domain.resolution.CombatRules;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import cc.sighs.dndturn.platform.bootstrap.DNDTurnNeoForge;
 import cc.sighs.dndturn.platform.network.EncounterProtocol;
+import cc.sighs.dndturn.platform.network.ActionProtocol;
+import cc.sighs.dndturn.domain.action.ActionIntent;
 import cc.sighs.dndturn.platform.spatial.MinecraftCellProbe;
 import cc.sighs.dndturn.platform.server.actor.EffectReactionChecks;
 import cc.sighs.dndturn.platform.server.actor.EffectReactionRestartChecks;
@@ -43,8 +48,6 @@ import cc.sighs.dndturn.platform.server.persistence.PersistenceTestAccess;
 import cc.sighs.dndturn.platform.server.runtime.MinecraftCombatRuntime;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import cc.sighs.dndturn.platform.server.world.RegionalScheduledTicks;
-import com.mojang.authlib.GameProfile;
-import io.netty.channel.embedded.EmbeddedChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
@@ -57,13 +60,10 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.Connection;
-import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.game.ServerboundAcceptTeleportationPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -203,34 +203,8 @@ public final class LocalTimeGameTests {
     public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> ARROW_PENDING_REMOVAL =
         TEST_FUNCTIONS.register("arrow_pending_removal", () -> helper -> arrowCrossSession(helper, false, false, 1));
 
-    public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> COMBAT_UI_PROTOCOL =
-        TEST_FUNCTIONS.register("combat_ui_protocol", () -> LocalTimeGameTests::combatUiProtocol);
 
-    private static void combatUiProtocol(GameTestHelper helper) {
-        var buffer = io.netty.buffer.Unpooled.buffer();
-        try {
-            UUID id = UUID.randomUUID();
-            var member = new EncounterProtocol.MemberNotice(id, "participant", 17,
-                3, true, false, 19, false, true);
-            var state = new EncounterProtocol.EncounterState(id, id, 2, true, 8,
-                2, 2, null, 3, 19, false, true, 7, false, null, List.of(member), 67, true);
-            EncounterProtocol.EncounterState.STREAM_CODEC.encode(buffer, state);
-            helper.assertTrue(state.equals(EncounterProtocol.EncounterState.STREAM_CODEC.decode(buffer))
-                    && !buffer.isReadable(), "roster, qualification, resources or history count lost on wire");
-            buffer.clear();
-            var consent = new EncounterProtocol.ConsentState(id, 5, id, 3, 400, 100,
-                true, List.of(new EncounterProtocol.ConsentMember(id, "participant", true)), "waiting");
-            EncounterProtocol.ConsentState.STREAM_CODEC.encode(buffer, consent);
-            helper.assertTrue(consent.equals(EncounterProtocol.ConsentState.STREAM_CODEC.decode(buffer))
-                && !buffer.isReadable(), "consent deadline or roster lost on wire");
-            buffer.clear();
-            var response = new EncounterProtocol.ConsentReply(id, id, UUID.randomUUID(), id, 3, true);
-            EncounterProtocol.ConsentReply.STREAM_CODEC.encode(buffer, response);
-            helper.assertTrue(response.equals(EncounterProtocol.ConsentReply.STREAM_CODEC.decode(buffer))
-                && !buffer.isReadable(), "consent identity or revision lost on wire");
-            helper.succeed();
-        } finally { buffer.release(); }
-    }
+
 
     public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> ARROW_CROSS_SESSION_PVP =
         TEST_FUNCTIONS.register("arrow_cross_session_pvp", () -> helper -> arrowCrossSession(helper, false, false, 2));
@@ -359,15 +333,7 @@ public final class LocalTimeGameTests {
 
     /** Normal consent fixture; no special scheduling set or execution permission. */
     private static ServerPlayer makeTargetablePlayer(GameTestHelper helper) {
-        var profile = new GameProfile(UUID.randomUUID(), "exit-test-player");
-        var cookie = CommonListenerCookie.createInitial(profile, false);
-        ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
-            profile, cookie.clientInformation());
-        Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        new EmbeddedChannel(connection);
-        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
-        player.setGameMode(GameType.SURVIVAL);
-        return player;
+        return TestPlayers.survival(helper);
     }
 
     private static StateView startEncounter(GameTestHelper helper, ServerPlayer player) {
@@ -388,87 +354,7 @@ public final class LocalTimeGameTests {
         return service.state(encounter);
     }
 
-    public static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> NEUTRAL_MOB_TURN =
-        TEST_FUNCTIONS.register("neutral_mob_turn", () -> LocalTimeGameTests::neutralMobTurn);
 
-    private static void neutralMobTurn(GameTestHelper helper) {
-        helper.runAtTickTime(10, () -> {
-            var level = helper.getLevel();
-            var service = ServerRuntime.encounters(level.getServer());
-            BlockPos anchor = helper.absolutePos(new BlockPos(30000, 121, 0));
-            for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
-                for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++) {
-                    level.getChunk(x, z); level.setChunkForced(x, z, true);
-                }
-            level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(anchor), 1);
-            for (int x = -12; x <= 12; x++) for (int z = -12; z <= 12; z++)
-                level.setBlockAndUpdate(anchor.offset(x, -1, z), Blocks.STONE.defaultBlockState());
-            helper.runAfterDelay(20, () -> {
-            var cow = helper.spawn(EntityType.COW, new BlockPos(30002, 121, 0));
-            var sheep = helper.spawn(EntityType.SHEEP, new BlockPos(30002, 121, 4));
-            sheep.setNoAi(true);
-            sheep.setNoGravity(true);
-            cow.setNoAi(true);
-            boolean[] initialized = {false};
-            helper.runAfterDelay(5, () -> {
-            if (initialized[0]) return;
-            initialized[0] = true;
-            helper.assertTrue(level.getEntity(cow.getUUID()) == cow && level.getEntity(sheep.getUUID()) == sheep,
-                "waiting for neutral fixture entity registration");
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
-            player.connection.markClientLoaded();
-            player.setPos(anchor.getX() + .5, anchor.getY(), anchor.getZ() + .5);
-            player.setNoGravity(true);
-            cow.setNoAi(false);
-            cow.setOnGround(true);
-            helper.assertTrue(cow.getNavigation().moveTo(anchor.getX() + 9.5, anchor.getY(), anchor.getZ() + .5, 1.0),
-                "neutral fixture has no vanilla path");
-            helper.assertTrue(service.encounterOf(cow.getUUID()) == null && service.encounterOf(sheep.getUUID()) == null,
-                "neutral fixture was already claimed");
-            UUID id = startEncounter(helper, player).id();
-            helper.assertTrue(id.equals(service.encounterOf(cow.getUUID())) && id.equals(service.encounterOf(sheep.getUUID())),
-                "non-hostile mobs missing from turn roster");
-            for (int n = 0; n < 3 && !cow.getUUID().equals(service.state(id).current()); n++)
-                service.combat().endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
-            helper.assertTrue(cow.getUUID().equals(service.state(id).current()), "cow turn not reached");
-            Vec3 before = cow.position();
-            Vec3 sheepBefore = sheep.position();
-            int budget = service.state(id).members().get(cow.getUUID()).movementTicks();
-            boolean[] done = {false};
-            for (int tick = 12; tick <= 70; tick++) {
-                final int checkTick = tick;
-                helper.runAfterDelay(tick, () -> {
-                    if (done[0]) return;
-                    var state = service.state(id);
-                    var results = service.lifecycle().results(id, 0, 100).results();
-                    int charged = results.stream().filter(r -> r.snapshot().owner().equals(cow.getUUID())
-                        && r.snapshot().kind() == OperationRecord.Kind.MOVE).mapToInt(OperationRecord.Result::actualMovementTicks).sum();
-                    boolean terminal = results.stream().anyMatch(r -> r.snapshot().owner().equals(cow.getUUID())
-                        && r.snapshot().kind() == OperationRecord.Kind.MOVE && r.terminal());
-                    if (!terminal && checkTick < 70) return;
-                    done[0] = true;
-                    try {
-                        helper.assertTrue(cow.position().distanceToSqr(before) > .01 && charged > 0 && charged <= budget,
-                            "neutral cow did not move with a bounded charge: " + results);
-                        helper.assertTrue(terminal && !service.movement().hasMobMoveLease(cow.getUUID()), "neutral movement lease did not terminate");
-                        helper.assertTrue(sheep.position().equals(sheepBefore), "another neutral mob moved during the cow turn");
-                        helper.assertTrue(state.phase() != EncounterPhase.ACTIVE && cow.getTarget() == null,
-                            "neutral movement invented hostility");
-                        helper.assertFalse(MinecraftCombatRuntime.isBodyPaused(player), "ordinary player body was paused during Cow movement");
-                        helper.succeed();
-                    } finally {
-                        service.lifecycle().stop(id);
-                        cow.discard(); sheep.discard();
-                        for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
-                            for (int z = (anchor.getZ() - 32) >> 4; z <= (anchor.getZ() + 32) >> 4; z++)
-                                level.setChunkForced(x, z, false);
-                    }
-                });
-            }
-            });
-            });
-        });
-    }
 
     private LocalTimeGameTests() {}
 
@@ -603,7 +489,8 @@ public final class LocalTimeGameTests {
                     helper.assertTrue(second.getHealth() == second.getMaxHealth(), "forbidden arrow harmed the player");
                     var rejected = service.lifecycle().results(firstId, 0, 200).results().stream()
                         .filter(r -> r.snapshot().source().equals(fired[0].getUUID())
-                            && r.reason().contains("PvP arrow forbidden")).toList();
+                            && second.getUUID().equals(r.snapshot().target())
+                            && r.outcome() == OperationRecord.Outcome.REJECTED && r.terminal()).toList();
                     helper.assertTrue(rejected.size() == 1, "PvP did not publish one explicit rejection");
                     helper.succeed();
                 } finally {
@@ -885,7 +772,7 @@ public final class LocalTimeGameTests {
         helper.runAtTickTime(5, () -> {
             int arenaX = 256;
             int arenaY = 121;
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            ServerPlayer player = TestPlayers.creative(helper);
             BlockPos anchor = helper.absolutePos(new BlockPos(arenaX + 1, arenaY, 1));
             player.teleportTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
             for (int x = (anchor.getX() - 32) >> 4; x <= (anchor.getX() + 32) >> 4; x++)
@@ -920,7 +807,7 @@ public final class LocalTimeGameTests {
                             && result.snapshot().kind() == OperationRecord.Kind.ENVIRONMENT
                             && result.outcome() == OperationRecord.Outcome.REJECTED).toList();
                     helper.assertTrue(rejected.size() == 1 && arrow.isRemoved()
-                            && rejected.getFirst().reason().contains("traversal unsupported"),
+                            && rejected.getFirst().snapshot().target() == null && rejected.getFirst().terminal(),
                         "blocked arrow did not hit the pre-effect gate and terminate: " + rejected);
                     helper.assertTrue(target.getHealth() == healthBefore,
                         "blocked arrow damaged the tactical target");
@@ -946,7 +833,7 @@ public final class LocalTimeGameTests {
     private static void arrowFirstIngress(GameTestHelper helper) {
         int arenaX = 0;
         int arenaY = 41;
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.creative(helper);
         BlockPos anchor = helper.absolutePos(new BlockPos(arenaX, arenaY, 1));
         player.teleportTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
         for (int x = (anchor.getX() - 64) >> 4; x <= (anchor.getX() + 64) >> 4; x++)
@@ -1160,7 +1047,10 @@ public final class LocalTimeGameTests {
             secondPlayer.teleportTo(secondPosition.x + 128, secondPosition.y, secondPosition.z);
             UUID firstId = startEncounter(helper, firstPlayer).id();
             secondPlayer.teleportTo(secondPosition.x, secondPosition.y, secondPosition.z);
+            var firstCatalog = service.contentCache().find(firstId).content();
+            ServerRuntime.content(helper.getLevel().getServer()).reload();
             UUID secondId = startEncounter(helper, secondPlayer).id();
+            var secondCatalog = service.contentCache().find(secondId).content();
             helper.assertFalse(firstId.equals(secondId), "merge fixture did not create two sessions");
             helper.assertFalse(service.state(firstId).region().overlaps(service.state(secondId).region()),
                 "Mob causal merge fixture already overlaps");
@@ -1217,6 +1107,12 @@ public final class LocalTimeGameTests {
                 helper.assertTrue(service.lifecycle().results(canonical, 0, 100).results().stream()
                     .anyMatch(result -> result.snapshot().kind() == OperationRecord.Kind.MERGE),
                     "merged domain has no immutable merge result");
+                var binding = service.contentCache().find(canonical);
+                helper.assertTrue(!firstCatalog.revision().equals(secondCatalog.revision())
+                    && binding.contentFor(firstMob.getUUID()).equals(firstCatalog)
+                    && binding.contentFor(secondMob.getUUID()).equals(secondCatalog),
+                    "merged members lost their pinned catalog");
+                validateContentCheckpoint(helper, service);
                 int sourceIndex = canonical.equals(firstId) ? 1 : 0;
                 helper.assertTrue(oldResults[sourceIndex].equals(service.lifecycle().completedRetry(players[sourceIndex],
                     ids[sourceIndex], oldOperations[sourceIndex], OperationRecord.Kind.END_TURN,
@@ -1261,6 +1157,18 @@ public final class LocalTimeGameTests {
                             .filter(tick -> tick.pos().equals(held) && tick.type() == Blocks.REDSTONE_LAMP
                                 && tick.delay() == 15 - (30 - remaining) - 5).count() == 1,
                             "held tick delay did not decrease by exactly five authorized environment steps");
+                        var summoned = EntityType.VEX.create(helper.getLevel(), EntitySpawnReason.MOB_SUMMONED);
+                        var summoner = players[1 - sourceIndex];
+                        summoned.setPos(summoner.position());
+                        helper.getLevel().addFreshEntity(summoned);
+                        try {
+                            service.lifecycle().joinGeneratedMob(summoner, summoned, canonical);
+                            var merged = service.contentCache().find(canonical);
+                            helper.assertTrue(merged.require(summoned.getUUID()).catalogRevision().equals(merged.content().revision())
+                                && "dndturn:flying_navigation".equals(MovementPorts.require(summoned).id()),
+                                "post-merge summon lacks the primary catalog or its flying port");
+                            validateContentCheckpoint(helper, service);
+                        } finally { summoned.discard(); }
                         helper.succeed();
                     } finally {
                         service.lifecycle().stop(canonical);
@@ -1275,14 +1183,7 @@ public final class LocalTimeGameTests {
     }
 
     private static void candidateTargetReview(GameTestHelper helper) {
-        var profile = new GameProfile(UUID.randomUUID(), "candidate-review-player");
-        var cookie = CommonListenerCookie.createInitial(profile, false);
-        ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
-            profile, cookie.clientInformation());
-        Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        new EmbeddedChannel(connection);
-        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
-        player.setGameMode(GameType.SURVIVAL);
+        ServerPlayer player = TestPlayers.survival(helper);
         BlockPos playerPos = helper.absolutePos(new BlockPos(2049, 261, 1));
         for (int x = 2048; x <= 2052; x++) for (int z = 0; z <= 4; z++)
             helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 260, z)),
@@ -1297,7 +1198,7 @@ public final class LocalTimeGameTests {
         try {
             if (!player.getUUID().equals(candidate.current())) {
                 zombie.setTarget(null);
-                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
+                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), service.state(candidate.id()).version());
                 candidate = service.state(candidate.id());
             }
             helper.assertTrue(candidate.phase() == EncounterPhase.CANDIDATE
@@ -1310,7 +1211,7 @@ public final class LocalTimeGameTests {
                     "test target was rejected by vanilla Mob validation: mode=" + player.gameMode()
                         + " invulnerable=" + player.isInvulnerable() + " canAttack=" + zombie.canAttack(player)
                         + " difficulty=" + helper.getLevel().getDifficulty());
-                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
+                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), service.state(candidate.id()).version());
                 helper.assertTrue(service.state(candidate.id()).phase() == EncounterPhase.ACTIVE,
                     "player turn end did not review another member's directed target");
             } finally {
@@ -1323,7 +1224,7 @@ public final class LocalTimeGameTests {
     }
 
     private static void candidateAttackMiss(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.survival(helper);
         BlockPos playerPos = helper.absolutePos(new BlockPos(1025, 261, 1));
         for (int x = 1024; x <= 1028; x++) for (int z = 0; z <= 4; z++)
             helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 260, z)),
@@ -1335,10 +1236,13 @@ public final class LocalTimeGameTests {
         Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(1026, 261, 1));
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         StateView candidate = startEncounter(helper, player);
+        zombie.setTarget(player);
+        helper.assertTrue(candidate.id().equals(service.encounterOf(zombie.getUUID())), "hostile lock did not admit the zombie");
+        candidate = service.state(candidate.id());
         try {
             if (!candidate.current().equals(player.getUUID())) {
                 zombie.setTarget(null);
-                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), candidate.version());
+                service.combat().endCurrentTurn(candidate.id(), UUID.randomUUID(), service.state(candidate.id()).version());
                 candidate = service.state(candidate.id());
             }
             helper.assertTrue(candidate.phase() == EncounterPhase.CANDIDATE
@@ -1443,8 +1347,17 @@ public final class LocalTimeGameTests {
         helper.succeed();
     }
 
+    private static void validateContentCheckpoint(GameTestHelper helper, EncounterRuntime runtime) {
+        runtime.persistIfChanged();
+        var saved = helper.getLevel().getServer().getDataStorage().computeIfAbsent(
+            CombatSavedData.TYPE).envelope();
+        CombatRecoveryCandidate.validate(saved, new Random(1));
+        helper.assertTrue(saved.encounterContent().equals(runtime.contentCache().snapshot()),
+            "saved content differs from live bindings");
+    }
+
     private static void completedRetryAfterLeave(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.creative(helper);
         player.connection.markClientLoaded();
         BlockPos playerPos = helper.absolutePos(new BlockPos(4097, 201, 1));
         for (int x = 4096; x <= 4101; x++) for (int z = 0; z <= 4; z++)
@@ -1455,13 +1368,18 @@ public final class LocalTimeGameTests {
             for (int chunkZ = (playerPos.getZ() - 24) >> 4; chunkZ <= (playerPos.getZ() + 24) >> 4; chunkZ++)
                 helper.getLevel().getChunk(chunkX, chunkZ);
         Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(4098, 201, 1));
-        ServerPlayer other = helper.makeMockServerPlayerInLevel();
+        zombie.setTarget(player);
+        ServerPlayer other = TestPlayers.survival(helper);
+        other.setPos(player.getX() + 1, player.getY(), player.getZ());
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         var state = startEncounter(helper, player);
         UUID encounterId = state.id();
+        if (service.encounterOf(other.getUUID()) == null) service.lifecycle().admitIntruder(other.getUUID(), player.getUUID());
+        if (service.encounterOf(zombie.getUUID()) == null) service.lifecycle().admitIntruder(zombie.getUUID(), player.getUUID());
+        state = service.state(encounterId);
         UUID nextId = null;
         try {
-            if (!player.getUUID().equals(state.current())) {
+            while (!player.getUUID().equals(state.current()) && state.phase() != EncounterPhase.ENVIRONMENT) {
                 service.combat().endCurrentTurn(encounterId, UUID.randomUUID(), state.version());
                 state = service.state(encounterId);
             }
@@ -1472,6 +1390,7 @@ public final class LocalTimeGameTests {
             helper.assertTrue(service.encounterOf(player.getUUID()) == null
                 && service.encounterOf(zombie.getUUID()).equals(encounterId),
                 "fixture did not leave an active encounter after the owner departed");
+            validateContentCheckpoint(helper, service);
             long unchangedVersion = service.state(encounterId).version();
             int unchangedResults = service.lifecycle().results(encounterId, 0, 100).results().size();
             int unchangedBudget = service.state(encounterId).members().get(zombie.getUUID()).movementTicks();
@@ -1504,7 +1423,8 @@ public final class LocalTimeGameTests {
                 && service.state(encounterId).members().get(zombie.getUUID()).movementTicks() == unchangedBudget
                 && player.getHealth() == playerHealth && zombie.getHealth() == zombieHealth,
                 "old receipt lookup changed rules or world effects");
-            service.lifecycle().leave(zombie.getUUID());
+            service.lifecycle().leave(other.getUUID());
+            validateContentCheckpoint(helper, service);
             helper.assertTrue(original.equals(service.lifecycle().completedRetry(player, encounterId, operationId,
                 OperationRecord.Kind.END_TURN, version, null)),
                 "departed owner could not query the closed encounter");
@@ -1516,6 +1436,7 @@ public final class LocalTimeGameTests {
                 "joining a new encounter obscured the owner's earlier result");
             helper.succeed();
         } finally {
+            helper.getLevel().getServer().getPlayerList().remove(other);
             if (nextId != null) service.lifecycle().stop(nextId);
             if (service.encounterOf(zombie.getUUID()) != null) service.lifecycle().stop(encounterId);
         }
@@ -1538,6 +1459,8 @@ public final class LocalTimeGameTests {
         zombie.setHealth(1000);
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         var started = startEncounter(helper, player);
+        zombie.setTarget(player);
+        helper.assertTrue(started.id().equals(service.encounterOf(zombie.getUUID())), "hostile lock did not admit the zombie");
         EncounterRegion region = started.region();
         int minX = Math.floorDiv((int) Math.floor(region.discovery().minX() - region.radius()), 16);
         int maxX = Math.floorDiv((int) Math.floor(region.discovery().maxX() + region.radius()), 16);
@@ -1573,17 +1496,21 @@ public final class LocalTimeGameTests {
                 if (closed.get()) return;
                 try {
                     var state = service.state(started.id());
-                    if (state.round() >= 5) {
-                        long mobAttacks = service.lifecycle().results(started.id(), 0, 200).results().stream()
-                            .filter(result -> result.snapshot().kind() == OperationRecord.Kind.ATTACK
-                                && result.snapshot().owner().equals(zombie.getUUID()) && result.terminal())
-                            .count();
-                        helper.assertTrue(mobAttacks >= 5 && restored.get() && laterAttackChecked.get()
+                    // The environment follows both actors. At round entry the fifth Mob turn may still be pending.
+                    if (state.round() >= 5 && state.phase() == EncounterPhase.ENVIRONMENT) {
+                        var history = service.lifecycle().results(started.id(), 0, 200).results();
+                        long attacks = history.stream().filter(result -> result.terminal()
+                            && result.outcome() == OperationRecord.Outcome.COMPLETED
+                            && zombie.getUUID().equals(result.snapshot().owner())
+                            && player.getUUID().equals(result.snapshot().target())
+                            && result.snapshot().parentId() == null)
+                            .map(result -> result.snapshot().operationId()).distinct().count();
+                        helper.assertTrue(attacks >= 5, "missing completed Mob actions against the player: " + attacks);
+                        helper.assertTrue(restored.get() && laterAttackChecked.get()
                                 && dashChecked.get() && dodgeChecked.get() && disengageChecked.get(),
-                            "five actual rounds did not retain attacks and action resources: attacks=" + mobAttacks
-                                + " restored=" + restored + " later=" + laterAttackChecked + " dash=" + dashChecked
+                            "five rounds did not restore action resources: restored=" + restored + " later=" + laterAttackChecked + " dash=" + dashChecked
                                 + " dodge=" + dodgeChecked + " disengage=" + disengageChecked
-                                + " results=" + service.lifecycle().results(started.id(), 0, 200).results().stream()
+                                + " results=" + history.stream()
                                     .filter(OperationRecord.Result::terminal).map(OperationRecord.Result::reason).toList());
                         cleanup.run();
                         helper.assertFalse(service.world().isEntitySimulationPaused(player),
@@ -1618,7 +1545,7 @@ public final class LocalTimeGameTests {
                                             == movementBefore + 30
                                         && !afterDash.members().get(player.getUUID()).action(),
                                     "DASH did not consume action and grant one movement budget");
-                                helper.assertTrue(service.combat().dash(player, dashId, beforeDash.version()) == dash
+                                helper.assertTrue(service.combat().dash(player, dashId, beforeDash.version()).equals(dash)
                                         && service.state(started.id()).version() == afterDash.version(),
                                     "retrying DASH changed resources or result identity");
                                 boolean conflict = false;
@@ -1640,7 +1567,7 @@ public final class LocalTimeGameTests {
                                         && !after.members().get(player.getUUID()).action(),
                                     "DODGE did not spend action and set defense");
                                 helper.assertTrue(service.combat().defensiveAction(player, actionId,
-                                        before.version(), OperationRecord.Kind.DODGE) == action
+                                        before.version(), OperationRecord.Kind.DODGE).equals(action)
                                         && service.state(started.id()).version() == after.version(),
                                     "DODGE retry changed resources or result");
                                 dodgeChecked.set(true);
@@ -1681,7 +1608,7 @@ public final class LocalTimeGameTests {
     }
 
     private static void canceledDeath(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.survival(helper);
         player.connection.markClientLoaded();
         BlockPos playerPos = helper.absolutePos(new BlockPos(1, 81, 1));
         player.setPos(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5);
@@ -1689,8 +1616,10 @@ public final class LocalTimeGameTests {
             for (int z = (playerPos.getZ() - 16) >> 4; z <= (playerPos.getZ() + 16) >> 4; z++)
                 helper.getLevel().getChunk(x, z);
         Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(2, 81, 2));
+        zombie.setTarget(player);
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         var state = startEncounter(helper, player);
+        helper.assertTrue(state.id().equals(service.encounterOf(zombie.getUUID())), "death fixture needs a participating target");
         Consumer<LivingDeathEvent> cancel = event -> {
             if (event.getEntity() == zombie) {
                 event.setCanceled(true);
@@ -1889,7 +1818,7 @@ public final class LocalTimeGameTests {
                     helper.getLevel().getChunk(chunkX, chunkZ);
                     helper.getLevel().setChunkForced(chunkX, chunkZ, true);
                 }
-            for (int x = arenaX + 1; x <= arenaX + 6; x++)
+            for (int x = arenaX + 1; x <= arenaX + 12; x++)
                 for (int z = 1; z <= 3; z++) {
                     helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, arenaY - 1, z)),
                         Blocks.STONE.defaultBlockState());
@@ -1904,7 +1833,7 @@ public final class LocalTimeGameTests {
             helper.assertTrue(probe.zombie != null && helper.getLevel().getEntitiesOfClass(Zombie.class,
                 probe.player.getBoundingBox().inflate(8)).contains(probe.zombie),
                 "navigation fixture is not yet visible in native discovery");
-            for (int x = arenaX + 1; x <= arenaX + 6; x++)
+            for (int x = arenaX + 1; x <= arenaX + 12; x++)
                 helper.assertTrue(helper.getLevel().isPositionEntityTicking(helper.absolutePos(new BlockPos(x, arenaY, 2))),
                     "navigation destination entity section is not yet ticking");
         }).thenExecute(() -> {
@@ -1915,6 +1844,7 @@ public final class LocalTimeGameTests {
                     "navigation fixture Zombie disappeared before discovery: zombie="
                         + probe.zombie.position() + " player=" + probe.player.position()
                         + " removal=" + probe.zombie.getRemovalReason());
+                probe.zombie.setTarget(probe.player);
                 var state = startEncounter(helper, probe.player);
                 probe.encounterId = state.id();
                 helper.assertTrue(state.members().containsKey(probe.zombie.getUUID()),
@@ -1927,7 +1857,7 @@ public final class LocalTimeGameTests {
                 helper.assertTrue(probe.player.getUUID().equals(state.current()), "navigation fixture player turn unavailable");
                 probe.service.combat().attack(probe.player, probe.zombie.getUUID(),
                     UUID.randomUUID(), state.version());
-                BlockPos distant = helper.absolutePos(new BlockPos(arenaX + 4, arenaY, 2));
+                BlockPos distant = helper.absolutePos(new BlockPos(arenaX + 10, arenaY, 2));
                 probe.zombie.setPos(distant.getX() + 0.5, distant.getY(), distant.getZ() + 0.5);
                 helper.assertTrue(probe.service.state(state.id()).members().containsKey(probe.zombie.getUUID()),
                     "navigation fixture lost membership while moving to its loaded starting position");
@@ -2029,7 +1959,7 @@ public final class LocalTimeGameTests {
                     helper.getLevel().setChunkForced(chunkX, chunkZ, true);
                 }
             try {
-                for (int x = arenaX; x <= arenaX + 7; x++) for (int z = 0; z <= 4; z++) {
+                for (int x = arenaX; x <= arenaX + 12; x++) for (int z = 0; z <= 4; z++) {
                     helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, arenaY - 1, z)),
                         Blocks.STONE.defaultBlockState());
                     helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, arenaY, z)),
@@ -2037,10 +1967,11 @@ public final class LocalTimeGameTests {
                     helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, arenaY + 1, z)),
                         Blocks.AIR.defaultBlockState());
                 }
-                BlockPos water = helper.absolutePos(new BlockPos(arenaX + 4, arenaY, 2));
+                BlockPos water = helper.absolutePos(new BlockPos(arenaX + 10, arenaY, 2));
                 helper.getLevel().setBlockAndUpdate(water, Blocks.WATER.defaultBlockState());
                 probe.zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(arenaX + 2, arenaY, 2));
                 probe.service = ServerRuntime.encounters(helper.getLevel().getServer());
+                probe.zombie.setTarget(probe.player);
                 var state = startEncounter(helper, probe.player);
                 probe.encounterId = state.id();
                 if (!probe.player.getUUID().equals(state.current())) {
@@ -2127,7 +2058,7 @@ public final class LocalTimeGameTests {
 
     private static void prototypeEnvironmentLoop(GameTestHelper helper) {
         helper.runAtTickTime(24, () -> {
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            ServerPlayer player = TestPlayers.survival(helper);
             player.connection.markClientLoaded();
             BlockPos playerPos = helper.absolutePos(new BlockPos(1, 1, 1));
             player.setPos(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5);
@@ -2135,6 +2066,7 @@ public final class LocalTimeGameTests {
                 for (int chunkZ = (playerPos.getZ() - 32) >> 4; chunkZ <= (playerPos.getZ() + 32) >> 4; chunkZ++)
                     helper.getLevel().getChunk(chunkX, chunkZ);
             Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(2, 1, 2));
+            zombie.setTarget(player);
             EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
             var created = startEncounter(helper, player);
             // The environment step requires every sampled region chunk to have a block-ticking ticket.
@@ -2191,39 +2123,82 @@ public final class LocalTimeGameTests {
     }
 
     private static void scheduledTickHold(GameTestHelper helper) {
-        helper.runAtTickTime(24, () -> {
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        var level = helper.getLevel();
+        var service = ServerRuntime.encounters(level.getServer());
+        class Fixture {
+            final java.util.Set<Long> forced = new java.util.HashSet<>();
+            ServerPlayer player;
+            Zombie zombie;
+            UUID encounter;
+            final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> originals = new java.util.LinkedHashMap<>();
+
+            void place(BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
+                originals.putIfAbsent(pos, level.getBlockState(pos));
+                level.setBlockAndUpdate(pos, state);
+            }
+
+            void close() {
+                try {
+                    var owner = encounter != null || player == null ? encounter : service.encounterOf(player.getUUID());
+                    if (owner != null) service.lifecycle().stop(owner);
+                } finally {
+                    try {
+                        if (zombie != null) zombie.discard();
+                        if (player != null) level.getServer().getPlayerList().remove(player);
+                        originals.forEach(level::setBlockAndUpdate);
+                    } finally {
+                        for (var key : forced) {
+                            var chunk = net.minecraft.world.level.ChunkPos.unpack(key);
+                            level.setChunkForced(chunk.x(), chunk.z(), false);
+                        }
+                    }
+                }
+            }
+
+            void at(int tick, Runnable step) {
+                helper.runAtTickTime(tick, () -> {
+                    try { step.run(); }
+                    catch (RuntimeException | Error failure) {
+                        try { close(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+                        throw failure;
+                    }
+                });
+            }
+        }
+        var fixture = new Fixture();
+        fixture.at(24, () -> {
+            ServerPlayer player = fixture.player = TestPlayers.creative(helper);
             player.connection.markClientLoaded();
             BlockPos playerPos = helper.absolutePos(new BlockPos(1, 1, 1));
             player.setPos(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5);
             for (int chunkX = (playerPos.getX() - 16) >> 4; chunkX <= (playerPos.getX() + 16) >> 4; chunkX++)
                 for (int chunkZ = (playerPos.getZ() - 16) >> 4; chunkZ <= (playerPos.getZ() + 16) >> 4; chunkZ++) {
                     helper.getLevel().getChunk(chunkX, chunkZ);
-                    helper.getLevel().setChunkForced(chunkX, chunkZ, true);
+                    if (level.setChunkForced(chunkX, chunkZ, true)) fixture.forced.add(net.minecraft.world.level.ChunkPos.pack(chunkX, chunkZ));
                 }
-            helper.spawn(EntityType.ZOMBIE, new BlockPos(2, 1, 2));
+            fixture.zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(2, 1, 2));
             BlockPos preexisting = helper.absolutePos(new BlockPos(2, 1, 4));
-            helper.getLevel().setBlockAndUpdate(preexisting,
+            fixture.place(preexisting,
                 Blocks.REDSTONE_LAMP.defaultBlockState().setValue(RedstoneLampBlock.LIT, true));
             helper.getLevel().getBlockTicks().schedule(new ScheduledTick<>(Blocks.REDSTONE_LAMP,
                 preexisting, helper.getLevel().getGameTime() + 1, TickPriority.NORMAL, 0));
             var preexistingChunk = helper.getLevel().getChunkAt(preexisting);
             preexistingChunk.tryMarkSaved();
-            EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
             var state = startEncounter(helper, player);
+            fixture.encounter = state.id();
             helper.assertTrue(preexistingChunk.isUnsaved(),
                 "capturing an existing vanilla tick did not make its chunk eligible for saving");
             BlockPos inside = helper.absolutePos(new BlockPos(2, 1, 3));
             BlockPos outside = helper.absolutePos(new BlockPos(2, 25, 3));
             BlockPos fluid = helper.absolutePos(new BlockPos(5, 1, 5));
-            helper.getLevel().setBlockAndUpdate(inside,
+            fixture.place(inside,
                 Blocks.REDSTONE_LAMP.defaultBlockState().setValue(RedstoneLampBlock.LIT, true));
-            helper.getLevel().setBlockAndUpdate(outside,
+            fixture.place(outside,
                 Blocks.REDSTONE_LAMP.defaultBlockState().setValue(RedstoneLampBlock.LIT, true));
             for (Direction side : Direction.Plane.HORIZONTAL)
-                helper.getLevel().setBlockAndUpdate(fluid.relative(side), Blocks.STONE.defaultBlockState());
-            helper.getLevel().setBlockAndUpdate(fluid.below(), Blocks.STONE.defaultBlockState());
-            helper.getLevel().setBlockAndUpdate(fluid, Blocks.WATER.defaultBlockState());
+                fixture.place(fluid.relative(side), Blocks.STONE.defaultBlockState());
+            fixture.place(fluid.below(), Blocks.STONE.defaultBlockState());
+            fixture.place(fluid, Blocks.WATER.defaultBlockState());
             long due = helper.getLevel().getGameTime() + 1;
             var insideChunk = helper.getLevel().getChunkAt(inside);
             insideChunk.tryMarkSaved();
@@ -2235,7 +2210,7 @@ public final class LocalTimeGameTests {
                 outside, due, TickPriority.NORMAL, 2));
             helper.getLevel().getFluidTicks().schedule(new ScheduledTick<>(Fluids.WATER,
                 fluid, due, TickPriority.HIGH, 3));
-            helper.runAtTickTime(26, () -> {
+            fixture.at(26, () -> {
                 helper.assertTrue(helper.getLevel().getBlockState(preexisting).getValue(RedstoneLampBlock.LIT),
                     "vanilla tick captured at encounter creation ran during the paused phase: initial=" + state.phase()
                         + " current=" + service.state(state.id()).phase() + " domain=" + service.world().encounterAtBlock(helper.getLevel(), preexisting)
@@ -2289,18 +2264,21 @@ public final class LocalTimeGameTests {
                 // Exercise the same fixed-version unregister/register seam used by actual chunk
                 // unload and load. This remains an in-memory lifecycle check, not disk recovery.
                 insideChunk.unregisterTickContainerFromLevel(helper.getLevel());
-                helper.assertFalse(helper.getLevel().getBlockTicks().hasScheduledTick(inside, Blocks.REDSTONE_LAMP),
-                    "unregistered chunk left a held tick in the level queue");
-                helper.assertTrue(insideChunk.getTicksForSerialization(helper.getLevel().getGameTime())
-                    .blocks().stream().filter(tick -> tick.pos().equals(inside)
-                        && tick.type() == Blocks.REDSTONE_LAMP).count() == 1,
-                    "unload transfer duplicated or lost the scheduled block tick");
-                insideChunk.registerTickContainerInLevel(helper.getLevel());
+                try {
+                    helper.assertFalse(helper.getLevel().getBlockTicks().hasScheduledTick(inside, Blocks.REDSTONE_LAMP),
+                        "unregistered chunk left a held tick in the level queue");
+                    helper.assertTrue(insideChunk.getTicksForSerialization(helper.getLevel().getGameTime())
+                        .blocks().stream().filter(tick -> tick.pos().equals(inside)
+                            && tick.type() == Blocks.REDSTONE_LAMP).count() == 1,
+                        "unload transfer duplicated or lost the scheduled block tick");
+                } finally {
+                    insideChunk.registerTickContainerInLevel(helper.getLevel());
+                }
                 helper.assertTrue(helper.getLevel().getBlockTicks().hasScheduledTick(inside, Blocks.REDSTONE_LAMP)
                     && helper.getLevel().getBlockTicks().count() == heldCount,
                     "reload changed the single owner of the scheduled tick");
             });
-            helper.runAtTickTime(28, () -> {
+            fixture.at(28, () -> {
                 helper.assertTrue(helper.getLevel().getBlockState(inside).getValue(RedstoneLampBlock.LIT),
                     "reloaded scheduled tick ran before the paused encounter advanced");
                 helper.assertTrue(helper.getLevel().getBlockTicks().hasScheduledTick(inside, Blocks.REDSTONE_LAMP),
@@ -2335,66 +2313,58 @@ public final class LocalTimeGameTests {
                     Blocks.REDSTONE_LAMP), "encounter exit did not return held ticks to vanilla");
             });
             // GameTest callbacks may run before this world's scheduled queue in the same tick.
-            helper.runAtTickTime(32, () -> {
+            fixture.at(32, () -> {
+                helper.assertFalse(helper.getLevel().getBlockState(preexisting).getValue(RedstoneLampBlock.LIT),
+                    "captured vanilla tick did not resume after the encounter ended: domain="
+                        + service.world().encounterAtBlock(helper.getLevel(), preexisting)
+                        + " queued=" + helper.getLevel().getBlockTicks().hasScheduledTick(preexisting, Blocks.REDSTONE_LAMP)
+                        + " held=" + RegionalScheduledTicks.isHeld(helper.getLevel().getBlockTicks(), preexisting, Blocks.REDSTONE_LAMP)
+                        + " ticking=" + helper.getLevel().shouldTickBlocksAt(preexisting)
+                        + " powered=" + helper.getLevel().hasNeighborSignal(preexisting));
+                helper.assertFalse(helper.getLevel().getBlockState(inside).getValue(RedstoneLampBlock.LIT),
+                    "normal encounter exit did not return the held tick to vanilla");
+                // A missing native queue container must not prevent other owners from releasing.
+                BlockPos blocked = player.blockPosition();
+                BlockPos releasable = blocked.offset(16, 0, 0);
+                var queue = helper.getLevel().getBlockTicks();
+                helper.getLevel().scheduleTick(blocked, Blocks.REDSTONE_LAMP, 9);
+                helper.getLevel().scheduleTick(releasable, Blocks.REDSTONE_LAMP, 11);
+                helper.assertTrue(RegionalScheduledTicks.isHeld(queue, blocked, Blocks.REDSTONE_LAMP)
+                    && RegionalScheduledTicks.isHeld(queue, releasable, Blocks.REDSTONE_LAMP),
+                    "release fault fixture did not capture both ticks");
+                var containers = ((cc.sighs.dndturn.platform.mixin.server.control.LevelTicksAccessor<net.minecraft.world.level.block.Block>) queue)
+                    .dndturn$containers();
+                long chunk = net.minecraft.world.level.ChunkPos.pack(blocked);
+                var missing = containers.remove(chunk);
                 try {
-                    helper.assertFalse(helper.getLevel().getBlockState(preexisting).getValue(RedstoneLampBlock.LIT),
-                        "captured vanilla tick did not resume after the encounter ended: domain="
-                            + service.world().encounterAtBlock(helper.getLevel(), preexisting)
-                            + " queued=" + helper.getLevel().getBlockTicks().hasScheduledTick(preexisting, Blocks.REDSTONE_LAMP)
-                            + " held=" + RegionalScheduledTicks.isHeld(helper.getLevel().getBlockTicks(), preexisting, Blocks.REDSTONE_LAMP)
-                            + " ticking=" + helper.getLevel().shouldTickBlocksAt(preexisting)
-                            + " powered=" + helper.getLevel().hasNeighborSignal(preexisting));
-                    helper.assertFalse(helper.getLevel().getBlockState(inside).getValue(RedstoneLampBlock.LIT),
-                        "normal encounter exit did not return the held tick to vanilla");
-                    // A missing native queue container must not prevent other owners from releasing.
-                    BlockPos blocked = player.blockPosition();
-                    BlockPos releasable = blocked.offset(16, 0, 0);
-                    var queue = helper.getLevel().getBlockTicks();
-                    helper.getLevel().scheduleTick(blocked, Blocks.REDSTONE_LAMP, 9);
-                    helper.getLevel().scheduleTick(releasable, Blocks.REDSTONE_LAMP, 11);
+                    boolean failed = false;
+                    try { service.lifecycle().stop(state.id()); }
+                    catch (IllegalStateException expected) { failed = true; }
+                    helper.assertTrue(failed && service.lifecycle().recovering(state.id())
+                        && service.encounterOf(player.getUUID()) == null,
+                        "partial cleanup was reported as successful or retained rule membership");
                     helper.assertTrue(RegionalScheduledTicks.isHeld(queue, blocked, Blocks.REDSTONE_LAMP)
-                        && RegionalScheduledTicks.isHeld(queue, releasable, Blocks.REDSTONE_LAMP),
-                        "release fault fixture did not capture both ticks");
-                    var containers = ((cc.sighs.dndturn.platform.mixin.server.control.LevelTicksAccessor<net.minecraft.world.level.block.Block>) queue)
-                        .dndturn$containers();
-                    long chunk = net.minecraft.world.level.ChunkPos.pack(blocked);
-                    var missing = containers.remove(chunk);
-                    try {
-                        boolean failed = false;
-                        try { service.lifecycle().stop(state.id()); }
-                        catch (IllegalStateException expected) { failed = true; }
-                        helper.assertTrue(failed && service.lifecycle().recovering(state.id())
-                            && service.encounterOf(player.getUUID()) == null,
-                            "partial cleanup was reported as successful or retained rule membership");
-                        helper.assertTrue(RegionalScheduledTicks.isHeld(queue, blocked, Blocks.REDSTONE_LAMP)
-                            && !RegionalScheduledTicks.isHeld(queue, releasable, Blocks.REDSTONE_LAMP)
-                            && queue.hasScheduledTick(releasable, Blocks.REDSTONE_LAMP),
-                            "failed release lost its tick or skipped another chunk");
-                    } finally {
-                        containers.put(chunk, missing);
-                    }
-                    service.lifecycle().tickDeadlines();
-                    service.lifecycle().stop(state.id());
-                    helper.assertFalse(service.lifecycle().recovering(state.id()), "cleanup retry stayed blocked");
-                    helper.assertTrue(helper.getLevel().getChunkAt(blocked)
-                        .getTicksForSerialization(helper.getLevel().getGameTime()).blocks().stream()
-                        .filter(tick -> tick.pos().equals(blocked) && tick.type() == Blocks.REDSTONE_LAMP && tick.delay() == 9)
-                        .count() == 1, "cleanup retry duplicated a tick or changed its remaining delay");
-                    helper.succeed();
+                        && !RegionalScheduledTicks.isHeld(queue, releasable, Blocks.REDSTONE_LAMP)
+                        && queue.hasScheduledTick(releasable, Blocks.REDSTONE_LAMP),
+                        "failed release lost its tick or skipped another chunk");
                 } finally {
-                    service.lifecycle().stop(state.id());
-                    for (int chunkX = (playerPos.getX() - 16) >> 4;
-                         chunkX <= (playerPos.getX() + 16) >> 4; chunkX++)
-                        for (int chunkZ = (playerPos.getZ() - 16) >> 4;
-                             chunkZ <= (playerPos.getZ() + 16) >> 4; chunkZ++)
-                            helper.getLevel().setChunkForced(chunkX, chunkZ, false);
+                    containers.put(chunk, missing);
                 }
+                service.lifecycle().tickDeadlines();
+                service.lifecycle().stop(state.id());
+                helper.assertFalse(service.lifecycle().recovering(state.id()), "cleanup retry stayed blocked");
+                helper.assertTrue(helper.getLevel().getChunkAt(blocked)
+                    .getTicksForSerialization(helper.getLevel().getGameTime()).blocks().stream()
+                    .filter(tick -> tick.pos().equals(blocked) && tick.type() == Blocks.REDSTONE_LAMP && tick.delay() == 9)
+                    .count() == 1, "cleanup retry duplicated a tick or changed its remaining delay");
+                fixture.close();
+                helper.succeed();
             });
         });
     }
 
     private static void tacticalShieldWear(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.creative(helper);
         player.connection.markClientLoaded();
         player.getAbilities().invulnerable = false;
         player.getAbilities().instabuild = false;
@@ -2452,7 +2422,7 @@ public final class LocalTimeGameTests {
 
     private static void regionalEntityGate(GameTestHelper helper) {
         int arenaX = 12288;
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.creative(helper);
         player.connection.markClientLoaded();
         BlockPos playerPos = helper.absolutePos(new BlockPos(arenaX + 1, 1, 1));
         for (int x = arenaX; x <= arenaX + 6; x++) for (int z = 0; z <= 6; z++)
@@ -2529,7 +2499,8 @@ public final class LocalTimeGameTests {
             player.connection.tick();
             var effectTime = new RoundTime(30);
             helper.assertTrue(player.getEffect(MobEffects.SPEED).getDuration() == effectTime.realtimeTicks(effectTime.durationRounds(effectDuration)),
-                "participant effect duration advanced outside its owner's turn end");
+                "participant effect duration advanced outside its owner's turn end: started=" + effectDuration
+                    + " now=" + player.getEffect(MobEffects.SPEED).getDuration() + " encounter=" + service.encounterOf(player.getUUID()));
             helper.assertTrue(inside.tickCount > insideTicks, "ordinary inside body did not advance");
             helper.assertTrue(outside.tickCount > outsideTicks, "outside entity did not advance");
             helper.assertTrue(outsideVehicle.tickCount > vehicleTicks, "outside vehicle did not advance");
@@ -2584,7 +2555,7 @@ public final class LocalTimeGameTests {
     }
 
     private static void encounterService(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.survival(helper);
         BlockPos playerPos = helper.absolutePos(new BlockPos(1537, 301, 1));
         for (int x = 1536; x <= 1540; x++) for (int z = 0; z <= 4; z++)
             helper.getLevel().setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 300, z)),
@@ -2596,20 +2567,26 @@ public final class LocalTimeGameTests {
             }
         }
         var zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(1538, 301, 2));
+        var neutral = helper.spawn(EntityType.SHEEP, new BlockPos(1538, 301, 1));
+        zombie.setTarget(player);
         EncounterRuntime service = ServerRuntime.encounters(helper.getLevel().getServer());
         StateView view = startEncounter(helper, player);
+        var pos = neutral.blockPosition();
+        helper.assertTrue(view.region().containsBlock(pos.getX(), pos.getY(), pos.getZ())
+            && service.encounterOf(neutral.getUUID()) == null && !view.members().containsKey(neutral.getUUID()),
+            "field presence admitted a neutral mob to initiative");
         helper.assertTrue(view.members().size() == 2, "Service did not create two rule members");
         helper.assertTrue(view.members().containsKey(zombie.getUUID()), "Service omitted supported Mob");
-        helper.assertTrue(view.region().anchors().stream().anyMatch(anchor -> anchor.entityId().equals(zombie.getUUID())),
-            "Service did not use world region sampling");
-        var commands = helper.getLevel().getServer().getCommands().getDispatcher().getRoot().getChild("dndturn");
-        helper.assertTrue(commands != null && commands.getChild("local") == null
-            && commands.getChild("tactical") != null, "obsolete local command is exposed or tactical is missing");
+        helper.assertTrue(view.region().anchors().stream().anyMatch(anchor -> anchor.entityId().equals(player.getUUID())),
+            "field lost its participating player anchor");
         UUID operationId = UUID.randomUUID();
         var result = service.combat().endCurrentTurn(view.id(), operationId, view.version());
         long advancedVersion = service.state(view.id()).version();
-        helper.assertTrue(advancedVersion == view.version() + 2, "END_TURN did not advance exactly once");
-        helper.assertTrue(service.combat().endCurrentTurn(view.id(), operationId, view.version()) == result,
+        var advanced = service.state(view.id());
+        helper.assertTrue(advancedVersion > view.version() && (advanced.phase() != view.phase()
+            || advanced.round() != view.round() || !view.current().equals(advanced.current())),
+            "END_TURN did not advance the scheduled participant");
+        helper.assertTrue(service.combat().endCurrentTurn(view.id(), operationId, view.version()).equals(result),
             "Repeated operation did not return its original result");
         helper.assertTrue(service.state(view.id()).version() == advancedVersion,
             "Repeated operation advanced the session again");

@@ -20,14 +20,6 @@ public final class PlayerWeaponRules {
             player.getOffhandItem().isEmpty(), content.contentFor(player.getUUID()));
     }
 
-    public static AttackProfile profileFor(CharacterState character, String itemId) {
-        return profileFor(character, itemId, true);
-    }
-
-    public static AttackProfile profileFor(CharacterState character, String itemId, boolean offhandEmpty) {
-        return profileFor(character, itemId, offhandEmpty, cc.sighs.dndturn.domain.character.RulesCatalog.empty());
-    }
-
     public static AttackProfile profileFor(CharacterState character, String itemId, boolean offhandEmpty,
             cc.sighs.dndturn.domain.character.RulesCatalog catalog) {
         if (character == null || !character.created() || itemId == null || itemId.isBlank()) return null;

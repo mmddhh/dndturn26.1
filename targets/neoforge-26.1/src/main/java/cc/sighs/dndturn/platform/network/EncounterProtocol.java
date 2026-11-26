@@ -253,66 +253,12 @@ public final class EncounterProtocol {
                                  int environmentRemaining, boolean moving, UUID movementOperationId, List<MemberNotice> members, int resultCount, boolean interactive,
                                  long projectionRevision, int movementTicksPerTurn, ExitNotice exit, List<EffectNotice> effects)
         implements CustomPacketPayload {
-        public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
-                              boolean active, long version, EncounterPhase phase, long round, UUID current,
-                              long regionVersion, int movementTicks, boolean action, boolean reaction,
-                              int environmentRemaining, boolean moving, UUID movementOperationId,
-                              List<MemberNotice> members, int resultCount, boolean interactive, long projectionRevision,
-                              int movementTicksPerTurn) {
-            this(generation, encounterId, sessionSequence, active, version, phase, round, current,
-                regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
-                movementOperationId, members, resultCount, interactive, projectionRevision, movementTicksPerTurn, null, List.of());
-        }
-        public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
-                              boolean active, long version, EncounterPhase phase, long round, UUID current,
-                              long regionVersion, int movementTicks, boolean action, boolean reaction,
-                              int environmentRemaining, boolean moving, UUID movementOperationId,
-                              List<MemberNotice> members, int resultCount, boolean interactive, long projectionRevision) {
-            this(generation, encounterId, sessionSequence, active, version, phase, round, current,
-                regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
-                movementOperationId, members, resultCount, interactive, projectionRevision, 0);
-        }
-        public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
-                              boolean active, long version, int phase, long round, UUID current,
-                              long regionVersion, int movementTicks, boolean action, boolean reaction,
-                              int environmentRemaining, boolean moving, UUID movementOperationId,
-                              List<MemberNotice> members, int resultCount, boolean interactive) {
-            this(generation, encounterId, sessionSequence, active, version, EncounterPhase.fromCode(phase), round, current,
-                regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
-                movementOperationId, members, resultCount, interactive, 0);
-        }
         public EncounterState {
             members = List.copyOf(members);
             effects = List.copyOf(effects);
             if (effects.size() > 256) throw new IllegalArgumentException("effect projection limit");
             if (resultCount < 0 || projectionRevision < 0 || movementTicksPerTurn < 0)
                 throw new IllegalArgumentException("invalid projection count or movement budget");
-        }
-        public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
-                              boolean active, long version, int phase, long round, UUID current,
-                              long regionVersion, int movementTicks, boolean action, boolean reaction,
-                              int environmentRemaining, boolean moving, UUID movementOperationId,
-                              List<MemberNotice> members) {
-            this(generation, encounterId, sessionSequence, active, version, phase, round, current,
-                regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
-                movementOperationId, members, 0, false);
-        }
-        public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
-                              boolean active, long version, int phase, long round, UUID current,
-                              long regionVersion, int movementTicks, boolean action, boolean reaction,
-                              int environmentRemaining, boolean moving, UUID movementOperationId) {
-            this(generation, encounterId, sessionSequence, active, version, phase, round, current,
-                regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
-                movementOperationId, List.of(), 0, false);
-        }
-        public EncounterState(UUID generation, UUID encounterId, long sessionSequence,
-                              boolean active, long version, int phase, long round, UUID current,
-                              long regionVersion, int movementTicks, boolean action, boolean reaction,
-                              int environmentRemaining, boolean moving, UUID movementOperationId,
-                              List<MemberNotice> members, int resultCount) {
-            this(generation, encounterId, sessionSequence, active, version, phase, round, current,
-                regionVersion, movementTicks, action, reaction, environmentRemaining, moving,
-                movementOperationId, members, resultCount, false);
         }
         public static final Type<EncounterState> TYPE = new Type<>(
             Identifier.fromNamespaceAndPath(ModIdentity.MOD_ID, "encounter_state"));

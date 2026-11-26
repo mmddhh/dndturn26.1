@@ -22,7 +22,6 @@ import cc.sighs.dndturn.platform.server.actor.ActorStateAuthority;
 import cc.sighs.dndturn.platform.server.actor.MobAttackProfiles;
 import cc.sighs.dndturn.platform.server.actor.MobMovementBudgets;
 import cc.sighs.dndturn.platform.server.character.EncounterContentCache;
-import cc.sighs.dndturn.platform.server.character.PlayerArmorRules;
 import cc.sighs.dndturn.platform.server.control.SimulationPolicy;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
 import cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope;
@@ -78,14 +77,16 @@ public final class ProjectileExecutionCoordinator {
     private final MinecraftServer server;
     private final EncounterAuthority engine;
     private final UUID generation;
+    private final EncounterContentCache contentCache;
     private final ActorStateAuthority actorStates;
     private final EnvironmentScheduler environment;
     private final EncounterPersistence persistence;
     private final DamageResolution damageResolution;
     private final Host host;
-    public ProjectileExecutionCoordinator(MinecraftServer server, EncounterAuthority engine, UUID generation,
+    public ProjectileExecutionCoordinator(MinecraftServer server, EncounterContentCache contentCache, EncounterAuthority engine, UUID generation,
             ActorStateAuthority actors, EnvironmentScheduler environment, EncounterPersistence persistence,
             DamageResolution damageResolution, Host host) {
+        this.contentCache = contentCache;
         this.server = server; this.engine = engine; this.generation = generation; this.actorStates = actors;
         this.environment = environment; this.persistence = persistence; this.damageResolution = damageResolution; this.host = host;
     }
@@ -112,7 +113,7 @@ public final class ProjectileExecutionCoordinator {
         String ammoId = ammunition.isEmpty() ? ""
             : BuiltInRegistries.ITEM.getKey(ammunition.getItem()).toString();
         AttackProfile capturedProfile = null;
-        var launchContent = owner == null ? null : EncounterContentCache.server().find(engine.encounterOf(owner.getUUID()));
+        var launchContent = owner == null ? null : contentCache.find(engine.encounterOf(owner.getUUID()));
         if (launchContent != null) {
             capturedProfile = owner instanceof ServerPlayer player
                 ? cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profileFor(launchContent.require(player.getUUID()).character(),
@@ -478,7 +479,7 @@ public final class ProjectileExecutionCoordinator {
             : origin.weaponEnchanted() ? "bow enchantment effect unsupported"
             : arrow.isOnFire() ? "arrow fire effect unsupported"
             : arrow.getPierceLevel() > 0 ? "piercing arrow effect unsupported"
-            : !weaponSupported(origin.weaponId()) ? "weapon effect unsupported" : null;
+            : !weaponSupported(origin.weaponId(), encounterId, ownerId) ? "weapon effect unsupported" : null;
         if (unsupported != null) {
             rejectArrowImpact(arrow, hit, encounterId, origin, unsupported);
             return true;
@@ -503,8 +504,7 @@ public final class ProjectileExecutionCoordinator {
         }
         if (owner instanceof LivingEntity living && !living.isDeadOrDying()
             && shooterDomain == null && owner.level() == level)
-            if (engine.join(encounterId, ownerId, MobMovementBudgets.of(owner)))
-                EncounterContentCache.server().capture(encounterId, living, actorStates);
+            contentCache.join(engine, encounterId, living, MobMovementBudgets.of(owner), actorStates);
         UUID operationId = arrowOperationId(arrow.getUUID(), target.getUUID());
         OperationRecord.Result previous = engine.resultFor(encounterId, operationId);
         if (previous != null) {
@@ -551,12 +551,12 @@ public final class ProjectileExecutionCoordinator {
                 profile = origin.attackProfile();
             } else if (origin.ownerWasPlayer() && ownerId != null && owner instanceof ServerPlayer player) {
                 profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profileFor(
-                    EncounterContentCache.server().find(encounterId).require(player.getUUID()).character(), origin.weaponId(),
-                    true, EncounterContentCache.server().find(encounterId).contentFor(player.getUUID()));
+                    contentCache.find(encounterId).require(player.getUUID()).character(), origin.weaponId(),
+                    true, contentCache.find(encounterId).contentFor(player.getUUID()));
             } else {
-                profile = ownerId == null ? null : EncounterContentCache.server().attackProfile(encounterId, ownerId);
+                profile = ownerId == null ? null : contentCache.attackProfile(encounterId, ownerId);
                 if (profile == null && !origin.ownerWasPlayer() && owner instanceof LivingEntity livingOwner)
-                    profile = MobAttackProfiles.of(livingOwner, EncounterContentCache.server().find(encounterId).content());
+                    profile = MobAttackProfiles.of(livingOwner, contentCache.find(encounterId).content());
             }
             // A captured launch already fixed the total with its own bonus; recompute from those dice only.
             int attackBonus = profile != null ? profile.attackBonus()
@@ -661,9 +661,12 @@ public final class ProjectileExecutionCoordinator {
         return "minecraft:arrow".equals(id) || "dndturn:iron_arrow".equals(id) || "dndturn:iron_bolt".equals(id);
     }
 
-    private static boolean weaponSupported(String id) {
+    private boolean weaponSupported(String id, UUID encounterId, UUID ownerId) {
         if (id == null || id.isEmpty() || "minecraft:bow".equals(id) || "minecraft:crossbow".equals(id)) return true;
-        var spec = cc.sighs.dndturn.domain.character.EquipmentRules.WEAPONS.get(id);
+        var encounter = contentCache.find(encounterId);
+        if (encounter == null) return false;
+        var catalog = ownerId == null ? encounter.content() : encounter.contentFor(ownerId);
+        var spec = catalog.weapons().get(id);
         return spec != null && spec.ranged();
     }
 

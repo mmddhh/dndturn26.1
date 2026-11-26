@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $TargetsRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'targets')
+    [string] $TargetsRoot
 )
 
 Set-StrictMode -Version Latest
@@ -34,6 +34,10 @@ function Read-CiProperties {
     return $properties
 }
 
+if (-not $PSBoundParameters.ContainsKey('TargetsRoot')) {
+    $TargetsRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'targets'
+}
+
 if (-not (Test-Path -LiteralPath $TargetsRoot -PathType Container)) {
     throw "Targets directory not found: $TargetsRoot"
 }
@@ -64,18 +68,9 @@ foreach ($directory in Get-ChildItem -LiteralPath $TargetsRoot -Directory | Sort
         throw "Target '$($directory.Name)' requires a numeric ci.java value"
     }
 
-    $attempts = 3
-    if ($properties.ContainsKey('ci.attempts')) {
-        if ($properties['ci.attempts'] -notmatch '^[1-5]$') {
-            throw "Target '$($directory.Name)' has invalid ci.attempts '$($properties['ci.attempts'])'; use 1 through 5"
-        }
-        $attempts = [int] $properties['ci.attempts']
-    }
-
     $entries += [PSCustomObject]@{
         target = $directory.Name
         java = $properties['ci.java']
-        attempts = $attempts
     }
 }
 

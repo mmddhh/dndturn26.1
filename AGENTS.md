@@ -1,48 +1,18 @@
-# DNDTurn 工程约束
+# DNDTurn repository instructions
 
-适用于整个仓库。长期开发合同见 [DEVELOPMENT.md](DEVELOPMENT.md)，实现边界、剩余工作和验证记录只维护在 [ROADMAP.md](ROADMAP.md)。[docs/DNDTURN_REFACTOR.md](docs/DNDTURN_REFACTOR.md) 是当前 WIP，未经明确要求不改动；方案中的目标不等于已实施规则。README 只面向玩家。旧文档从 Git 历史追溯，不恢复旧规则或另建阶段清单。
+Read the [development contract](docs/DEVELOPMENT.md) before changing a boundary. The [roadmap](docs/ROADMAP.md) records outstanding work and verification limits. The [content and CombatNexus design](docs/DNDTURN_REFACTOR.md) explains the intended integration. The README is for players.
 
-## 工作方式
+## Decide who owns the change
 
-- 先读相关合同和实际代码，再交付一个可使用的纵向切片；接口、值类型、facade、测试或文档本身不等于游戏功能完成。明确的用户指令可修订仓库约定；产品歧义保留确认边界，继续不依赖歧义的工作，不自行发明玩法。
-- 修改前核对实际分支与工作区；合并前核对目标和共同祖先，不假定 main 是主线。源提交已在目标历史中不重复合并。不覆盖用户未提交内容，不擅自提交、强推或发布。
-- 优先扩展已有 owner 和过程值；拆分时同时迁移创建、推进、取消、合并、卸载、恢复和销毁，不平行创建角色仓库、ProcessManager 或通用工作流引擎。
-- 收尾只更新受影响的合同与 ROADMAP，记录真实检查和未执行范围；不积累日期验收页、提示词副本、第二套 gap 表或阶段专属测试框架。
+- Put new game content in a content mod. Ship supported first-party content as loader-discovered nested jars. A new class, race, equipment mapping, species action, spell or concrete effect belongs to its provider.
+- Keep common on Java 17 with pure domain and application code. Domain dependencies point inward. Target-specific loader, Minecraft, network, rendering and Mixin code belongs in the target. Keep packages distinct across modules.
+- Extend the existing owner of each fact or process. Trace creation, advancement, cancellation, merge, unload, restoration and disposal together. A query, cache, UI, adapter or content provider cannot grant itself authority to change the world.
+- Implement a playable or externally observable slice. Keep existing gameplay semantics during extraction. Record ambiguous product decisions in the roadmap and continue independent work.
 
-## 分层与唯一权威
+## Change and verify
 
-- common 只含 domain/application，domain 不反向依赖 application；保持 Java 17，不依赖 Minecraft、loader、Mixin、平台 Codec、网络或渲染。target 使用独立 platform 包，不制造 split package 或 universal jar。
-- Encounter 唯一拥有成员、敌对、先攻、资格、回合资源与规则终态。Actor 长期状态、运行效果、过程和 Minecraft 原生事实各有 owner；查询缓存、客户端和 manager 不维护第二套可裁决事实。环境参与者是调度身份，不伪装成 Actor。
-- 玩家与 AI 提交规范意图，共用发现、校验、授权、执行和结果后端。AI 不伪造玩家或网络包，不靠运行 Goal/Brain 探测意图。适配器翻译原生事实、执行受限请求，不重新裁决命中、费用或合法性。
-- builtin 也经扩展注册；通用框架不导入具体物种。服务端能力与客户端表现独立扩展。Mixin 只调用窄平台入口，不拥有规则状态。接入依据当前 target 的实际源码，不凭邻近版本猜 API。
+Inspect the actual branch, working tree, affected entry points and target sources first. Preserve unrelated edits. Check the target branch and merge base before merging. Commit, publish and push only on request.
 
-## 查询、许可与副作用
+Choose the lowest layer that can observe the invariant. Prefer an existing test. A new assertion should identify the failure it detects. Verify publication boundaries against the distributable jar and runtime boundaries against the matching loader. Keep fixtures and debugging tools out of releases. Record the command, result and remaining gap when evidence changes.
 
-- 查询返回不可变快照，使用有界只读上下文；执行上下文与持久检查点分开。发现、预览、调查和 AI 评分无世界副作用；选槽独立提交，不靠查询换装或延迟一 tick 掩盖时序。
-- 计划固定执行者、能力及来源、明确目标、实例与选择证据；目标失效不自动换目标。提交、接近后和必要步骤边界复验。预览、同会话、UUID、运行对象或开放时间都不是充分授权。
-- operation ID 负责去重，permit/lease 负责有界授权和控制，不互相替代。同 ID 同负载返回既有结局，异负载拒绝；一次操作只有一个规范终态，完成、中断和恢复均幂等释放。
-- 可预定校验先于副作用；按玩法接受边界收费，不在查询/接近时扣攻击动作，不逐包/逐 tick 重扣，也不统一等到最终成功。规则提交避免部分写入，世界副作用不假装成可回滚事务。
-- 分别观察伤害、吸收、免疫、取消、消耗、生成、改块、状态与清理。已发生效果在取消后保留；UNKNOWN 不改写为成功、不自动退款或重放。一次效果不重复伤害、收费或减伤。发布后的快照和历史不可回写，纠正追加对账记录。
-
-## field、时间与原版接入
-
-- field 保留参战玩家锚点、默认半径 35、移动结束/回合边界跟随；成员与模拟范围分开，非敌对 Mob 不自动参战，场外合法行动不被一律拒绝。合并阈值和环境 hold 与 field 耦合，不另设优化半径。
-- 几何及 owner 迁移先有界采样/校验，再更新权威、索引和队列，最后通知观察者；不赠资源或环境步，不吞异常后宣称原状态。场外行动仍校验阶段、实例、费用、加载、保护和效果范围。
-- 普通世界 tick 与物理默认运行，只门控主动执行及明确托管的延迟、周期、生产、危险过程。同步响应沿原版；计划延迟不继承最初玩家许可。不全局冻结、不长期 setNoAi、不补跑完整实体 tick、不以整 chunk 代替精确 field。
-- 每场存续 Encounter 恰有一个排在实体之后的环境参与者。有效进度只随实际获准步骤或指定参与者边界推进；等待、未加载、全局 freeze、早退不消费有效预算。同意/反应窗口的真实时间单独计量。
-- 会话捕获设置、内容和能力语义，reload 不悄悄改写活动过程。held tick、block event、BE、投射物分别审计；接管保留剩余延迟、顺序、去重、自然结束和唯一队列 owner，跨域/合并/恢复不丢任务或重复推进，不强加载。
-- 通用 Mob/物品/方块入口默认开放，专用适配优先；不恢复类型/命名空间白名单。来源、范围、保护、工作预算仍生效，未知特殊过程无无限执行权。方块免费交互与手持使用分开，开菜单不授权所有后续操作；不承诺沙箱隔离同 JVM 任意模组直接写世界。
-
-## 客户端与持久化
-
-- 客户端只交意图，服务端从连接确定身份，复验世代、实例、选择、规则修订、目标及权限。载荷、查询、候选和寻路均有大小与累计工作预算；拒绝有稳定原因与重试语义。
-- 迟到响应不复活取消选择；UI 不穿透输入，重连/换世界清理旧状态。表现只消费确认事实，不推进真实实体/物品/药效/游戏钟。CameraRig 独立于玩家身体，不挪玩家或强加载修镜头。保留战术镜头与空日志面板，不恢复第一人称切换或战斗文本日志；临时调试件不变成产品协议。
-- 规则状态、持久化、网络和历史不长期持有 Entity/Level/Connection/Navigation/Brain；平台引用限有界生命周期并核验实例。原生操作遵守线程和逻辑侧，异步只处理已捕获纯值。
-- 用户明确修改有效文档宣告 MOD 已发布前，不维护本模组版本间兼容：删除旧存档/配置迁移、协议、API 别名和补值分支，不新增 schema/protocol 格式版本或兼容矩阵。维护当前格式保存/恢复；损坏或不兼容数据保留原文并拒绝，不自动修复/迁移/重放。服务器世代、能力语义版本、运行修订和 operation ID 仍保留。Minecraft/loader 目标和第三方内容适配不属于旧版兼容。
-- 恢复不从旧回执重建许可，不以 UUID 代替 owner 迁移，不重放未知世界效果；等待玩家/区块自然就绪时不推进过程。清理逐 owner 收束，一个失败不跳过其余，也不报告虚假成功。
-
-## 测试与交付
-
-**测试只维护长期不变量，默认不新增测试文件。** 先复用已有测试；新增断言说明不变量、现有覆盖缺口与所需测试层。删除/合并前确认独有不变量仍受保护，不放宽断言换绿，不锁死私有名称、注释或迁移文件清单。
-
-GameTest 只证明纯规则无法证明的平台接缝；夹具清理会话、监听、缓存及世界状态，测试源码和调试依赖不进发布 jar。截图、临时探针、命令回显不自动成为长期测试。按 [DEVELOPMENT.md](DEVELOPMENT.md) 选择检查；编译、纯值恢复、无窗口 UI 或服务器夹具不能冒充真实键鼠、双客户端或普通专服第二进程续战。检查通过且无新问题时不反复扩大测试范围。
+Keep lasting engineering rules in the contract and open work in the roadmap. Keep temporary investigation notes, stage-specific checklists and dated acceptance pages out of the repository.

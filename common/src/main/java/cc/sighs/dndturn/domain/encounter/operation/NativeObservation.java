@@ -4,7 +4,7 @@ import cc.sighs.dndturn.domain.fact.FactKey;
 import java.util.*;
 
 /** Typed extension evidence. Unknown/unsupported are facts about observation, never invented success. */
-public record NativeObservation(String type, int version, UUID operation, UUID subject,
+public record NativeObservation(String type, UUID operation, UUID subject,
                                 Certainty certainty, Map<String, Value> fields) {
     public enum Certainty { KNOWN, UNKNOWN, UNSUPPORTED }
     public enum Type { TEXT, BOOLEAN, INTEGER, REAL, IDENTITY }
@@ -32,7 +32,7 @@ public record NativeObservation(String type, int version, UUID operation, UUID s
     public NativeObservation {
         FactKey.requireId(type); Objects.requireNonNull(operation); Objects.requireNonNull(subject); Objects.requireNonNull(certainty);
         fields = Map.copyOf(fields);
-        if (version < 1 || fields.size() > 32 || fields.keySet().stream().anyMatch(key -> key.isBlank() || key.length() > 64))
+        if (fields.size() > 32 || fields.keySet().stream().anyMatch(key -> key.isBlank() || key.length() > 64))
             throw new IllegalArgumentException("observation envelope bounds");
     }
 }

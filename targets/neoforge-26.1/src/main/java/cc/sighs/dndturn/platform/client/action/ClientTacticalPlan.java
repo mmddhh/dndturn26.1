@@ -519,20 +519,23 @@ public final class ClientTacticalPlan {
         }
         selectedTarget = target;
         // Submission belongs to this query only; discovery must never inherit it.
-        beginQuery(state.current(), state.round(), autoSubmit);
+        var query = beginQuery(state.generation(), state.encounterId(), state.current(), state.round(), target, autoSubmit);
         if (autoSubmit) phase = Phase.QUERYING;
         else if (phase == Phase.IDLE || phase == Phase.QUERYING) phase = Phase.TARGETING;
         DebugDiagnostics.log("GUI_QUERY_SEND", () -> "generation=" + state.generation() + " encounter=" + state.encounterId()
             + " version=" + state.version() + " action=" + state.action() + " movement=" + state.movementTicks()
             + " target=" + selectedTarget + " " + diagnosticState());
-        ClientPacketDistributor.sendToServer(new ActionProtocol.Query(state.generation(), state.encounterId(), queryId, target, hand, hand == ActionIntent.Hand.MAIN_HAND ? slot : 40, revision, confirmedItem));
+        ClientPacketDistributor.sendToServer(query);
         reason = "查询可用行为";
     }
-    static void beginQuery(UUID current, long round, boolean autoSubmit) {
+    static ActionProtocol.Query beginQuery(UUID generation, UUID encounter, UUID current, long round,
+                                           ActionIntent.Target target, boolean autoSubmit) {
         invalidate(); queryId = UUID.randomUUID(); queryRound = round; submitAfterQuery = autoSubmit;
         // This query already belongs to the observed turn. The next tick must not suspend it
         // merely because input/packet handling ran before that tick's turn reconciliation.
         observeTurn(current, round);
+        return new ActionProtocol.Query(generation, encounter, queryId, target, hand,
+            hand == ActionIntent.Hand.MAIN_HAND ? slot : 40, revision, confirmedItem);
     }
     public static ActionProtocol.Projection projection() { return projection; }
     public static UUID requested() { return requested; }

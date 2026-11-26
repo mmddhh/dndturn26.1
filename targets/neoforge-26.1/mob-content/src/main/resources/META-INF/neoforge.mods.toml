@@ -1,0 +1,18 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="${mod_license}"
+
+[[mixins]]
+config="dndturn_mobs.mixins.json"
+
+[[mods]]
+modId="dndturn_mobs"
+version="${mod_version}"
+displayName="DNDTurn Mob Content"
+
+[[dependencies.dndturn_mobs]]
+modId="dndturn"
+type="required"
+versionRange="[${mod_version}]"
+ordering="AFTER"
+side="BOTH"

@@ -44,7 +44,7 @@ public final class CombatSavedData extends SavedData {
     public String json() { return json; }
 
     public CombatPersistenceEnvelope envelope() {
-        if (json.isBlank()) return null;
+        if (json.isEmpty()) return null;
         var root = JsonParser.parseString(json).getAsJsonObject();
         requireFields(root, CombatPersistenceEnvelope.class);
         if (!root.get("rules").isJsonObject()) throw new IllegalArgumentException("invalid rules object");

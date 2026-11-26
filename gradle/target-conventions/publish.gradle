@@ -1,4 +1,6 @@
 // Applied from an individual target project, not from the aggregate root project.
+apply from: file('../../gradle/target-conventions/boundaries.gradle')
+
 apply plugin: 'maven-publish'
 
 repositories {
@@ -24,6 +26,39 @@ def publishMinecraftVersion = [
 def publishFile = tasks.findByName('remapJar') != null ?
         tasks.named('remapJar').flatMap { it.archiveFile } :
         tasks.named('jar', Jar).flatMap { it.archiveFile }
+
+def fixtures = sourceSets.findAll { it.name in ['test', 'uiTest', 'gameTest'] }
+def commonOutput = project(':common').layout.buildDirectory.dir('classes/java/main')
+def loaderMetadata = [fabric: 'fabric.mod.json', forge: 'META-INF/mods.toml', neoforge: 'META-INF/neoforge.mods.toml']
+def verifyRelease = tasks.register('verifyReleaseJar') {
+    dependsOn fixtures.collect { it.classesTaskName }
+    inputs.file(publishFile)
+    inputs.dir(commonOutput)
+    fixtures.each { inputs.files(it.output) }
+    doLast {
+        new java.util.zip.ZipFile(publishFile.get().asFile).withCloseable { jar ->
+            def descriptors = loaderMetadata.values().findAll { jar.getEntry(it) != null }
+            if (descriptors != [loaderMetadata[publishLoader]])
+                throw new GradleException("Unexpected loader metadata in ${jar.name}: ${descriptors}")
+            fileTree(commonOutput).matching { include '**/*.class' }.visit { entry ->
+                if (!entry.directory && jar.getEntry(entry.relativePath.pathString) == null)
+                    throw new GradleException("Missing common class in release jar: ${entry.relativePath}")
+            }
+            fixtures.each { fixture ->
+                fixture.output.asFileTree.visit { file ->
+                    if (!file.directory && jar.getEntry(file.relativePath.pathString) != null)
+                        throw new GradleException("Test output in release jar: ${file.relativePath}")
+                }
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn verifyRelease }
+tasks.register('stageVerifiedJar', Sync) {
+    dependsOn verifyRelease
+    from publishFile
+    into layout.buildDirectory.dir('verified-release')
+}
 def curseforgeProjectId = providers.provider { findProperty('publish_curseforge_project_id')?.toString() }
         .orElse(providers.environmentVariable('CURSEFORGE_PROJECT_ID'))
 def modrinthProjectId = providers.provider { findProperty('publish_modrinth_project_id')?.toString() }

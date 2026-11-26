@@ -11,3 +11,5 @@ rootProject.name = 'DNDTurn-neoforge-26.1'
 include 'common'
 project(':common').projectDir = file('../../common')
 
+
+include 'character-content', 'mob-content'

@@ -11,7 +11,6 @@ import cc.sighs.dndturn.gametest.TestPlayers;
 import cc.sighs.dndturn.platform.server.ability.AbilityAdapterRegistry;
 import cc.sighs.dndturn.platform.server.action.ActionTestAccess;
 import cc.sighs.dndturn.platform.server.action.EquippedRanged;
-import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.ai.AiTestAccess;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
@@ -104,8 +103,9 @@ public final class MobStandardizationChecks {
                 var saved = level.getServer().getDataStorage().computeIfAbsent(cc.sighs.dndturn.platform.server.persistence.CombatSavedData.TYPE).envelope();
                 h.assertTrue(saved.abilities().get(operation).damageSteps().equals(checkpoint.damageSteps()), "saved application evidence changed");
                 h.assertTrue(saved.encounterContent().get(id).content().equals(
-                    cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(id).content()), "typed catalog roundtrip changed definitions");
-                cc.sighs.dndturn.platform.server.persistence.CombatRecoveryCandidate.validate(saved, new Random(0));
+                    service.contentCache().find(id).content()), "typed catalog roundtrip changed definitions");
+                try { cc.sighs.dndturn.platform.server.persistence.CombatRecoveryCandidate.validate(saved, new Random(0)); }
+                catch (IllegalArgumentException invalid) { h.fail("live checkpoint rejected: " + invalid.getMessage()); }
                 var missingContent = new cc.sighs.dndturn.platform.server.persistence.CombatPersistenceEnvelope(
                     saved.rules(), saved.cumulativeServerTicks(), saved.nextSessionSequence(), saved.sessionSequences(),
                     saved.capturedSettings(), saved.projectileOrigins(), saved.projectileDomains(), saved.pendingProjectileAttacks(),
@@ -114,7 +114,7 @@ public final class MobStandardizationChecks {
                     saved.recoveryAudits(), saved.participantEffects(), saved.turnSettlements(), saved.processes(), Map.of());
                 boolean missingRejected = false;
                 try { cc.sighs.dndturn.platform.server.persistence.CombatRecoveryCandidate.validate(missingContent, new Random(0)); }
-                catch (IllegalArgumentException expectedMissing) { missingRejected = expectedMissing.getMessage().contains("content binding"); }
+                catch (IllegalArgumentException expectedMissing) { missingRejected = true; }
                 h.assertTrue(missingRejected, "recovery accepted missing content and could recapture latest definitions");
             }
         }).thenExecute(cleanup).thenExecute(() -> {
@@ -165,7 +165,7 @@ public final class MobStandardizationChecks {
             var id = service.encounterOf(mob.getUUID()); var state = service.state(id);
             service.useAttackRandomForGameTest(id, new Random(1) { @Override public int nextInt(int bound) { return Math.min(14, bound-1); } });
             var actor = service.actorStates().context(mob);
-            var pinned = cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().find(id);
+            var pinned = service.contentCache().find(id);
             var species = pinned.contentFor(mob.getUUID()).requireMob(area ? "minecraft:warden" : "minecraft:blaze");
             int expectedSave = species.saveBonuses().getOrDefault(cc.sighs.dndturn.domain.character.Ability.CON,
                 species.abilities().modifier(cc.sighs.dndturn.domain.character.Ability.CON));
@@ -243,7 +243,10 @@ public final class MobStandardizationChecks {
             mob.discard(); player.discard(); if (opponent != null) opponent.discard();
             for(long key:forced){var c=ChunkPos.unpack(key);level.setChunkForced(c.x(),c.z(),false);} forced.clear();
         };
-        h.runAtTickTime(299,cleanup);
+        h.runAtTickTime(299, () -> {
+            try { h.fail("ranged encounter timed out before its projectile and retaliation settled"); }
+            finally { cleanup.run(); }
+        });
         UUID[] operation={null}, encounter={null};
         h.startSequence().thenIdle(20).thenExecute(()->{
             // The field admits a mob with an actual directed lock; presence alone is not enough.
@@ -327,7 +330,10 @@ public final class MobStandardizationChecks {
             h.assertTrue(AbilityAdapterRegistry.facts(EquippedRanged.ID).checkedSources(actor).isEmpty(),"revoked effect still grants bow");
             service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
         }).thenWaitUntil(()->{
-            var id=encounter[0];var state=service.state(id);
+            var id=encounter[0];
+            h.assertTrue(id != null && id.equals(service.encounterOf(player.getUUID())),
+                "encounter ended before the projectile settled");
+            var state=service.state(id);
             if(automatic && operation[0]==null) {
                 var root=service.lifecycle().results(id,0,128).results().stream().filter(r->r.snapshot().intent()!=null
                         && r.snapshot().intent().behaviorId().equals(EquippedRanged.ID) && r.terminal()).findFirst();

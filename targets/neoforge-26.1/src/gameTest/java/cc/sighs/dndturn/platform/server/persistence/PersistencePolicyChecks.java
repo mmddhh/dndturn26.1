@@ -47,6 +47,28 @@ public final class PersistencePolicyChecks {
                 "missing captured setting silently defaulted or raw evidence rewritten: " + field);
         }
     }
+    public static void verifyObservation(GameTestHelper helper, ActorSavedData current,
+                                         cc.sighs.dndturn.domain.encounter.operation.TriggeredExecutionRecord expected) {
+        var actual = current.restore().invocation(expected.operation()).observation();
+        helper.assertTrue(!actual.details().isEmpty() && actual.equals(expected.observation()),
+                "native observation changed on recovery");
+        var root = JsonParser.parseString(current.json()).getAsJsonObject();
+        for (var entry : root.getAsJsonArray("invocations")) {
+            var invocation = entry.getAsJsonObject();
+            if (!invocation.get("operation").getAsString().equals(expected.operation().toString())) continue;
+            var detail = invocation.getAsJsonObject("observation").getAsJsonArray("details").get(0).getAsJsonObject();
+            helper.assertFalse(detail.has("version"), "observation format version still written");
+            detail.addProperty("version", 1);
+            var raw = root.toString();
+            var incompatible = new ActorSavedData(raw);
+            boolean rejected = false;
+            try { incompatible.restore(); } catch (IllegalArgumentException ex) { rejected = true; }
+            helper.assertTrue(rejected && incompatible.json().equals(raw), "obsolete observation accepted or rewritten");
+            return;
+        }
+        helper.assertTrue(false, "checkpoint lacks expected invocation");
+    }
+
     private static void verifyActor(GameTestHelper helper) {
         var current = new ActorSavedData();
         current.update(new cc.sighs.dndturn.domain.actor.ActorStates());

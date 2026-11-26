@@ -57,14 +57,21 @@ public final class EnvironmentTntChecks {
                     int fuse=tnt.getFuse(); var position=tnt.position();
                     helper.runAfterDelay(completed%2==0?3:17,()-> {
                         helper.assertTrue(tnt.getFuse()==fuse && tnt.position().equals(position),"thinking advanced TNT fuse or body");
-                        for(int i=0;i<service.state(id).members().size()
-                            && service.state(id).phase()!=EncounterPhase.ENVIRONMENT;i++)
-                            service.combat().endCurrentTurn(id,UUID.randomUUID(),service.state(id).version());
-                        helper.runAfterDelay(32,()-> {
+                        // A directed lock can promote CANDIDATE to ACTIVE and restart initiative.
+                        int maxTurns = 2 * service.state(id).members().size() + 1;
+                        for (int i = 0; i < maxTurns && service.state(id).phase() != EncounterPhase.ENVIRONMENT; i++)
+                            service.combat().endCurrentTurn(id, UUID.randomUUID(), service.state(id).version());
+                        var environment = service.state(id);
+                        helper.assertTrue(environment.phase() == EncounterPhase.ENVIRONMENT,
+                            "fixture did not reach the environment participant");
+                        int steps = environment.environmentRemaining();
+                        helper.assertTrue(steps > 0, "environment started without a step budget");
+                        helper.runAfterDelay(steps + 2, () -> {
                             completed++;
-                            if(completed<3) {
-                                helper.assertTrue(!tnt.isRemoved() && tnt.getFuse()==80-completed*30,
-                                    "environment window did not consume exactly its TNT steps: "+tnt.getFuse());
+                            if (fuse > steps) {
+                                helper.assertTrue(!tnt.isRemoved() && tnt.getFuse() == fuse - steps,
+                                    "environment window consumed the wrong TNT steps: before=" + fuse
+                                        + " remaining=" + tnt.getFuse() + " budget=" + steps);
                                 waitThenAdvance();
                             } else {
                                 helper.assertTrue(tnt.isRemoved() && !victim.isAlive(),"vanilla explosion did not damage member");

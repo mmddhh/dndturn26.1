@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.entity;
 
+import cc.sighs.dndturn.platform.server.character.EncounterContent;
+import cc.sighs.dndturn.domain.character.RulesCatalog;
 import cc.sighs.dndturn.platform.projection.PresentationIdentity;
 import java.util.Objects;
 import java.util.UUID;
@@ -13,6 +15,12 @@ public record LiveActorContext(LivingEntity body, Facts facts) {
     public interface Facts {
         cc.sighs.dndturn.domain.actor.ActorStates.State state(UUID actor);
         UUID encounter(UUID actor);
+        default EncounterContent content(UUID encounter) {
+            throw new IllegalStateException("encounter content unavailable");
+        }
+        default RulesCatalog catalog() {
+            throw new IllegalStateException("catalog unavailable");
+        }
         UUID encounterAtBlock(ServerLevel level, net.minecraft.core.BlockPos pos);
         boolean ownsProjectile(ServerPlayer owner, net.minecraft.world.entity.projectile.Projectile projectile);
         String fault(UUID actor);

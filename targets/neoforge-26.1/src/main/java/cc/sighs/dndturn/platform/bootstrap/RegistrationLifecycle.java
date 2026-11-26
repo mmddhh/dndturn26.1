@@ -19,6 +19,7 @@ import java.util.ArrayList;
 public final class RegistrationLifecycle {
     private RegistrationLifecycle() {}
     public static synchronized void freeze() {
+        cc.sighs.dndturn.platform.server.character.CharacterContentLoader.freezeEquipment();
         AbilityExecutors.validate();
         WorldOutcomeHooks.freeze();
         cc.sighs.dndturn.platform.server.effect.vanilla.EffectAdapters.freeze();

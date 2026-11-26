@@ -34,7 +34,7 @@ public record RulesCatalog(String revision, Map<String, CharacterClass> classes,
     }
 
     public RulesCatalog(String revision, Map<String, CharacterClass> classes, Map<String, CharacterRace> races, Map<String, MobDefinition> mobs) {
-        this(revision, classes, races, mobs, EquipmentRules.WEAPONS, EquipmentRules.ARMOR);
+        this(revision, classes, races, mobs, Map.of(), Map.of());
     }
 
     public RulesCatalog(String revision, Map<String, CharacterClass> classes, Map<String, CharacterRace> races) {

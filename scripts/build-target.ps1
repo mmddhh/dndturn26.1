@@ -1,9 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string] $Target,
-
-    [ValidateRange(1, 5)]
-    [int] $Attempts = 3
+    [string] $Target
 )
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -31,22 +28,8 @@ if (-not (Test-Path -LiteralPath $wrapper -PathType Leaf)) {
 
 Push-Location $targetDirectory
 try {
-    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
-        Write-Host "Building $Target (attempt $attempt of $Attempts)"
-        & .\gradlew.bat clean build --console plain --no-daemon
-        $exitCode = $LASTEXITCODE
-
-        if ($exitCode -eq 0) {
-            exit 0
-        }
-
-        if ($attempt -lt $Attempts) {
-            Write-Warning "Build failed with exit code $exitCode. Retrying after 30 seconds."
-            Start-Sleep -Seconds 30
-        }
-    }
-
-    exit $exitCode
+    & .\gradlew.bat :clean :build :stageVerifiedJar --console plain --no-daemon
+    exit $LASTEXITCODE
 } finally {
     Pop-Location
 }

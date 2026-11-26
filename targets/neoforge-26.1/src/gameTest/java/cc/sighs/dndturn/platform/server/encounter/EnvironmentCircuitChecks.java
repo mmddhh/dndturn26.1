@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
+import cc.sighs.dndturn.gametest.TestPlayers;
+
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.*;
@@ -20,7 +22,7 @@ public final class EnvironmentCircuitChecks {
         level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base), 1);
         for(var pos:BlockPos.betweenClosed(base.offset(-7,-1,-7),base.offset(7,4,7)))
             level.setBlockAndUpdate(pos,pos.getY()<base.getY()?Blocks.STONE.defaultBlockState():Blocks.AIR.defaultBlockState());
-        var player=helper.makeMockServerPlayerInLevel();player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+        var player=TestPlayers.creative(helper);player.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
         var service=ServerRuntime.encounters(level.getServer());List<Entity> entities=new ArrayList<>();
         Runnable cleanup=()->{
             UUID id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);

@@ -1,13 +1,17 @@
 package cc.sighs.dndturn.platform.bootstrap;
 import cc.sighs.dndturn.platform.network.*;
+import cc.sighs.dndturn.platform.server.network.CombatIntentHandler;
 import static cc.sighs.dndturn.platform.network.EncounterProtocol.*;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 public final class PayloadRegistration {
  private PayloadRegistration() {}
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("dndturn");
-        event.registrar("dndturn").playToClient(InspectionProtocol.Reply.TYPE, InspectionProtocol.Reply.CODEC);
-        registrar.playToClient(CharacterProtocol.Options.TYPE, CharacterProtocol.Options.CODEC);
+        // NeoForge requires a non-empty handshake value for registered payloads.
+        var registrar = event.registrar(DNDTurnNeoForge.MOD_ID);
+        CombatIntentHandler.register(registrar);
+        registrar.playToClient(InspectionProtocol.Reply.TYPE, InspectionProtocol.Reply.CODEC);
+        registrar.playToClient(CharacterProtocol.Detail.TYPE, CharacterProtocol.Detail.CODEC);
+        registrar.playToClient(CharacterProtocol.CreationResult.TYPE, CharacterProtocol.CreationResult.CODEC);
         registrar.playToClient(CharacterProtocol.Open.TYPE, CharacterProtocol.Open.CODEC);
         registrar.playToClient(CharacterProtocol.Sheet.TYPE, CharacterProtocol.Sheet.CODEC);
         registrar.playToClient(CharacterProtocol.AsiOpen.TYPE, CharacterProtocol.AsiOpen.CODEC);

@@ -72,7 +72,7 @@ public final class RestartHistoryChecks {
                 player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLD_BLOCK,2));
                 var target=new ActionIntent.Target(ActionIntent.TargetKind.BLOCK,level.dimension().identifier().toString(),null,
                     new GridCell(pos.getX(),pos.getY()-1,pos.getZ()),1,.5,1,.5);
-                var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND));
+                var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),target,ActionIntent.Hand.MAIN_HAND, 0, System.nanoTime(), null));
                 var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:place")&&o.reason().isEmpty()).findFirst().orElseThrow();
                 service.actions().request(player,new ActionProtocol.Request(service.generation(),encounter,operation,options.version(),offer.intent(),false));
                 helper.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK)&&player.getMainHandItem().getCount()==1,"restart setup did not execute real placement: "
@@ -89,7 +89,7 @@ public final class RestartHistoryChecks {
                 var ground = new ActionIntent.Target(ActionIntent.TargetKind.GROUND, level.dimension().identifier().toString(),
                     null, new GridCell(pos.getX()-2, pos.getY(), pos.getZ()+2), -1, 0, 0, 0);
                 var movementOptions = service.actions().selectAndDiscover(player, new ActionProtocol.Query(
-                    service.generation(), activeEncounter, UUID.randomUUID(), ground, ActionIntent.Hand.MAIN_HAND));
+                    service.generation(), activeEncounter, UUID.randomUUID(), ground, ActionIntent.Hand.MAIN_HAND, 0, System.nanoTime(), null));
                 var move = movementOptions.offers().stream().filter(o -> o.intent().behaviorId().equals("dndturn:move"))
                     .findFirst().orElseThrow(() -> new IllegalStateException("restart movement discovery: " + movementOptions));
                 service.actions().request(player, new ActionProtocol.Request(service.generation(), activeEncounter,

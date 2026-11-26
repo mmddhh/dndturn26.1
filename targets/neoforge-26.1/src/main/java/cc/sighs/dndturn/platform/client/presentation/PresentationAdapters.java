@@ -40,7 +40,7 @@ public final class PresentationAdapters {
     }
     private static final Map<String, Adapter> adapters = new LinkedHashMap<>();
     private static boolean frozen;
-    static { BuiltinPresentation.register(); }
+
     private PresentationAdapters() {}
     public static synchronized void register(Adapter adapter) {
         if (frozen) throw new IllegalStateException("presentation registry frozen");

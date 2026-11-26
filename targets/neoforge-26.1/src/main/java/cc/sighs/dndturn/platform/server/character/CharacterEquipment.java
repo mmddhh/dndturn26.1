@@ -1,6 +1,9 @@
 package cc.sighs.dndturn.platform.server.character;
 
-import com.google.gson.JsonObject;
+import net.minecraft.world.entity.item.ItemEntity;
+import java.util.List;
+import cc.sighs.dndturn.domain.character.CharacterClass;
+import cc.sighs.dndturn.domain.actor.ActorStates;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -8,48 +11,48 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-/** Grants the chosen classes starting kit; unknown ids are logged rather than silently invented. */
+/** Preflights the selected kit and records the observed inventory and world destinations. */
 public final class CharacterEquipment {
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("dndturn-character");
-
     private CharacterEquipment() {}
 
-    public static void grant(ServerPlayer player, JsonObject root) {
-        if (!root.has("equipment") || !root.get("equipment").isJsonArray()) {
-            LOGGER.warn("starting equipment payload missing player={}", player.getUUID());
-            return;
-        }
-        int granted = 0;
-        for (var element : root.getAsJsonArray("equipment")) {
-            String raw;
-            int count = 1;
-            if (element.isJsonPrimitive()) {
-                raw = element.getAsString();
-            } else if (element.isJsonObject()) {
-                JsonObject entry = element.getAsJsonObject();
-                raw = entry.get("id").getAsString();
-                count = entry.has("count") ? Math.max(1, Math.min(64, entry.get("count").getAsInt())) : 1;
-            } else {
-                continue;
-            }
-            Item item = resolve(raw);
-            if (item == Items.AIR) {
-                LOGGER.warn("unknown starting equipment id={} player={}", raw, player.getUUID());
-                continue;
-            }
-            if (count == 1 && (raw.endsWith("_arrow") || raw.endsWith("_bolt") || raw.endsWith("_needle")))
-                count = 20;
-            ItemStack stack = new ItemStack(item, count);
-            if (!player.getInventory().add(stack)) player.drop(stack, false);
-            granted++;
-        }
-        LOGGER.info("starting equipment granted player={} stacks={}", player.getUUID(), granted);
+    static Item resolve(String key) {
+        var item = BuiltInRegistries.ITEM.get(Identifier.parse(key)).orElseThrow(
+            () -> new IllegalArgumentException("unknown equipment item " + key)).value();
+        if (item == Items.AIR) throw new IllegalArgumentException("empty equipment item");
+        return item;
     }
 
-    private static Item resolve(String raw) {
-        if (raw == null || raw.isBlank()) return Items.AIR;
-        Identifier id = Identifier.tryParse(raw.contains(":") ? raw.replace("dndclasses:", "dndturn:") : "dndturn:" + raw);
-        if (id == null) return Items.AIR;
-        return BuiltInRegistries.ITEM.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(Items.AIR);
+    public static List<ItemStack> prepare(CharacterClass definition, String kit) {
+        var selected = definition.equipment().get(kit);
+        if (selected == null) throw new IllegalArgumentException("unknown starting kit");
+        return selected.stream().map(entry -> new ItemStack(resolve(entry.item()), entry.count())).toList();
+    }
+
+    public static void grant(ServerPlayer player, List<ItemStack> stacks, List<ActorStates.GrantedStack> observations) {
+        for (var stack : stacks) {
+            String item = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            int requested = stack.getCount();
+            var inventory = player.getInventory();
+            var type = stack.getItem();
+            int before = inventory.countItem(type);
+            inventory.add(stack);
+            int inserted = inventory.countItem(type) - before;
+            if (inserted < 0 || inserted > requested) throw new IllegalStateException("inventory change unconfirmed");
+            int remainder = requested - inserted;
+            stack.setCount(remainder);
+            ItemEntity drop = null;
+            try {
+                if (remainder > 0) {
+                    var entity = player.drop(stack, false);
+                    if (entity == null || player.level().getEntity(entity.getUUID()) != entity
+                        || entity.getItem().getCount() != remainder || !BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).toString().equals(item))
+                        throw new IllegalStateException("equipment drop unconfirmed");
+                    drop = entity;
+                }
+            } finally {
+                observations.add(new ActorStates.GrantedStack(item, requested, requested - remainder,
+                    drop == null ? 0 : remainder, drop == null ? null : drop.getUUID()));
+            }
+        }
     }
 }

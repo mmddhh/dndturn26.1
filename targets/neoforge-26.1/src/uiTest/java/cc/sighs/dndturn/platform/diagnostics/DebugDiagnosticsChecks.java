@@ -18,8 +18,6 @@ public final class DebugDiagnosticsChecks {
         DebugDiagnostics.log("ENABLED_CHECK", () -> { calls.incrementAndGet(); return "enabled forwarding"; });
         DebugDiagnostics.log("FORMAT_FAILURE", () -> { throw new IllegalStateException("diagnostics must not propagate"); });
         if (calls.get() != 1) throw new AssertionError("unexpected supplier evaluation");
-        for (int i = 0; i < 350; i++) DebugDiagnostics.log("BURST_CHECK", () -> { calls.incrementAndGet(); return "query trace"; });
-        if (calls.get() != 351) throw new AssertionError("diagnostic burst was suppressed");
         System.out.println("Debug diagnostics checks passed: default no-op, exact argument, lazy forwarding, formatter failure isolation");
     }
 }

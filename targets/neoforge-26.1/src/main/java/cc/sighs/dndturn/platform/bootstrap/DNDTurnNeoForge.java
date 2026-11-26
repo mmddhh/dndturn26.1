@@ -1,8 +1,9 @@
 package cc.sighs.dndturn.platform.bootstrap;
 
-import cc.sighs.dndturn.platform.server.builtin.creeper.CreeperExplosion;
+import cc.sighs.dndturn.platform.server.ai.GroundMovementPort;
+import cc.sighs.dndturn.platform.server.ai.MovementPorts;
+import cc.sighs.dndturn.platform.server.action.VanillaBehaviors;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
-import cc.sighs.dndturn.platform.server.network.CombatIntentHandler;
 import cc.sighs.dndturn.platform.server.runtime.MinecraftCombatRuntime;
 import cc.sighs.dndturn.platform.server.runtime.EnvironmentExplosion;
 import net.neoforged.bus.api.IEventBus;
@@ -14,13 +15,13 @@ public final class DNDTurnNeoForge {
     public static final String MOD_ID = "dndturn";
 
     public DNDTurnNeoForge(IEventBus modBus) {
-        BuiltinAdapters.install();
+        VanillaBehaviors.register();
+        MovementPorts.register(new MovementPorts.Registration(
+                "dndturn:ground_navigation", 1, 0, new GroundMovementPort()));
         NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.platform.server.damage.CombatNexusAdapter::register);
         modBus.addListener(PayloadRegistration::register);
-        cc.sighs.dndturn.platform.server.character.DndEquipmentItems.register(modBus);
         modBus.addListener((net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent event) ->
             event.enqueueWork(RegistrationLifecycle::freeze));
-        modBus.addListener(CombatIntentHandler::register);
         NeoForge.EVENT_BUS.addListener(TacticalCommands::register);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onEntityTickPost);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onServerTick);
@@ -31,7 +32,6 @@ public final class DNDTurnNeoForge {
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onDeath);
         NeoForge.EVENT_BUS.addListener(cc.sighs.dndturn.platform.server.runtime.DamageHooks::onIncoming);
         NeoForge.EVENT_BUS.addListener(EnvironmentExplosion::onDetonate);
-        NeoForge.EVENT_BUS.addListener(CreeperExplosion::onDetonate);
         NeoForge.EVENT_BUS.addListener(TacticalDamageContext::onKnockback);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onEntityLeaveLevel);
         NeoForge.EVENT_BUS.addListener(MinecraftCombatRuntime::onEntityJoinLevel);

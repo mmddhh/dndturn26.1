@@ -1,4 +1,8 @@
 package cc.sighs.dndturn.platform.server.runtime;
+import cc.sighs.dndturn.platform.server.character.EncounterContentCache;
+import cc.sighs.dndturn.platform.server.character.EncounterContent;
+import cc.sighs.dndturn.platform.server.character.CharacterContentService;
+import cc.sighs.dndturn.domain.character.RulesCatalog;
 import cc.sighs.dndturn.domain.encounter.StateView;
 import cc.sighs.dndturn.platform.observation.ItemStackFingerprint;
 import cc.sighs.dndturn.platform.projection.PresentationUseIdentity;
@@ -78,6 +82,8 @@ import org.slf4j.Logger;
 
 /** Coordinates encounter lifecycle and live platform owners for one server instance. */
 public final class EncounterRuntime {
+    private final EncounterContentCache contentCache;
+    public EncounterContentCache contentCache() { return contentCache; }
     private final TriggeredAbilities.Host triggerHost = new TriggeredAbilities.Host() {
         public ActorStateAuthority actorStates() { return actorStates; }
         public ExecutionProcesses processes() { return processes; }
@@ -231,12 +237,13 @@ public final class EncounterRuntime {
     long planClock() { return cumulativeServerTicks; }
     UUID canonicalOutcomeEncounter(UUID encounter) { requireThread(); return encounter == null ? null : engine.canonicalEncounterId(encounter); }
 
-    public EncounterRuntime(MinecraftServer server, ActorStateAuthority actorStates, UUID generation) {
-        this(server, server.getDataStorage().computeIfAbsent(CombatSavedData.TYPE), actorStates, generation);
+    public EncounterRuntime(MinecraftServer server, CharacterContentService catalogs, ActorStateAuthority actorStates, UUID generation) {
+        this(server, server.getDataStorage().computeIfAbsent(CombatSavedData.TYPE), catalogs, actorStates, generation);
     }
 
-    private EncounterRuntime(MinecraftServer server, CombatSavedData savedData, ActorStateAuthority actorStates, UUID generation) {
+    private EncounterRuntime(MinecraftServer server, CombatSavedData savedData, CharacterContentService catalogs, ActorStateAuthority actorStates, UUID generation) {
         this.server = server;
+        contentCache = new EncounterContentCache(catalogs);
         this.generation = java.util.Objects.requireNonNull(generation);
         this.config = ServerCombatConfig.load(server);
         this.actorStates = java.util.Objects.requireNonNull(actorStates);
@@ -286,7 +293,7 @@ public final class EncounterRuntime {
             public UUID liveProjectileDomain(UUID id) { return projectiles.liveProjectileDomain(id); }
             public void quarantineProjectile(UUID projectile, UUID encounter, UUID target, String reason) { projectiles.quarantineProjectile(projectile, encounter, target, reason); }
         }, cloudEvidence);
-        this.projectiles = new ProjectileExecutionCoordinator(server, engine, generation, actorStates, world.scheduler(), persistence, damageResolution, new ProjectileExecutionCoordinator.Host() {
+        this.projectiles = new ProjectileExecutionCoordinator(server, contentCache, engine, generation, actorStates, world.scheduler(), persistence, damageResolution, new ProjectileExecutionCoordinator.Host() {
             public cc.sighs.dndturn.platform.server.effect.vanilla.VanillaEffectRoundController.ApplicationScope applications(java.util.function.Supplier<cc.sighs.dndturn.domain.encounter.operation.OperationRecord.Snapshot> root, java.util.List<LivingEntity> targets) { return vanillaEffects.applications(root,targets); }
             public cc.sighs.dndturn.platform.server.damage.DamageAttempt damageAttempt() { return combat; }
             public long clock() { return cumulativeServerTicks; }
@@ -305,6 +312,8 @@ public final class EncounterRuntime {
             public Entity resolve(UUID id) { return EncounterRuntime.this.resolve(id); }
         });
         actorStates.snapshots().bindFacts(new LiveActorContext.Facts() {
+            public EncounterContent content(UUID encounter) { return contentCache.find(encounter); }
+            public RulesCatalog catalog() { return catalogs.current(); }
             public UUID encounter(UUID actor) { return engine.encounterOf(actor); }
             public cc.sighs.dndturn.domain.effect.EffectSnapshot.Vanilla effect(LivingEntity actor, net.minecraft.world.effect.MobEffectInstance effect) { return vanillaEffects.describe(actor, effect); }
             public boolean hostile(UUID encounter, UUID actor, UUID target) {
@@ -322,7 +331,7 @@ public final class EncounterRuntime {
         this.vanillaEffects = new VanillaEffectRoundController(vanillaEffectHost,engine);
         this.entityProjections = new ServerEntityProjections(server, generation, this::presentationFacts);
         this.projections = new ProjectionPublisher(server, engine, generation, this::resolve);
-        this.lifecycle = new EncounterLifecycleCoordinator(server, engine, generation, config, new EncounterLifecycleCoordinator.Host() {
+        this.lifecycle = new EncounterLifecycleCoordinator(server, contentCache, engine, generation, config, new EncounterLifecycleCoordinator.Host() {
             public long clock() { return cumulativeServerTicks; }
             public boolean active() { return ServerRuntime.existingEncounter(server) == EncounterRuntime.this; }
             public boolean closing() { return closing; }
@@ -337,7 +346,7 @@ public final class EncounterRuntime {
             UUID owner, UUID source, UUID target, long tick, long version, GridCell sourceCell,
             GridCell targetCell, OperationRecord.Kind kind) { return EncounterRuntime.this.operationSnapshot(operationId, parentId, encounterId, owner, source, target, tick, version, sourceCell, targetCell, kind); }
         }, actorStates, world, projectiles, movement, persistence, projections, vanillaEffects, processes, damageResolution);
-        this.combat = new CombatActionExecution(server, engine, actorStates, movement, vanillaEffects, damageResolution,
+        this.combat = new CombatActionExecution(server, contentCache, engine, actorStates, movement, vanillaEffects, damageResolution,
             new TriggeredAbilities(triggerHost, engine), new CombatActionExecution.Outcomes() {
                 public void enterOutcome() { lifecycle.enterOutcome(); }
                 public void exitOutcome() { lifecycle.exitOutcome(); }
@@ -364,7 +373,7 @@ public final class EncounterRuntime {
             projectiles.restore(saved);
             movement.restoreLeaseEvidence(saved.leases());
             vanillaEffects.restore(saved.participantEffects(),saved.turnSettlements());
-            cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().restore(saved.encounterContent());
+            contentCache.restore(saved.encounterContent());
 
         }
         if (!persistence.recoveryFailed()) for (UUID encounterId : engine.encounterIds()) {
@@ -380,7 +389,7 @@ public final class EncounterRuntime {
     public static EncounterRuntime restoreForGameTest(MinecraftServer server, CombatSavedData savedData) {
         if (!(server instanceof net.minecraft.gametest.framework.GameTestServer) || !server.isSameThread())
             throw new IllegalStateException("isolated recovery requires the GameTest server thread");
-        return new EncounterRuntime(server, savedData, new ActorStateAuthority(server), UUID.randomUUID());
+        return new EncounterRuntime(server, savedData, ServerRuntime.content(server), new ActorStateAuthority(server), UUID.randomUUID());
     }
 
     public void close() {
@@ -408,13 +417,17 @@ public final class EncounterRuntime {
         if (persistence.recoveryFailed()) return;
         if (ServerRuntime.existingEncounter(server)==this) for (UUID id:engine.encounterIds()) {
             if(lifecycle.recovering(id)) continue;
-            for(UUID member:engine.stateView(id).members().keySet())
+            long before = engine.changeToken();
+            var state = engine.stateView(id);
+            for(UUID member:state.members().keySet())
                 if(resolve(member) instanceof LivingEntity living) vanillaEffects.capture(living);
-            if (projections.effectsChanged(engine.stateView(id), vanillaEffects::display)) sync(engine.stateView(id));
+            if (before != engine.changeToken()) {
+                if (!engine.encounterIds().contains(id)) continue;
+                state = engine.stateView(id);
+            }
+            if (projections.effectsChanged(state, vanillaEffects::display)) sync(state);
         }
         persistence.persistIfChanged(engine, cumulativeServerTicks, this::captureCheckpoint);
-        cc.sighs.dndturn.platform.server.character.EncounterContentCache.server()
-            .retain(engine.encounterIds());
     }
 
     private CombatPersistenceEnvelope captureCheckpoint(EncounterStateSnapshot rules) {
@@ -429,7 +442,7 @@ public final class EncounterRuntime {
                 .map(EncounterStateSnapshot.MergePlanState::capture).toList(),
             starts, exits, leases, projectiles.quarantines(), lifecycle.exitAuthorizations().snapshot(), persistence.checkpoints(), lifecycle.mergeBindings(), projectiles.abilities(), persistence.audits(),
             vanillaEffects.owners(),vanillaEffects.settlements(), processes.snapshot(),
-            cc.sighs.dndturn.platform.server.character.EncounterContentCache.server().snapshot());
+            contentCache.snapshot());
     }
 
     private void persistNow() {

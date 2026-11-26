@@ -29,7 +29,6 @@ import cc.sighs.dndturn.platform.server.entity.LiveActorContext;
 import cc.sighs.dndturn.platform.server.actor.ActorStateAuthority;
 import cc.sighs.dndturn.platform.server.actor.MobAttackProfiles;
 import cc.sighs.dndturn.platform.server.character.EncounterContentCache;
-import cc.sighs.dndturn.platform.server.character.PlayerArmorRules;
 import cc.sighs.dndturn.platform.server.damage.DamageReceivers;
 import cc.sighs.dndturn.platform.server.damage.MeleeAdapters;
 import cc.sighs.dndturn.platform.server.damage.TacticalDamageContext;
@@ -82,6 +81,7 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
     private static final Logger LOGGER = LogUtils.getLogger();
     private final MinecraftServer server;
     private final EncounterAuthority engine;
+    private final EncounterContentCache contentCache;
     private final ActorStateAuthority actorStates;
     private final MovementExecutionCoordinator movement;
     private final VanillaEffectRoundController vanillaEffects;
@@ -89,9 +89,10 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
     private final TriggeredAbilities triggers;
     private final Outcomes outcomes;
     private final Host host;
-    public CombatActionExecution(MinecraftServer server, EncounterAuthority engine, ActorStateAuthority actorStates,
+    public CombatActionExecution(MinecraftServer server, EncounterContentCache contentCache, EncounterAuthority engine, ActorStateAuthority actorStates,
             MovementExecutionCoordinator movement, VanillaEffectRoundController vanillaEffects, DamageResolution damageResolution,
             TriggeredAbilities triggers, Outcomes outcomes, Host host) {
+        this.contentCache = contentCache;
         this.server = server; this.engine = engine; this.actorStates = actorStates; this.movement = movement;
         this.vanillaEffects = vanillaEffects; this.damageResolution = damageResolution; this.triggers = triggers;
         this.outcomes = outcomes; this.host = host;
@@ -393,10 +394,10 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         AttackProfile profile;
         if (actor instanceof ServerPlayer player) {
             profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profile(player,
-                EncounterContentCache.server().find(encounterId));
+                contentCache.find(encounterId));
         } else {
-            profile = EncounterContentCache.server().attackProfile(encounterId, actor.getUUID());
-            if (profile == null) profile = MobAttackProfiles.of(actor, EncounterContentCache.server().find(encounterId).content());
+            profile = contentCache.attackProfile(encounterId, actor.getUUID());
+            if (profile == null) profile = MobAttackProfiles.of(actor, contentCache.find(encounterId).content());
         }
         double directMeleeDamage = plan != null || profile != null ? 0 : actor instanceof ServerPlayer
             ? actor.getMainHandItem().getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY)
@@ -563,10 +564,10 @@ public final class CombatActionExecution implements cc.sighs.dndturn.platform.se
         AttackProfile profile;
         if (player instanceof ServerPlayer shooter) {
             profile = cc.sighs.dndturn.platform.server.character.PlayerWeaponRules.profile(shooter,
-                EncounterContentCache.server().find(state.id()));
+                contentCache.find(state.id()));
         } else {
-            profile = EncounterContentCache.server().attackProfile(state.id(), player.getUUID());
-            if (profile == null) profile = MobAttackProfiles.of(player, EncounterContentCache.server().find(state.id()).content());
+            profile = contentCache.attackProfile(state.id(), player.getUUID());
+            if (profile == null) profile = MobAttackProfiles.of(player, contentCache.find(state.id()).content());
         }
         double base = 0;
         var plan = damageResolution.resolveAttack(state.id(), ac, reduction, base, mode, null,

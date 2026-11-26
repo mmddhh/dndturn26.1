@@ -80,6 +80,13 @@ public final class ActorStateAuthority {
         ActorStates restored = null; RuntimeException failed = null;
         try {
             restored = saved.restore();
+            for (var receipt : restored.receipts()) {
+                if (receipt.command().changes().size() == 1 && receipt.command().changes().getFirst() instanceof ActorStates.Character change
+                    && change.creation() != null && restored.creation(receipt.command().operation()) == null) {
+                    restored.finishCreation(receipt.command().operation(), new ActorStates.CreationOutcome(null, List.of(), true));
+                    dirty = true;
+                }
+            }
             int archived = restored.compactSimulationHistory();
             if (archived > 0) {
                 dirty = true;
@@ -224,6 +231,12 @@ public final class ActorStateAuthority {
         owner.setRecordedTick(tick);
         advanced.clear();
     }
+    public ActorStates.Receipt receipt(UUID operation) { thread(); available(); return owner.receipt(operation); }
+    public ActorStates.CreationOutcome creation(UUID operation) { thread(); available(); return owner.creation(operation); }
+    public void finishCreation(UUID operation, ActorStates.CreationOutcome outcome) {
+        thread(); available(); owner.finishCreation(operation, outcome); dirty = true;
+    }
+
     public void persist() {
         thread();
         if (saveDelay > 0) { saveDelay--; return; }

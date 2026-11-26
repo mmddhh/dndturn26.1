@@ -1,16 +1,27 @@
 package cc.sighs.dndturn.domain.character;
 
+import java.util.List;
+import java.util.HashMap;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
 
 /** Content definition of a player race or subrace. Boosts are applied once at creation. */
 public record CharacterRace(String id, int version, String name, int speed, String size,
-                            Map<Ability, Integer> abilityBoosts) {
+                            Map<Ability, Integer> abilityBoosts, Map<String, List<Integer>> subraces) {
     public CharacterRace {
         requireId(id);
         Objects.requireNonNull(name);
         Objects.requireNonNull(size);
+        if (subraces.size() > 64) throw new IllegalArgumentException("subrace options");
+        var slots = new HashMap<String, List<Integer>>();
+        subraces.forEach((key, values) -> {
+            requireId(key);
+            if (values.size() > 6 || values.stream().anyMatch(v -> v < 1 || v > 3))
+                throw new IllegalArgumentException("subrace allocation");
+            slots.put(key, List.copyOf(values));
+        });
+        subraces = Map.copyOf(slots);
         abilityBoosts = Map.copyOf(abilityBoosts);
         if (version < 1 || name.isBlank() || name.length() > 128 || speed < 0 || speed > 1_000
                 || size.isBlank() || size.length() > 32 || abilityBoosts.size() > Ability.values().length)

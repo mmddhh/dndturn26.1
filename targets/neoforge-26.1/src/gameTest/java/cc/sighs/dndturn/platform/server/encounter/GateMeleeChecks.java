@@ -183,7 +183,7 @@ public final class GateMeleeChecks {
         for (int n=0;n<service.state(encounter).members().size() && !player.getUUID().equals(service.state(encounter).current());n++)
             service.combat().endCurrentTurn(encounter,UUID.randomUUID(),service.state(encounter).version());
         var targetValue=new ActionIntent.Target(ActionIntent.TargetKind.ENTITY,player.level().dimension().identifier().toString(),target.getUUID(),null,-1,0,0,0);
-        var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),targetValue,ActionIntent.Hand.MAIN_HAND));
+        var options=service.actions().selectAndDiscover(player,new ActionProtocol.Query(service.generation(),encounter,UUID.randomUUID(),targetValue,ActionIntent.Hand.MAIN_HAND, 0, System.nanoTime(), null));
         var offer=options.offers().stream().filter(o->o.intent().behaviorId().equals("dndturn:melee")).findFirst().orElseThrow(() -> new IllegalStateException("melee discovery: " + options));
         var endpoint=new ActionIntent.Point(base.getX()+3.5,base.getY(),base.getZ()+.5);
         var intent=offer.intent().withApproach(new ActionIntent.Approach(UUID.randomUUID(),0,endpoint));

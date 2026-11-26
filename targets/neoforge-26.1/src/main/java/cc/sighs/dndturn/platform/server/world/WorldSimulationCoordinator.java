@@ -251,7 +251,7 @@ public final class WorldSimulationCoordinator implements RegionalScheduledTicks.
         return new SimulationPolicy.EntityFacts(quarantine, false, false, false);
     }
 
-    private record SimulationDecision(long tick, EncounterAuthority.Revision revision, UUID environment,
+    private record SimulationDecision(long tick, long changeToken, UUID environment,
                                       UUID environmentStep, UUID instance, SimulationPreparation result) {}
     public boolean cloudSimulationPaused(Entity cloud) {
         return !WorldOutcomePolicy.cloudSimulation(captureCloud(cloud)).allowed();
@@ -287,12 +287,12 @@ public final class WorldSimulationCoordinator implements RegionalScheduledTicks.
         if (prior != null && prior.tick() == host.clock() && Objects.equals(prior.instance(), instance)
             && prior.result().status() == SimulationPreparation.Status.CONTACT_HANDLED) return prior.result();
         if (prior != null && prior.tick() == host.clock()
-            && prior.revision().equals(engine.revision()) && Objects.equals(prior.environment(), environment)
+            && prior.changeToken() == engine.changeToken() && Objects.equals(prior.environment(), environment)
             && Objects.equals(prior.environmentStep(), step) && Objects.equals(prior.instance(), instance))
             return prior.result();
         SimulationPreparation result = prepareEntitySimulationStep(entity);
         simulationDecisions.put(entity.getUUID(), new SimulationDecision(host.clock(),
-            engine.revision(), environment, step, instance, result));
+            engine.changeToken(), environment, step, instance, result));
         return result;
     }
 

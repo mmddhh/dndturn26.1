@@ -1,0 +1,15 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="${mod_license}"
+
+[[mods]]
+modId="dndturn_characters"
+version="${mod_version}"
+displayName="DNDTurn Character Content"
+
+[[dependencies.dndturn_characters]]
+modId="dndturn"
+type="required"
+versionRange="[${mod_version}]"
+ordering="AFTER"
+side="BOTH"

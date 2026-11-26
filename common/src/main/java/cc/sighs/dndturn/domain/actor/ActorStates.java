@@ -1,5 +1,8 @@
 package cc.sighs.dndturn.domain.actor;
 
+import cc.sighs.dndturn.domain.fact.FactKey;
+import cc.sighs.dndturn.domain.character.AbilityScores;
+import cc.sighs.dndturn.domain.character.Ability;
 import cc.sighs.dndturn.domain.character.CharacterState;
 import cc.sighs.dndturn.domain.encounter.operation.Intervention;
 
@@ -45,7 +48,23 @@ public final class ActorStates {
     public record Resource(ResourceKey key, double delta, boolean create) implements Change {
         public Resource { Objects.requireNonNull(key); if (!Double.isFinite(delta)) throw new IllegalArgumentException("resource delta"); }
     }
-    public record Character(CharacterState state) implements Change {
+    public record Creation(String revision, String characterClass, String race, String subrace, String subclass,
+                           AbilityScores bought,
+                           List<Ability> targets, String kit) {
+        public Creation {
+            Objects.requireNonNull(revision); Objects.requireNonNull(characterClass); Objects.requireNonNull(race);
+            Objects.requireNonNull(bought); targets = List.copyOf(targets);
+            FactKey.requireId(characterClass);
+            FactKey.requireId(race);
+            if (subrace != null) FactKey.requireId(subrace);
+            if (subclass != null) FactKey.requireId(subclass);
+            if (revision.isBlank() || revision.length() > 128 || kit != null && !kit.matches("[a-z0-9_.-]{1,64}"))
+                throw new IllegalArgumentException("creation options");
+            if (targets.size() > 6) throw new IllegalArgumentException("allocation bound");
+        }
+    }
+    public record Character(CharacterState state, Creation creation) implements Change {
+        public Character(CharacterState state) { this(state, null); }
         public Character { Objects.requireNonNull(state); }
     }
     public record Apply(EffectInstance effect) implements Change { public Apply { Objects.requireNonNull(effect); } }
@@ -72,6 +91,21 @@ public final class ActorStates {
                 throw new IllegalArgumentException("actor emission bounds or provenance");
             if (expectedRevision < 0 || proposedMutations < changes.size() + invocations.size() || proposedMutations > EffectWave.MAX_MUTATIONS)
                 throw new IllegalArgumentException("actor command bounds");
+        }
+    }
+    public record GrantedStack(String item, int requested, int inventory, int dropped, UUID dropEntity) {
+        public GrantedStack {
+            FactKey.requireId(item);
+            if (requested < 1 || requested > 64 || inventory < 0 || dropped < 0 || inventory + dropped > requested
+                || (dropped > 0) != (dropEntity != null)) throw new IllegalArgumentException("invalid kit delivery");
+        }
+    }
+    public record CreationOutcome(Double maxHealth, List<GrantedStack> grants, boolean unknown) {
+        public CreationOutcome {
+            grants = List.copyOf(grants);
+            if (grants.size() > 64 || maxHealth != null && (!Double.isFinite(maxHealth) || maxHealth <= 0)
+                || !unknown && (maxHealth == null || grants.stream().anyMatch(g -> g.inventory() + g.dropped() != g.requested())))
+                throw new IllegalArgumentException("invalid creation evidence");
         }
     }
     public record Receipt(Command command, State result, List<EffectTransition> transitions, long recordedTick) {
@@ -264,6 +298,7 @@ public final class ActorStates {
                 if (liveInvocations.contains(invocation.operation())) { live = true; break; }
             if (live) continue;
             receipts.remove(entry.getKey());
+            creations.remove(entry.getKey());
             removed++;
         }
         for (var entry : List.copyOf(simulationArchive.entrySet())) {
@@ -358,6 +393,17 @@ public final class ActorStates {
     public String faultReason(UUID actor) { return faults.get(actor); }
     public Map<UUID, State> snapshot() { return Map.copyOf(actors); }
     public List<Receipt> receipts() { return List.copyOf(receipts.values()); }
+    private final Map<UUID, CreationOutcome> creations = new LinkedHashMap<>();
+    public Map<UUID, CreationOutcome> creations() { return Map.copyOf(creations); }
+    public CreationOutcome creation(UUID operation) { return creations.get(operation); }
+    public void finishCreation(UUID operation, CreationOutcome outcome) {
+        var receipt = Objects.requireNonNull(receipts.get(operation));
+        if (receipt.command().changes().size() != 1 || !(receipt.command().changes().get(0) instanceof Character change)
+            || change.creation() == null) throw new IllegalArgumentException("missing creation command");
+        var previous = creations.putIfAbsent(operation, Objects.requireNonNull(outcome));
+        if (previous != null && !previous.equals(outcome)) throw new IllegalStateException("conflicting creation evidence");
+    }
+
     public Receipt receipt(UUID operation) { return receipts.get(operation); }
     public void restore(Map<UUID, State> states, List<Receipt> history) {
         var checked = Map.copyOf(states);

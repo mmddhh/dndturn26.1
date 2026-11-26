@@ -122,7 +122,12 @@ public final class RepairGameTests {
     public static void values(GameTestHelper helper) {
         cc.sighs.dndturn.platform.server.persistence.EncounterPersistenceChecks.verify(helper);
         MeleeAdapterChecks.run(helper);
-        UUID member = UUID.randomUUID(), encounter = UUID.randomUUID(), arrow = UUID.randomUUID();
+        var absent = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(1, 1, 1));
+        UUID member = absent.getUUID(), encounter = UUID.randomUUID(), arrow = UUID.randomUUID();
+        var server = helper.getLevel().getServer();
+        var live = ServerRuntime.encounters(server);
+        var content = Map.of(encounter, live.contentCache().prepareStart(encounter, List.of(absent), live.actorStates()));
+        absent.discard();
         EncounterAuthority rules = new EncounterAuthority(new Random(1), 28, 20);
         rules.beginCandidate(encounter, EncounterRegion.generate("minecraft:overworld",
             new EncounterRegion.Discovery(0, 0, 0, 4, 4, 4),
@@ -133,14 +138,12 @@ public final class RepairGameTests {
         CombatSavedData saved = PersistenceTestAccess.saved();
         saved.update(new CombatPersistenceEnvelope(snapshot,
             20, 1, Map.of(encounter, 1L), Map.of(), Map.of(), Map.of(), Map.of(), List.of(),
-            Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of(), java.util.Map.of(), java.util.Map.of()));
+            Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of(), java.util.Map.of(), content));
         String original = saved.json();
-        var server = helper.getLevel().getServer();
-        var live = ServerRuntime.encounters(server);
         var rejected = EncounterRuntime.restoreForGameTest(server, saved);
         helper.assertTrue(rejected.encounterOf(member) == null, "bad metadata installed a member");
         boolean refused = false;
-        try { rejected.lifecycle().requestStart(helper.makeMockServerPlayerInLevel(), UUID.randomUUID()); }
+        try { rejected.lifecycle().requestStart(TestPlayers.creative(helper), UUID.randomUUID()); }
         catch (IllegalStateException expected) { refused = true; }
         rejected.persistIfChanged();
         helper.assertTrue(refused && original.equals(saved.json()), "bad recovery allowed START or overwrote original JSON");
@@ -151,7 +154,7 @@ public final class RepairGameTests {
         var settings = Map.of(encounter, new CombatPersistenceEnvelope.CapturedSettings(16, 8, 2, 16, 64, false, 16));
         saved.update(new CombatPersistenceEnvelope(snapshot,
             40, 1, Map.of(encounter, 1L), settings, Map.of(), Map.of(), Map.of(), List.of(),
-            Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of(), java.util.Map.of(), java.util.Map.of()));
+            Map.of(), Map.of(), List.of(), Map.of(arrow, quarantine), List.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), Map.of(), Map.of(), java.util.Map.of(), content));
         var restored = EncounterRuntime.restoreForGameTest(server, saved);
         helper.assertTrue(encounter.equals(restored.encounterOf(member))
             && restored.state(encounter).members().containsKey(member), "valid recovery did not install member");
@@ -252,7 +255,7 @@ public final class RepairGameTests {
     }
 
     public static void playerOnlyStart(GameTestHelper helper) {
-        var player = helper.makeMockServerPlayerInLevel();
+        var player = TestPlayers.creative(helper);
         ExitAuthorizationChecks.verify(helper, player);
         BlockPos position = helper.absolutePos(new BlockPos(41001, 121, 1));
         player.setPos(position.getX() + 0.5, position.getY(), position.getZ() + 0.5);
@@ -273,7 +276,10 @@ public final class RepairGameTests {
             }
             forcedChunks.clear();
         };
-        helper.runAtTickTime(99, cleanup);
+        helper.runAtTickTime(99, () -> {
+            try { helper.fail("player-only encounter did not complete two environment cycles"); }
+            finally { cleanup.run(); }
+        });
         UUID request = UUID.randomUUID();
         var intent = EncounterProtocol.CombatIntent.start(request);
         var buffer = io.netty.buffer.Unpooled.buffer();
@@ -297,6 +303,8 @@ public final class RepairGameTests {
         helper.assertTrue(service.state(encounter).phase() == EncounterPhase.ENVIRONMENT,
             "player-only end turn skipped the environment");
         helper.startSequence().thenWaitUntil(() -> {
+            helper.assertTrue(encounter.equals(service.encounterOf(player.getUUID())),
+                "player-only encounter ended during its first environment cycle");
             var next = service.state(encounter);
             helper.assertTrue(next.phase() == EncounterPhase.CANDIDATE && next.round() == first.round() + 1
                 && player.getUUID().equals(next.current()), "environment did not return control to the player");
@@ -307,6 +315,8 @@ public final class RepairGameTests {
                 "player-only next turn did not refresh resources");
             service.combat().endCurrentTurn(encounter, UUID.randomUUID(), next.version());
         }).thenWaitUntil(() -> {
+            helper.assertTrue(encounter.equals(service.encounterOf(player.getUUID())),
+                "player-only encounter ended during its second environment cycle");
             var next = service.state(encounter);
             helper.assertTrue(next.phase() == EncounterPhase.CANDIDATE && next.round() == first.round() + 2,
                 "player/environment loop stopped on the second cycle");

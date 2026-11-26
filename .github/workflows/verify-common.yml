@@ -1,4 +1,4 @@
-name: Verify Common Changes
+name: Verify framework boundaries
 
 on:
   push:
@@ -8,6 +8,8 @@ on:
       - 'settings.gradle'
       - 'gradle.properties'
       - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
@@ -19,6 +21,8 @@ on:
       - 'settings.gradle'
       - 'gradle.properties'
       - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
@@ -48,7 +52,7 @@ jobs:
           "matrix=$matrix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
   common-tests:
-    name: Common Unit Tests
+    name: Common rules and compiled boundaries
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -56,11 +60,20 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: |
+            17
+            21
       - uses: gradle/actions/setup-gradle@v4
       - name: Run common unit tests
         shell: pwsh
-        run: .\gradlew.bat -p common clean test --console plain --no-daemon
+        run: .\gradlew.bat -p common clean check --console plain --no-daemon
+
+      - name: Upload failing common results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: common-failure
+          path: common/build/test-results/
 
   target-builds:
     name: ${{ matrix.target }} (JDK ${{ matrix.java }})
@@ -75,15 +88,31 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ matrix.java }}
+          java-version: |
+            17
+            ${{ matrix.java }}
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build target and run tests
+      - name: Build and verify release jar
         shell: pwsh
-        run: .\scripts\build-target.ps1 -Target ${{ matrix.target }} -Attempts ${{ matrix.attempts }}
-      - name: Upload build output
-        if: always()
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: .\scripts\build-target.ps1 -Target $env:BUILD_TARGET
+      - name: Run scheduled tick ownership GameTest
+        if: matrix.target == 'neoforge-26.1'
+        working-directory: targets/neoforge-26.1
+        run: .\gradlew.bat verifyScheduledTick --console plain --no-daemon
+      - name: Upload verified release jar
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-jdk-${{ matrix.java }}
-          path: targets/${{ matrix.target }}/build/libs/*.jar
-          if-no-files-found: ignore
+          path: targets/${{ matrix.target }}/build/verified-release/*.jar
+          if-no-files-found: error
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-failure
+          path: |
+            targets/${{ matrix.target }}/build/test-results/
+            targets/${{ matrix.target }}/build/boundary-gametest/logs/
+            targets/${{ matrix.target }}/build/boundary-gametest/boundary-report.xml

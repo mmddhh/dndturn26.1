@@ -1,36 +1,46 @@
-# DNDTurn 剩余工作与验证缺口
+# Development roadmap
 
-长期合同见 [DEVELOPMENT.md](DEVELOPMENT.md)，工程约束见 [AGENTS.md](../AGENTS.md)。本页只维护剩余任务、实现边界与未关闭的验证问题；已完成事项和历史验收记录从 Git 历史追溯。
+Minecraft 26.1.2 on NeoForge is the gameplay target. Forge 1.20.1, Fabric 1.20.1 and NeoForge 1.21.1 have separate build and publication boundaries. A successful build of another target establishes its artifact integrity only.
 
-当前方向见 [DNDTURN_REFACTOR.md](DNDTURN_REFACTOR.md)。该文件仍是独立 WIP，方案目标不代表已经实现。
+## 1. Finish the content split before adding gameplay
 
-## 剩余交付
+The 26.1 distribution embeds two loader-discovered mods. `dndturn_characters` owns the shipped classes, races, starting kits, equipment items, item models and equipment profiles. `dndturn_mobs` owns the shipped mob catalog, species abilities, AI families, Creeper hooks and bundled entity presentation adapters. Core discovers installed catalogs and captures a validated revision for each encounter. World overrides keep their existing IDs and precedence.
 
-| 范围 | 剩余工作与关闭条件 |
+Remaining work includes concrete fallback attack and mob stats in common, item-specific actions and ammunition in the target, native effect behaviors, character progression policies and content-specific UI choices or strings. Trace each from definition through actual consumers, persistence and presentation. Move it to the appropriate provider. Introduce a framework port only for an operation the provider actually needs. Keep generic movement, ownership, authorization and observation in core.
+
+Close this stage when the remaining concrete policies have provider owners, missing content is handled explicitly on create and restore, and a real client renders the moved items and entity presentation. Repeat the packaged provider-omission checks after those extractions. Keep existing save IDs, world overrides and encounter bindings during extraction.
+
+## 2. Establish a trustworthy time and effects baseline
+
+Start with the six previously reproducible isolated failures below. For each, identify the first divergence between expected and observed authority, fix the responsible fixture or runtime owner and repeat both isolated and shared-world runs. Cover a participant turn, a delayed native effect, source attribution and interrupted release. Resolve the shared-only failures before relying on the full batch as a CI gate.
+
+Close when the affected scenarios pass in both modes with the original behavioral assertions, or when a changed product rule has been explicitly agreed and recorded. Keep the current narrow CI GameTest while this work is under way.
+
+## 3. Complete one playable character progression path
+
+Choose one existing provider-owned class and an agreed ability. Connect acquisition, preparation where applicable, equipment evidence, discovery, preview, cost, execution, result and persistence. Run the same action through the player and AI backends where both are eligible. Carry typed damage and source identity through CombatNexus. Add the next class, spell or species after the first loop works in play.
+
+Close with real input for character creation, selection, approach, action, end turn and exit. Verify stale selections, source loss, a full inventory and a retry after an observed effect. HELP and opportunity reactions still need legal ally selection, bounded response windows and stable resumption. Defer new spell lists, boss behavior and unconfirmed mechanics until their gameplay is specified.
+
+## 4. Prove cross-process recovery and multiplayer
+
+Connect the applicable CombatNexus time and active-driver lifecycles. Save a pending action or environmental step, stop an ordinary dedicated server and resume from the same world in a second process. Exercise merge, unload, rejoin and cancellation. Use the actual distribution jars and a matching dependency set.
+
+Close when two real clients observe the same confirmed outcome, each accepted cost occurs once, unknown world effects are never replayed, and control and queue ownership are released once. Measure field queries, pathfinding, projection and rendering under representative encounters before selecting performance work.
+
+## Verification evidence and limits
+
+After the split, NeoForge GameTest servers loaded the staged jar from the mods directory without loose copies. Minecraft's always_pass completed with both providers (12 classes, 9 races, 38 mobs), with character content alone (12, 9, 0), with mob content alone (0, 0, 38), and with neither (0, 0, 0). Omission runs used temporary copies with the corresponding nested jars and index entries removed. Development GameTests passed character_creation, ghast_numerical, arrow_tactical_impact and scheduled_tick_hold. These checks exercise startup and selected behaviors. Full combat and restart coverage remains open.
+
+The audit before the module split passed common JUnit (119), target JUnit (2), three headless checks and all four target builds. On 26.1, independent GameTest processes passed 66 of 72 cases. The shared run passed 58 of 72. Track the six independently reproducible failures by observation:
+
+| Scenario | Observed failure |
 | --- | --- |
-| CombatNexus 接入 | 完成统一 Actor 解析、全 Actor 属性/能力/条件目录、真实装备来源 grant；迁移药效、环境及其余反应数值入口；接通 DNDTurn TIME/ACTIVE 生命周期与两模组联合恢复。当前 NUMERICAL 仍只在单次应用期间开启，旧链退出生产执行前不关闭整体重构 |
-| 玩家操作与角色界面 | 真实键鼠验证选槽/空手→远目标→预览→接近→执行→继续移动/结束/EXIT；补消耗品、免费方块、取消、满库存和容器守恒场景。验证角色卡、ASI、子职选择的服务端复验及缩放、滚动、重载、装备发放；页面存在和无窗口检查不能关闭实机缺口 |
-| 过程、环境与恢复 | 补已定跨回合能力的有限阶段驱动、actor/environment 时钟、完整队列移交、来源/实例/控制恢复；覆盖合并、卸载、停服及普通专服第二进程续战。held tick、block event、BE、投射物及活动过程组合仍需逐 owner 验证，未知结果不得重放或退款 |
-| HELP、借机与效果 | 完成 HELP 合法盟友和一次优势消费；落实主动离开前暂停、反应窗口、稳定先攻与续走。补虫蚀/渗浆/盘丝/蓄风、第三方特殊回调受限端口，以及喷溅距离、亡灵反转、取消、吸收与显示的完整链路 |
-| 怪物与长期能力 | Evoker 专用动作已接入：一次动作召唤 4 只 Vex（6 回合冷却、加入遭遇并设置目标），以及 10 格直线穿刺尖牙；剩余附加条件、Witch/Shulker/Warden 等充能动作、Guardian 三回合引导、ElderGuardian 周期，以及各特殊能力的 AI 选择、接受边界收费、取消和恢复。补真实可学习扩展能力及运行中来源变化；通用伤害执行器不能代替特殊能力生命周期 |
-| 角色内容 | 明确并实现子职业、特性、法术、状态的实际消费者，以及职业资源、短长休、环位、准备、专注；优先交付一个可玩职业闭环 |
-| 集成与性能 | 验证真实双客户端、版本匹配第三方内容、最终发布 jar 和完整存档重启；采样 field、查询、寻路、AI、队列、构网、渲染后再优化，核对制品隔离和其他 target 构建边界 |
+| creeper_effect | The cloud timed out with player health at 10, short of the expected 12 after healing. |
+| mob_standardization | Mob ranged contact and retaliation did not settle before timeout. |
+| participant_effects | Real-time waiting changed effect duration or health. |
+| participant_fire | The first participant turn missed the expected 1.5 fire damage. |
+| regional_entity_gate | Speed duration fell from 100 to 90 before the owner's turn end. |
+| tactical_effect_state | A native potion contribution lost its source. |
 
-## 内容接入边界
-
-召唤、附加条件、充能、Guardian 引导及 Boss 动作尚未进入通用执行器；Evoker 的召唤使用专用能力（4 Vex、6 回合冷却），不属于通用动作。具有附加条件的已有怪物仍使用纯伤害档案；Witch、Shulker、Guardian/ElderGuardian、Dragon/Wither 的运行 actions 暂空，基础定义不表示专属玩法可用。充能定义不按固定回合冷却解释；超过 32 个动作的定义不授予通用动作。全部自然伤害和第三方特殊机制尚未统一支持。
-
-旧记录引用的 `docs/data/vanilla-mobs.yaml` 当前工作树不存在。未接入设计需要从用户提供资料或 Git 历史核对；不把旧引用当作当前可用数据，不自动恢复旧文档，也不引用外部图鉴补玩法。
-
-继续暂缓 PvP、HIDE、Enderman 定点传送、完整飞行/专属游泳/载具、Boss/大型部件玩法，以及未确认的流血/破甲/连击。WIP 中未定的产品选择保留确认边界。
-
-## 未关闭的验证问题
-
-- `mob_standardization` 在等待投射物时出现 `unknown encounter`；合并前 `81c8e54` 的独立工作树、相同 Maven 仓库配置下也复现。仍需定位生产逻辑或夹具原因。
-- 六个 `ghast_numerical*` 场景并行运行在全局保存校验出现 `active encounter lacks its captured content binding`；独立运行通过不能证明并行隔离正确。
-- CombatNexus 的 `verify-vanilla-combat-boundary.py` 历史检查仍在 `CombatControlEvents` 等生命周期/投影路径发现内部引用；该边界检查尚无通过记录。
-- 历史全量 GameTest 有 19 项未逐项归因的失败，尚未完整复跑和对账；后续单项通过不能替代全量失败归因。
-- 最终双发布 jar 的普通专服联合续战、写入后异常的联合场景、未迁移数值入口及全部活动过程组合仍缺覆盖。CombatNexus 独立新进程时间恢复、纯值往返或 GameTest 保存证据不能代替两模组普通专服第二进程恢复。
-- 新角色页及完整操作链仍缺前台连续键鼠和真实双客户端证据；后台回调、坐标事件、截图和无窗口 UI 检查不能替代。
-
-本次仅清理文档，核对当前实现入口、历史验证记录、本地链接及差异格式；未重跑构建、GameTest、客户端或专服恢复，不据此关闭上述缺口。
+Eight additional cases failed only in that shared run: actor_history, mob_unknown_revokes_lease, prototype_five_rounds and five ghast_numerical scenarios. Their root cause is open. The prior foreground check covered character creation and reopening the sheet. Combined ordinary-server restart, real two-client combat, the wider CombatNexus internal-reference audit and full client presentation remain open.

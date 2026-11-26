@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
+import cc.sighs.dndturn.gametest.TestPlayers;
+
 import cc.sighs.dndturn.domain.actor.ActorStates;
 import cc.sighs.dndturn.domain.effect.EffectDefinition;
 import cc.sighs.dndturn.domain.effect.EffectInstance;
@@ -245,7 +247,7 @@ public final class TacticalEffectChecks {
                                 && limited.nativeState().attributes().get("minecraft:armor").effective() == armor.getValue()
                                 && limited.actor().facts().read(reads, ActorFacts.ARMOR_CLASS) == Math.floor(armor.getValue()) + 2,
                                 "explanation budget changed the native or tactical value");
-                        var player = h.makeMockServerPlayerInLevel();
+                        var player = TestPlayers.creative(h);
                         try {
                             player.getInventory().setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.APPLE, 3));
                             player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_ABSORPTION).setBaseValue(8);

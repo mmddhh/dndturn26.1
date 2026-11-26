@@ -722,24 +722,7 @@ var TABS = [
 /* 子职元数据：该职业 子职选择等级 + 子职 ID 有序表。
  * 显示名由 id 的 path 生成键 subclass.dndclasses.<path>.name。
  * 只有选择等级 <= 1 的职业可在创建界面选择，其余仅作预览。 */
-var SUBCLASS_META = {
-  barbarian: { level: 3, ids: ["dndclasses:berserker", "dndclasses:totem_warrior"] },
-  bard: { level: 3, ids: ["dndclasses:lore", "dndclasses:valor"] },
-  cleric: { level: 1, ids: [
-    "dndclasses:knowledge", "dndclasses:life", "dndclasses:light", "dndclasses:nature",
-    "dndclasses:tempest", "dndclasses:trickery", "dndclasses:war"] },
-  druid: { level: 2, ids: ["dndclasses:land", "dndclasses:moon"] },
-  fighter: { level: 3, ids: ["dndclasses:champion", "dndclasses:battle_master", "dndclasses:eldritch_knight"] },
-  monk: { level: 3, ids: ["dndclasses:open_hand", "dndclasses:shadow", "dndclasses:four_elements"] },
-  paladin: { level: 3, ids: ["dndclasses:devotion", "dndclasses:ancients", "dndclasses:vengeance"] },
-  ranger: { level: 3, ids: ["dndclasses:hunter", "dndclasses:beast_master"] },
-  rogue: { level: 3, ids: ["dndclasses:thief", "dndclasses:assassin", "dndclasses:arcane_trickster"] },
-  sorcerer: { level: 1, ids: ["dndclasses:draconic_bloodline", "dndclasses:wild_magic"] },
-  warlock: { level: 1, ids: ["dndclasses:archfey", "dndclasses:fiend", "dndclasses:great_old_one"] },
-  wizard: { level: 2, ids: [
-    "dndclasses:abjuration", "dndclasses:conjuration", "dndclasses:divination", "dndclasses:enchantment",
-    "dndclasses:evocation", "dndclasses:illusion", "dndclasses:necromancy", "dndclasses:transmutation"] }
-};
+var SUBCLASS_META = {};
 
 function subclassMeta(c) {
   return SUBCLASS_META[c.key] || { level: 3, ids: [] };
@@ -760,133 +743,78 @@ function itemName(id) {
   return t("item." + ns + "." + path);
 }
 
-function eq(items) { return { items: items }; }
-
-function armorSet(prefix) {
-  return [prefix + "_helmet", prefix + "_chestplate", prefix + "_leggings", prefix + "_boots"];
-}
-
-
-var CLASSES = [
+var CLASS_DISPLAY = [
   {
     key: "barbarian", hitDie: "D12",
     primaryKey: "class.dndclasses.barbarian.primary", primaryAbilities: ["str"],
     saves: ["str", "con"],
-    armor: ["light", "medium", "shield"], weapons: ["martial", "simple"],
-    equipment: [
-      eq(["dndclasses:iron_greataxe", "dndclasses:iron_handaxe", "dndclasses:iron_handaxe"]),
-      eq(["dndclasses:iron_longsword"])
-    ]
+    armor: ["light", "medium", "shield"], weapons: ["martial", "simple"]
   },
   {
     key: "bard", hitDie: "D8",
     primaryKey: "class.dndclasses.bard.primary", primaryAbilities: ["cha"],
     saves: ["dex", "cha"],
-    armor: ["light"], weapons: ["hand_crossbow", "longsword", "rapier", "shortsword", "simple"],
-    equipment: [
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_rapier", "dndclasses:iron_dagger"])),
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_longsword", "dndclasses:iron_dagger"]))
-    ]
+    armor: ["light"], weapons: ["hand_crossbow", "longsword", "rapier", "shortsword", "simple"]
   },
   {
     key: "cleric", hitDie: "D8",
     primaryKey: "class.dndclasses.cleric.primary", primaryAbilities: ["wis"],
     saves: ["wis", "cha"],
-    armor: ["light", "medium", "shield"], weapons: ["simple"],
-    equipment: [
-      eq(armorSet("dndclasses:iron_scale_mail").concat(["dndclasses:iron_mace", "minecraft:shield"])),
-      eq(armorSet("dndclasses:iron_scale_mail").concat(["dndclasses:iron_warhammer", "minecraft:shield"]))
-    ]
+    armor: ["light", "medium", "shield"], weapons: ["simple"]
   },
   {
     key: "druid", hitDie: "D8",
     primaryKey: "class.dndclasses.druid.primary", primaryAbilities: ["wis"],
     saves: ["int", "wis"],
-    armor: ["light", "medium", "shield_nonmetal"], weapons: ["simple", "scimitar", "quarterstaff", "sling"],
-    equipment: [
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_quarterstaff"])),
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_scimitar", "minecraft:shield"]))
-    ]
+    armor: ["light", "medium", "shield_nonmetal"], weapons: ["simple", "scimitar", "quarterstaff", "sling"]
   },
   {
     key: "fighter", hitDie: "D10",
     primaryKey: "class.dndclasses.fighter.primary", primaryAbilities: ["str", "dex"],
     saves: ["str", "con"],
-    armor: ["all", "shield"], weapons: ["martial", "simple"],
-    equipment: [
-      eq(armorSet("dndclasses:iron_chain_mail").concat(["minecraft:shield", "dndclasses:iron_longsword"])),
-      eq(armorSet("dndclasses:iron_chain_mail").concat(["dndclasses:iron_greatsword"]))
-    ]
+    armor: ["all", "shield"], weapons: ["martial", "simple"]
   },
   {
     key: "monk", hitDie: "D8",
     primaryKey: "class.dndclasses.monk.primary", primaryAbilities: ["dex", "wis"],
     saves: ["str", "dex"],
-    armor: ["none"], weapons: ["simple", "shortsword"],
-    equipment: [
-      eq(["dndclasses:iron_shortsword", "dndclasses:iron_dagger"]),
-      eq(["dndclasses:iron_quarterstaff"])
-    ]
+    armor: ["none"], weapons: ["simple", "shortsword"]
   },
   {
     key: "paladin", hitDie: "D10",
     primaryKey: "class.dndclasses.paladin.primary", primaryAbilities: ["str", "cha"],
     saves: ["wis", "cha"],
-    armor: ["all", "shield"], weapons: ["martial", "simple"],
-    equipment: [
-      eq(armorSet("dndclasses:iron_chain_mail").concat(["minecraft:shield", "dndclasses:iron_longsword"])),
-      eq(armorSet("dndclasses:iron_plate").concat(["dndclasses:iron_greatsword"]))
-    ]
+    armor: ["all", "shield"], weapons: ["martial", "simple"]
   },
   {
     key: "ranger", hitDie: "D10",
     primaryKey: "class.dndclasses.ranger.primary", primaryAbilities: ["dex", "wis"],
     saves: ["str", "dex"],
-    armor: ["light", "medium", "shield"], weapons: ["martial", "simple"],
-    equipment: [
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_shortsword", "dndclasses:iron_longbow", "dndclasses:iron_arrow"])),
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_shortsword", "dndclasses:iron_shortsword"]))
-    ]
+    armor: ["light", "medium", "shield"], weapons: ["martial", "simple"]
   },
   {
     key: "rogue", hitDie: "D8",
     primaryKey: "class.dndclasses.rogue.primary", primaryAbilities: ["dex"],
     saves: ["dex", "int"],
-    armor: ["light"], weapons: ["hand_crossbow", "longsword", "rapier", "shortsword", "simple"],
-    equipment: [
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_rapier", "dndclasses:iron_shortbow", "dndclasses:iron_arrow"])),
-      eq(armorSet("dndclasses:iron_leather").concat(["dndclasses:iron_shortsword", "dndclasses:iron_shortsword"]))
-    ]
+    armor: ["light"], weapons: ["hand_crossbow", "longsword", "rapier", "shortsword", "simple"]
   },
   {
     key: "sorcerer", hitDie: "D6",
     primaryKey: "class.dndclasses.sorcerer.primary", primaryAbilities: ["cha"],
     saves: ["con", "cha"],
-    armor: ["none"], weapons: ["dagger", "sling", "quarterstaff", "light_crossbow"],
-    equipment: [
-      eq(["dndclasses:iron_light_crossbow", "dndclasses:iron_dagger", "dndclasses:iron_bolt"]),
-      eq(["dndclasses:iron_quarterstaff", "dndclasses:iron_dagger"])
-    ]
+    armor: ["none"], weapons: ["dagger", "sling", "quarterstaff", "light_crossbow"]
   },
   {
     key: "warlock", hitDie: "D8",
     primaryKey: "class.dndclasses.warlock.primary", primaryAbilities: ["cha"],
     saves: ["wis", "cha"],
-    armor: ["light"], weapons: ["simple"],
-    equipment: [
-      eq(["dndclasses:iron_light_crossbow", "dndclasses:iron_dagger", "dndclasses:iron_bolt"]),
-      eq(["dndclasses:iron_quarterstaff", "dndclasses:iron_dagger"])
-    ]
+    armor: ["light"], weapons: ["simple"]
   },
   {
     key: "wizard", hitDie: "D6",
     primaryKey: "class.dndclasses.wizard.primary", primaryAbilities: ["int"],
     saves: ["int", "wis"],
-    armor: ["none"], weapons: ["dagger", "sling", "quarterstaff", "light_crossbow"],
-    equipment: [
-      eq(["dndclasses:iron_quarterstaff", "dndclasses:iron_dagger"]),
-      eq(["dndclasses:iron_light_crossbow", "dndclasses:iron_dagger", "dndclasses:iron_bolt"])
-    ]
+    armor: ["none"], weapons: ["dagger", "sling", "quarterstaff", "light_crossbow"]
   }
 ];
 
@@ -1033,7 +961,7 @@ function renderClassList() {
     var seal = make("span", "seal");
     seal.innerHTML = SEALS[c.key] || "";
     var info = make("span", "class-info");
-    info.appendChild(mk("span", "class-name", "class.dndclasses." + c.key));
+    info.appendChild(c.key.indexOf(":") < 0 ? mk("span", "class-name", "class.dndclasses." + c.key) : make("span", "class-name", c.name));
     info.appendChild(mk("span", "class-en", "class.dndclasses." + c.key + ".subtitle"));
     var die = make("span", "class-die", c.hitDie);
     item.appendChild(seal);
@@ -1050,6 +978,7 @@ function bindClassItem(item, key) {
 
 function selectClass(key) {
   state.selected = key;
+  byId("class-detail-request").value = findClass(key).id;
   state.equipment = 0;
   state.tab = 0;
   state.subclass = 0;
@@ -1229,9 +1158,9 @@ function paneLevels(c) {
 
 function paneSubclasses(c) {
   var pane = make("div", "tab-pane");
-  var data = CLASS_FEATURES[c.key];
+  var data = CLASS_FEATURES[c.key] || {};
   var meta = subclassMeta(c);
-  if (!data || !meta.ids || meta.ids.length === 0) {
+  if ( !meta.ids || meta.ids.length === 0) {
     pane.appendChild(mk("div", "empty-state", "screen.dndclasses.creation.no_subclass_data"));
     return pane;
   }
@@ -1252,8 +1181,7 @@ function paneSubclasses(c) {
   }
   pane.appendChild(bar);
 
-  var count = data.subclasses ? data.subclasses.length : 0;
-  var idx = state.subclass < count ? state.subclass : 0;
+  var idx = state.subclass;
   var sc = data.subclasses ? data.subclasses[idx] : null;
   pane.appendChild(mk("div", "subclass-intro", subclassNameKey(c, idx)));
   if (sc && sc.intro) {
@@ -1423,7 +1351,7 @@ function refreshConfirmState() {
   var btn = byId("btn-confirm");
   if (!btn) return;
   var raceChosen = DND_RACE;
-  var ok = state.selected !== null && totalCost() === BUDGET && raceChosen;
+  var ok = state.selected !== null && findClass(state.selected).equipment.length > 0 && totalCost() === BUDGET && raceChosen;
   if (ok) btn.removeAttribute("disabled");
   else btn.setAttribute("disabled", "disabled");
 }
@@ -1519,29 +1447,62 @@ function commitCharacter() {
   var choice = c.equipment[state.equipment];
   var race = DND_RACE;
   var payload = {
-    race: race ? race.race : "",
-    subrace: race ? race.subrace : "",
-    raceBonuses: (race && race.bonuses) ? race.bonuses : {},
-    class: state.selected,
-    className: c.key,
-    subclass: chosenSubclassId(c),
+    race: race.id,
+    subrace: race.subraceId,
+    targets: race.targets,
+    class: c.id,
+    subclass: chosenSubclassId(c) || null,
     abilities: state.abilities,
-    pointsSpent: totalCost(),
-    equipmentChoice: state.equipment,
-    equipmentLabel: "equip.dndclasses." + c.key + "." + state.equipment,
-    equipment: choice.items
+    kit: choice.id
   };
 
   var payloadInput = byId("class-payload");
   if (payloadInput) payloadInput.value = JSON.stringify(payload);
 
-  if (typeof console !== "undefined" && console.log) console.log("[dndClasses] character payload " + JSON.stringify(payload));
   closeSummary();
   setMsg("screen.dndclasses.creation.msg_submitted", true);
 }
 
 /* ------------------------------------------------------------- sheet mode */
 
+var CLASSES = [];
+var RACE_DATA = [];
+function displayKey(id) { return id.indexOf("dndturn:") === 0 ? id.substring(8) : id; }
+function indexed(list, key) {
+  for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
+  return {};
+}
+function installOptions(data) {
+  CLASSES = data.classes.map(function(option) {
+    var key = displayKey(option.id), c = indexed(CLASS_DISPLAY, key);
+    return {id: option.id, key: key, hitDie: "D" + option.hitDie, name: option.name,
+      primaryKey: c.primaryKey || "", primaryAbilities: c.primaryAbilities || [],
+      saves: [], armor: c.armor || [], weapons: c.weapons || [], equipment: []};
+  });
+  RACE_DATA = data.races.map(function(race) {
+    var key = displayKey(race.id), labels = indexed(RACE_DISPLAY, key);
+    return {id:race.id, key: key, speed: race.speed, size: race.size, subraces: Object.keys(race.subraces).map(function(id) {
+      var sub = indexed(labels.subraces || [], displayKey(id));
+      return {id:id, key: displayKey(id), slots: race.subraces[id], speed: sub.speed || race.speed, traits: sub.traits || []};
+    })};
+  });
+  initRace();
+  renderClassList();
+}
+function receiveDetail() {
+  var el = byId("class-detail-response");
+  if (!el || !el.value) return;
+  var data = JSON.parse(el.value);
+  el.value = "";
+  var key = displayKey(data.id), c = findClass(key);
+  if (!c || c.id !== data.id) return;
+  SUBCLASS_META[key] = {level:data.subclassLevel, ids:data.subclasses};
+  c.saves = data.saveProficiencies.map(function(v) { return v.toLowerCase(); });
+  c.equipment = Object.keys(data.equipment).sort().map(function(id) {
+    return {id:id, items:data.equipment[id].map(function(s) { return s.item; })};
+  });
+  if (key === state.selected) { renderDetail(); refreshConfirmState(); }
+}
 var pageMode = "";
 var lastStateValue = "";
 
@@ -1686,7 +1647,10 @@ function renderSheet(data) {
   var header = byId("sheet-header");
   if (!body) return;
   clearNode(body);
-  var c = findClass(data["class"]);
+  var key = displayKey(data["class"]);
+  var c = findClass(key) || {key:key};
+  c.hitDie = "D" + data.hitDie;
+  SUBCLASS_META[key] = {level:data.subclassLevel, ids:data.subclasses};
   if (header) header.innerHTML = t("screen.dndclasses.sheet.character");
 
   if (!c) {
@@ -1697,7 +1661,7 @@ function renderSheet(data) {
     heroSeal.innerHTML = SEALS[c.key] || "";
     hero.appendChild(heroSeal);
     var ht = make("div");
-    ht.appendChild(mk("div", "detail-name", "class.dndclasses." + c.key));
+    ht.appendChild(c.key.indexOf(":") < 0 ? mk("div", "detail-name", "class.dndclasses." + c.key) : make("div", "detail-name", data.className));
     var subName = subclassNameByKey(c, data.subclass);
     var enLine = make("div", "detail-en", null);
     enLine.innerHTML = t("class.dndclasses." + c.key + ".subtitle") + (subName ? ("  |  " + t(subName)) : "");
@@ -1764,6 +1728,7 @@ function showCreateView() {
 }
 
 function pollPageState() {
+  receiveDetail();
   var el = byId("page-state");
   if (!el) return;
   var value = el.value;
@@ -1778,8 +1743,10 @@ function pollPageState() {
   lastStateValue = value;
   if (data.mode === "sheet") {
     pageMode = "sheet";
+    CLASSES = CLASS_DISPLAY;
     renderSheet(data);
-  } else if (!pageMode) {
+  } else if (data.classes) {
+    installOptions(data);
     pageMode = "create";
     showCreateView();
   }
@@ -1787,59 +1754,59 @@ function pollPageState() {
 
 /* ------------------------------------------------------------ race step */
 
-var RACE_DATA = [
+var RACE_DISPLAY = [
   { key: "dwarf", speed: 25, size: "medium", subraces: [
-    { key: "hill_dwarf", asi: { con: 2, wis: 1 }, asiChoice: 0, speed: 25,
+    { key: "hill_dwarf", speed: 25,
       traits: ["darkvision_60", "dwarf_resilience", "stonecunning", "dwarf_combat_training", "tool_proficiency"] },
-    { key: "mountain_dwarf", asi: { con: 2, str: 2 }, asiChoice: 0, speed: 25,
+    { key: "mountain_dwarf", speed: 25,
       traits: ["darkvision_60", "dwarf_resilience", "stonecunning", "dwarf_combat_training", "dwarf_armor_training"] }
   ]},
   { key: "elf", speed: 30, size: "medium", subraces: [
-    { key: "high_elf", asi: { dex: 2, int: 1 }, asiChoice: 0, speed: 30,
+    { key: "high_elf", speed: 30,
       traits: ["darkvision_60", "keen_senses", "fey_ancestry", "trance", "elf_weapon_training", "high_elf_cantrip"] },
-    { key: "wood_elf", asi: { dex: 2, wis: 1 }, asiChoice: 0, speed: 35,
+    { key: "wood_elf", speed: 35,
       traits: ["darkvision_60", "keen_senses", "fey_ancestry", "trance", "elf_weapon_training", "fleet_of_foot", "mask_of_the_wild"] },
-    { key: "dark_elf", asi: { dex: 2, cha: 1 }, asiChoice: 0, speed: 30,
+    { key: "dark_elf", speed: 30,
       traits: ["superior_darkvision_120", "sunlight_sensitivity", "drow_magic", "keen_senses", "fey_ancestry", "trance"] }
   ]},
   { key: "halfling", speed: 25, size: "small", subraces: [
-    { key: "lightfoot", asi: { dex: 2, cha: 1 }, asiChoice: 0, speed: 25,
+    { key: "lightfoot", speed: 25,
       traits: ["lucky", "brave", "halfling_nimbleness"] },
-    { key: "stout", asi: { dex: 2, con: 1 }, asiChoice: 0, speed: 25,
+    { key: "stout", speed: 25,
       traits: ["lucky", "brave", "halfling_nimbleness", "stout_resilience"] }
   ]},
   { key: "human", speed: 30, size: "medium", subraces: [
-    { key: "standard_human", asi: { str: 1, dex: 1, con: 1, int: 1, wis: 1, cha: 1 }, asiChoice: 0, speed: 30, traits: [] },
-    { key: "variant_human", asi: {}, asiChoice: 2, speed: 30, traits: ["skill_versatility", "feat"] }
+    { key: "standard_human", speed: 30, traits: [] },
+    { key: "variant_human", speed: 30, traits: ["skill_versatility", "feat"] }
   ]},
   { key: "dragonborn", speed: 30, size: "medium", subraces: [
-    { key: "dragonborn", asi: { str: 2, cha: 1 }, asiChoice: 0, speed: 30,
+    { key: "dragonborn", speed: 30,
       traits: ["draconic_ancestry", "breath_weapon", "damage_resistance"] }
   ]},
   { key: "gnome", speed: 25, size: "small", subraces: [
-    { key: "forest_gnome", asi: { int: 2, dex: 1 }, asiChoice: 0, speed: 25,
+    { key: "forest_gnome", speed: 25,
       traits: ["darkvision_60", "gnome_cunning", "natural_illusionist"] },
-    { key: "rock_gnome", asi: { int: 2, con: 1 }, asiChoice: 0, speed: 25,
+    { key: "rock_gnome", speed: 25,
       traits: ["darkvision_60", "gnome_cunning", "artificers_lore", "tinker"] }
   ]},
   { key: "half_elf", speed: 30, size: "medium", subraces: [
-    { key: "half_elf", asi: { cha: 2 }, asiChoice: 2, speed: 30,
+    { key: "half_elf", speed: 30,
       traits: ["darkvision_60", "fey_ancestry", "skill_versatility"] }
   ]},
   { key: "half_orc", speed: 30, size: "medium", subraces: [
-    { key: "half_orc", asi: { str: 2, con: 1 }, asiChoice: 0, speed: 30,
+    { key: "half_orc", speed: 30,
       traits: ["darkvision_60", "menacing", "relentless_endurance", "savage_attacks"] }
   ]},
   { key: "tiefling", speed: 30, size: "medium", subraces: [
-    { key: "tiefling", asi: { cha: 2, int: 1 }, asiChoice: 0, speed: 30,
+    { key: "tiefling", speed: 30,
       traits: ["darkvision_60", "hellish_resistance", "infernal_legacy"] }
   ]}
 ];
 (function () {
   var colors = ["black", "blue", "brass", "bronze", "copper", "gold", "green", "red", "silver", "white"];
   for (var i = 0; i < colors.length; i++) {
-    RACE_DATA[4].subraces.push({
-      key: colors[i], asi: { str: 2, cha: 1 }, asiChoice: 0, speed: 30,
+    RACE_DISPLAY[4].subraces.push({
+      key: colors[i], speed: 30,
       traits: ["draconic_ancestry", "breath_weapon", "damage_resistance", "draconic_" + colors[i]]
     });
   }
@@ -1864,20 +1831,18 @@ function raceFindSub(race, key) {
 }
 
 function racePattern(sub) {
-  var values = [];
-  if (!sub) return values;
-  var keys = Object.keys(sub.asi || {});
-  for (var i = 0; i < keys.length; i++) values.push(sub.asi[keys[i]]);
-  for (var j = 0; j < (sub.asiChoice || 0); j++) values.push(1);
-  values.sort(function (a, b) { return b - a; });
-  return values;
+  return sub ? sub.slots : [];
+}
+
+function uniformFullAllocation(values) {
+  return values.length === ABILITIES.length && values.every(function (value) { return value === values[0]; });
 }
 
 function raceResetPicks(sub) {
   var values = racePattern(sub);
   raceState.picks = [];
   for (var i = 0; i < values.length; i++) raceState.picks.push(null);
-  if (values.length === 6) {
+  if (uniformFullAllocation(values)) {
     for (var k = 0; k < ABILITIES.length; k++) raceState.picks[k] = ABILITIES[k].key;
   }
 }
@@ -1979,7 +1944,7 @@ function raceRenderDetail() {
   patternLine.innerHTML = t("screen.dndclasses.race.bonus_pattern") + " " + parts.join(" / ");
   detail.appendChild(patternLine);
 
-  if (values.length < 6) {
+  if (!uniformFullAllocation(values)) {
     detail.appendChild(mk("div", "card-sub", "screen.dndclasses.race.assign_hint"));
     for (var slot = 0; slot < values.length; slot++) {
       (function (slotIndex, bonusValue) {
@@ -2064,7 +2029,7 @@ function initRace() {
         if (msg) msg.innerHTML = t("screen.dndclasses.race.assign_incomplete");
         return;
       }
-      DND_RACE = { race: race.key, subrace: sub.key, bonuses: raceBonuses() };
+      DND_RACE = { id: race.id, subraceId: sub.id, race: race.key, subrace: sub.key, bonuses: raceBonuses(), targets: raceState.picks.slice() };
       raceShowStep(false);
       dndClassRefresh();
     });

@@ -7,6 +7,8 @@ import cc.sighs.dndturn.domain.encounter.operation.ExecutionConclusion;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.spatial.GridCell;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParser;
 import io.netty.buffer.ByteBuf;
 import java.util.Objects;
 import java.util.UUID;
@@ -17,12 +19,18 @@ import net.minecraft.resources.Identifier;
 
 /** Bounded value messages; no world objects, costs, damage or trusted actor from C2S. */
 public final class ActionProtocol {
-    private static final Gson JSON = new Gson();
+    private static final Gson JSON = new GsonBuilder().serializeNulls().create();
     private ActionProtocol() {}
     private static <T> StreamCodec<ByteBuf, T> codec(Class<T> type) {
         var text = ByteBufCodecs.stringUtf8(32768);
+        var fields = java.util.Arrays.stream(type.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
         return StreamCodec.of((buffer, value) -> text.encode(buffer, JSON.toJson(value)),
-            buffer -> Objects.requireNonNull(JSON.fromJson(text.decode(buffer), type)));
+            buffer -> {
+                var object = JsonParser.parseString(text.decode(buffer)).getAsJsonObject();
+                if (!object.keySet().equals(fields)) throw new IllegalArgumentException("invalid action payload fields");
+                return Objects.requireNonNull(JSON.fromJson(object, type));
+            });
     }
     public record PreviewStep(ActionIntent.Point feet, String kind) {
         public PreviewStep { Objects.requireNonNull(feet); if (!java.util.Set.of("WALK", "STEP", "JUMP", "DROP", "SWIM").contains(kind)) throw new IllegalArgumentException("step kind"); }
@@ -32,9 +40,6 @@ public final class ActionProtocol {
     }
     public record Query(UUID generation, UUID encounter, UUID query, ActionIntent.Target target,
                         ActionIntent.Hand hand, int slot, long revision, ActionIntent.ItemReference expectedItem) implements CustomPacketPayload {
-        public Query(UUID generation, UUID encounter, UUID query, ActionIntent.Target target, ActionIntent.Hand hand) {
-            this(generation, encounter, query, target, hand, hand == ActionIntent.Hand.MAIN_HAND ? 0 : 40, System.nanoTime(), null);
-        }
         public Query { Objects.requireNonNull(generation); Objects.requireNonNull(encounter); Objects.requireNonNull(query); Objects.requireNonNull(target); Objects.requireNonNull(hand); }
         public static final Type<Query> TYPE = new Type<>(Identifier.fromNamespaceAndPath("dndturn", "behavior_query"));
         public static final StreamCodec<ByteBuf, Query> CODEC = codec(Query.class);

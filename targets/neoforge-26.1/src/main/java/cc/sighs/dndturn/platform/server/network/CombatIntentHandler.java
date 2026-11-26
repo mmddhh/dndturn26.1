@@ -1,5 +1,16 @@
 package cc.sighs.dndturn.platform.server.network;
 
+import net.neoforged.neoforge.network.PacketDistributor;
+import java.util.UUID;
+import java.util.Objects;
+import java.util.ArrayList;
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
+import cc.sighs.dndturn.platform.server.character.PlayerCharacterService;
+import cc.sighs.dndturn.platform.server.character.CharacterOptions;
+import cc.sighs.dndturn.domain.fact.FactKey;
+import cc.sighs.dndturn.domain.character.Ability;
+import cc.sighs.dndturn.domain.actor.ActorStates;
 import cc.sighs.dndturn.domain.encounter.StartDisposition;
 import cc.sighs.dndturn.domain.encounter.operation.OperationRecord;
 import cc.sighs.dndturn.domain.character.AbilityScores;
@@ -11,7 +22,7 @@ import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import static cc.sighs.dndturn.platform.network.EncounterProtocol.*;
 import static cc.sighs.dndturn.platform.server.network.EncounterSender.*;
 
@@ -19,8 +30,7 @@ import static cc.sighs.dndturn.platform.server.network.EncounterSender.*;
 public final class CombatIntentHandler {
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("dndturn-character");
     private CombatIntentHandler() {}
-    public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("dndturn");
+    public static void register(PayloadRegistrar registrar) {
         registrar.playToServer(InspectionProtocol.Query.TYPE, InspectionProtocol.Query.CODEC, (payload, context) ->
             enqueue(context, player -> net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
                 ServerRuntime.encounters(player.level().getServer()).inspections().query(player, payload))));
@@ -33,38 +43,53 @@ public final class CombatIntentHandler {
                     cc.sighs.dndturn.platform.server.character.CharacterOptions.send(player);
                 }
             }));
+        registrar.playToServer(CharacterProtocol.DetailRequest.TYPE, CharacterProtocol.DetailRequest.CODEC, (payload, context) ->
+            enqueueInput(context, player -> {
+                var catalog = ServerRuntime.content(player.level().getServer()).current();
+                var definition = catalog.classes().get(payload.classId());
+                if (!catalog.revision().equals(payload.revision()) || definition == null) {
+                    CharacterOptions.refresh(player, payload.page());
+                    return;
+                }
+                PacketDistributor.sendToPlayer(player,
+                    CharacterOptions.detail(definition, payload.page()));
+            }));
         registrar.playToServer(CharacterProtocol.CreateJson.TYPE, CharacterProtocol.CreateJson.CODEC, (payload, context) ->
             enqueueInput(context, player -> {
+                var result = new JsonObject();
                 try {
                     var root = com.google.gson.JsonParser.parseString(payload.json()).getAsJsonObject();
-                    String classId = contentId(root.get("class").getAsString());
-                    String raceId = contentId(root.get("race").getAsString());
-                    String subraceId = optionalContentId(root, "subrace");
-                    String subclassId = optionalContentId(root, "subclass");
-                    var bonuses = new java.util.EnumMap<cc.sighs.dndturn.domain.character.Ability, Integer>(
-                        cc.sighs.dndturn.domain.character.Ability.class);
-                    if (root.has("raceBonuses") && root.get("raceBonuses").isJsonObject()) {
-                        for (var entry : root.getAsJsonObject("raceBonuses").entrySet()) {
-                            bonuses.put(cc.sighs.dndturn.domain.character.Ability.byId(entry.getKey()),
-                                entry.getValue().getAsInt());
-                        }
+                    var operation = UUID.fromString(root.get("operation").getAsString());
+                    result.addProperty("operation", operation.toString());
+                    result.addProperty("page", UUID.fromString(root.get("page").getAsString()).toString());
+                    if (!root.keySet().equals(java.util.Set.of("operation", "page", "revision", "race", "subrace",
+                            "class", "subclass", "targets", "abilities", "kit")))
+                        throw new IllegalArgumentException("invalid character creation fields");
+                    var targets = new ArrayList<Ability>();
+                    for (var target : root.getAsJsonArray("targets")) {
+                        if (targets.size() == 6) throw new IllegalArgumentException("too many allocation targets");
+                        targets.add(Ability.byId(target.getAsString()));
                     }
                     var abilities = root.getAsJsonObject("abilities");
-                    var state = cc.sighs.dndturn.platform.server.character.PlayerCharacterService.createFromScreen(player,
-                        classId, raceId, subraceId, subclassId,
-                        new AbilityScores(abilities.get("str").getAsInt(), abilities.get("dex").getAsInt(),
-                            abilities.get("con").getAsInt(), abilities.get("int").getAsInt(),
-                            abilities.get("wis").getAsInt(), abilities.get("cha").getAsInt()), bonuses);
-                    cc.sighs.dndturn.platform.server.character.CharacterEquipment.grant(player, root);
-                    net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
-                        new CharacterProtocol.Reply(true, "Character created: " + state.progression().classId()));
-                    LOGGER.info("character created player={} class={} race={}", player.getUUID(),
-                        state.progression().classId(), state.progression().raceId());
+                    if (!abilities.keySet().equals(java.util.Set.of("str", "dex", "con", "int", "wis", "cha")))
+                        throw new IllegalArgumentException("invalid ability fields");
+                    var scores = new AbilityScores(abilities.get("str").getAsBigDecimal().intValueExact(), abilities.get("dex").getAsBigDecimal().intValueExact(), abilities.get("con").getAsBigDecimal().intValueExact(), abilities.get("int").getAsBigDecimal().intValueExact(), abilities.get("wis").getAsBigDecimal().intValueExact(), abilities.get("cha").getAsBigDecimal().intValueExact());
+                    var selection = new ActorStates.Creation(root.get("revision").getAsString(),
+                        contentId(root.get("class").getAsString()), contentId(root.get("race").getAsString()),
+                        contentId(root.get("subrace").getAsString()), optionalContentId(root, "subclass"), scores, targets,
+                        root.get("kit").getAsString());
+                    var outcome = PlayerCharacterService.submit(player, operation, selection);
+                    result.addProperty("success", true);
+                    result.addProperty("message", outcome.unknown() ? "Character created; equipment delivery needs reconciliation" : "Character created");
+                    result.add("delivery", new Gson().toJsonTree(outcome));
                 } catch (RuntimeException failure) {
-                    LOGGER.warn("character creation rejected player={}: {}", player.getUUID(), failure.getMessage());
-                    net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
-                        new CharacterProtocol.Reply(false, failure.getMessage()));
+                    result.addProperty("success", false);
+                    result.addProperty("refresh", "catalog changed".equals(failure.getMessage()));
+                    result.addProperty("message", Objects.toString(failure.getMessage(), "invalid creation request"));
                 }
+                PacketDistributor.sendToPlayer(player, new CharacterProtocol.CreationResult(result.toString()));
+                if (result.has("refresh") && result.get("refresh").getAsBoolean())
+                    CharacterOptions.refresh(player, UUID.fromString(result.get("page").getAsString()));
             }));
         registrar.playToServer(CharacterProtocol.AsiChoice.TYPE, CharacterProtocol.AsiChoice.CODEC, (payload, context) ->
             enqueueInput(context, player -> {
@@ -92,19 +117,6 @@ public final class CombatIntentHandler {
             enqueueInput(context, player -> {
                 try {
                     cc.sighs.dndturn.platform.server.character.CharacterSubclass.apply(player, payload.id());
-                } catch (RuntimeException failure) {
-                    net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
-                        new CharacterProtocol.Reply(false, failure.getMessage()));
-                }
-            }));
-        registrar.playToServer(CharacterProtocol.Create.TYPE, CharacterProtocol.Create.CODEC, (payload, context) ->
-            enqueueInput(context, player -> {
-                try {
-                    var state = cc.sighs.dndturn.platform.server.character.PlayerCharacterService.create(player,
-                        payload.classId(), payload.raceId(), new AbilityScores(payload.strength(), payload.dexterity(),
-                            payload.constitution(), payload.intelligence(), payload.wisdom(), payload.charisma()));
-                    net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
-                        new CharacterProtocol.Reply(true, "Character created: " + state.progression().classId()));
                 } catch (RuntimeException failure) {
                     net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
                         new CharacterProtocol.Reply(false, failure.getMessage()));
@@ -151,14 +163,11 @@ public final class CombatIntentHandler {
     private static String contentId(String raw) {
         String value = raw == null ? "" : raw.trim();
         if (value.isEmpty()) throw new IllegalArgumentException("character id is empty");
-        if (value.contains(":")) return value.replace("dndclasses:", "dndturn:");
-        return "dndturn:" + value;
+        return FactKey.requireId(value);
     }
 
     private static String optionalContentId(com.google.gson.JsonObject root, String key) {
-        if (!root.has(key) || root.get(key).isJsonNull()) return null;
-        String value = root.get(key).getAsString().trim();
-        return value.isEmpty() ? null : contentId(value);
+        return root.get(key).isJsonNull() ? null : contentId(root.get(key).getAsString());
     }
 
     public static void handleIntent(ServerPlayer player, CombatIntent intent) {        DebugDiagnostics.log("CONTROL_REQUEST", () -> "actor=" + player.getUUID() + " request=" + intent);

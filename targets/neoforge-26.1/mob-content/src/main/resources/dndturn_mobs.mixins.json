@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "cc.sighs.dndturn.content.mobs.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "CreeperActiveProcessMixin",
+    "CreeperEffectAccess",
+    "CreeperExplosionDamageMixin",
+    "CreeperCloudTargetsMixin",
+    "CreeperCloudAccess"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -75,6 +75,7 @@ public final class EncounterLifecycleCoordinator {
     private final EncounterAuthority engine;
     private final UUID generation;
     private final Host host;
+    private final EncounterContentCache contentCache;
     private final ActorStateAuthority actorStates;
     private final WorldSimulationCoordinator world;
     private final ProjectileExecutionCoordinator projectiles;
@@ -84,10 +85,11 @@ public final class EncounterLifecycleCoordinator {
     private final VanillaEffectRoundController vanillaEffects;
     private final ExecutionProcesses processes;
     private final DamageResolution damageResolution;
-    public EncounterLifecycleCoordinator(MinecraftServer server, EncounterAuthority engine, UUID generation,
+    public EncounterLifecycleCoordinator(MinecraftServer server, EncounterContentCache contentCache, EncounterAuthority engine, UUID generation,
             ServerCombatConfig config, Host host, ActorStateAuthority actorStates, WorldSimulationCoordinator world,
             ProjectileExecutionCoordinator projectiles, MovementExecutionCoordinator movement, EncounterPersistence persistence,
             ProjectionPublisher projections, VanillaEffectRoundController vanillaEffects, ExecutionProcesses processes, DamageResolution damageResolution) {
+        this.contentCache = contentCache;
         this.server = server; this.engine = engine; this.generation = generation; this.config = config; this.host = host;
         this.actorStates = actorStates; this.world = world; this.projectiles = projectiles; this.movement = movement;
         this.persistence = persistence; this.projections = projections; this.vanillaEffects = vanillaEffects;
@@ -393,7 +395,7 @@ public final class EncounterLifecycleCoordinator {
                 if (!regionChunksLoaded(level, chunks)
                     || !world.scheduledTicks().canRebindMerge(working.encounters(), sampled))
                     throw new IllegalStateException("merged region or held tick chunks are not loaded and ticking");
-                var mergedContent = EncounterContentCache.server().prepareMerge(working.primary(), working.encounters());
+                var mergedContent = contentCache.prepareMerge(engine, working.primary(), working.encounters());
                 long mergedProjectionSequence = projections.nextSequence();
                 UUID mergeOperation = UUID.randomUUID();
                 var binding = new CombatPersistenceEnvelope.MergeBinding(mergeOperation, working.primary(), working.encounters(),
@@ -403,10 +405,10 @@ public final class EncounterLifecycleCoordinator {
                 engine.commitMerge(working, sampled,
                     mergeOperation, host.clock());
                 ruleCommitted = true;
-                EncounterContentCache.server().commitMerge(mergedContent);
+                contentCache.install(mergedContent);
+                for (UUID source : working.encounters()) if (!source.equals(working.primary())) contentCache.remove(source);
                 mergeBindings.put(working.primary(), binding.at(CombatPersistenceEnvelope.MergePhase.RULES_COMMITTED));
                 host.persistNow();
-                ruleCommitted = true;
                 bindMergedOwners(level, binding, sampled);
                 projectionCommitted = true;
                 pendingMerges.remove(working.primary());
@@ -467,8 +469,7 @@ public final class EncounterLifecycleCoordinator {
             throw new IllegalStateException("spawn outside encounter");
         UUID existing = engine.encounterOf(mob.getUUID());
         if (existing != null && !existing.equals(encounter)) throw new IllegalStateException("spawn already belongs to another encounter");
-        if (engine.join(encounter, mob.getUUID(), MobMovementBudgets.of(mob))) {
-            EncounterContentCache.server().capture(encounter, mob, actorStates);
+        if (contentCache.join(engine, encounter, mob, MobMovementBudgets.of(mob), actorStates)) {
             vanillaEffects.capture(mob);
             persistence.changed();
             sync(engine.stateView(encounter));
@@ -603,14 +604,22 @@ public final class EncounterLifecycleCoordinator {
         var captured = CombatPersistenceEnvelope.CapturedSettings.from(config);
         // Session settings must exist before beginCandidate fires the turn-start observer, because
         // that observer re-anchors the field through settingsFor.
-        capturedSettings.put(encounterId, captured);
         Map<UUID, Integer> budgets = new HashMap<>();
-        for (UUID id : members) budgets.put(id, movementBudget(id));
-        engine.beginCandidate(encounterId, region, members, budgets,
-            config.time().ticks());
-        for (UUID member : members) {
-            Entity entity = resolve(member);
-            if (entity != null) EncounterContentCache.server().capture(encounterId, entity, actorStates);
+        var entities = new ArrayList<Entity>(members.size());
+        for (UUID id : members) {
+            budgets.put(id, movementBudget(id));
+            entities.add(resolve(id));
+        }
+        contentCache.install(contentCache.prepareStart(encounterId, entities, actorStates));
+        capturedSettings.put(encounterId, captured);
+        try {
+            engine.beginCandidate(encounterId, region, members, budgets, config.time().ticks());
+        } catch (RuntimeException failure) {
+            if (!engine.encounterIds().contains(encounterId)) {
+                contentCache.remove(encounterId);
+                capturedSettings.remove(encounterId);
+            }
+            throw failure;
         }
         for (Map.Entry<UUID, UUID> relation : initialHostility.entrySet()) {
             engine.setHostile(encounterId, relation.getKey(), relation.getValue(), true);
@@ -737,6 +746,7 @@ public final class EncounterLifecycleCoordinator {
             failures.forEach(failure::addSuppressed);
             throw failure; // Rule ownership remains; do not expose its world as unowned.
         }
+        contentCache.remove(encounterId);
         recoveryPending.remove(encounterId);
         releaseStep(failures, projectiles::revokeEndedProjectileDomains);
         for (UUID owner : owners) releaseStep(failures, () -> {
@@ -786,7 +796,14 @@ public final class EncounterLifecycleCoordinator {
         movement.finishMember(entityId, "member left after observed movement");
         if(host.active() && resolve(entityId) instanceof LivingEntity living) vanillaEffects.release(living);
         else vanillaEffects.forget(entityId);
-        engine.leave(encounterId, entityId);
+        var prior = contentCache.find(encounterId);
+        contentCache.leave(encounterId, entityId);
+        try {
+            engine.leave(encounterId, entityId);
+        } finally {
+            if (engine.encounterOf(entityId) != null) contentCache.install(prior);
+            else if (engine.closedView(encounterId) != null) contentCache.remove(encounterId);
+        }
         projectiles.revokeEndedProjectileDomains();
         movement.forgetForce(entityId);
         EncounterAuthority.View closed = engine.closedView(encounterId);
@@ -929,12 +946,10 @@ public final class EncounterLifecycleCoordinator {
         // A player's participation still requires the consent / attack-intrusion paths.
         if (targetDomain == null && target instanceof ServerPlayer) return;
         boolean changed = false;
-        if (sourceDomain == null && engine.join(domain, mob.getUUID(), MobMovementBudgets.of(mob))) {
-            EncounterContentCache.server().capture(domain, mob, actorStates);
+        if (sourceDomain == null && contentCache.join(engine, domain, mob, MobMovementBudgets.of(mob), actorStates)) {
             vanillaEffects.capture(mob); changed = true;
         }
-        if (targetDomain == null && engine.join(domain, target.getUUID(), MobMovementBudgets.of(target))) {
-            EncounterContentCache.server().capture(domain, target, actorStates);
+        if (targetDomain == null && contentCache.join(engine, domain, target, MobMovementBudgets.of(target), actorStates)) {
             vanillaEffects.capture(target); changed = true;
         }
         if (!engine.isHostile(domain, mob.getUUID(), target.getUUID())
@@ -954,9 +969,8 @@ public final class EncounterLifecycleCoordinator {
         if (attackerId.equals(targetId)) return false;
         UUID encounterId = engine.encounterOf(targetId);
         if (encounterId == null || recovering(encounterId) || engine.encounterOf(attackerId) != null) return false;
-        if (!engine.join(encounterId, attackerId, movementBudget(attackerId))) return false;
-        if (resolve(attackerId) instanceof LivingEntity attacker)
-            EncounterContentCache.server().capture(encounterId, attacker, actorStates);
+        if (!(resolve(attackerId) instanceof LivingEntity attacker)
+            || !contentCache.join(engine, encounterId, attacker, movementBudget(attackerId), actorStates)) return false;
         engine.setHostile(encounterId, attackerId, targetId, true);
         engine.setHostile(encounterId, targetId, attackerId, true);
         persistence.changed();

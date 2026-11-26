@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.encounter;
 
+import cc.sighs.dndturn.gametest.TestPlayers;
+
 import cc.sighs.dndturn.platform.server.runtime.ServerRuntime;
 import java.util.*;
 import net.minecraft.core.BlockPos;
@@ -24,8 +26,8 @@ public final class EnvironmentDomainChecks {
         level.waitForEntities(net.minecraft.world.level.ChunkPos.containing(base.east(secondOffset)), 1);
         for(var pos:BlockPos.betweenClosed(base.offset(-7,-1,-4),base.offset(secondOffset+7,3,4)))
             level.setBlockAndUpdate(pos,pos.getY()<base.getY()?Blocks.OBSIDIAN.defaultBlockState():Blocks.AIR.defaultBlockState());
-        var first=helper.makeMockServerPlayerInLevel();first.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
-        var second=helper.makeMockServerPlayerInLevel();second.setPos(base.getX()+secondOffset+.5,base.getY(),base.getZ()+.5);
+        var first=TestPlayers.creative(helper);first.setPos(base.getX()+.5,base.getY(),base.getZ()+.5);
+        var second=TestPlayers.creative(helper);second.setPos(base.getX()+secondOffset+.5,base.getY(),base.getZ()+.5);
         var service=ServerRuntime.encounters(level.getServer());List<Entity> entities=new ArrayList<>();
         Runnable cleanup=()->{
             for(var player:List.of(first,second)){UUID id=service.encounterOf(player.getUUID());if(id!=null)service.lifecycle().stop(id);}

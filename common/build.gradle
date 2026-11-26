@@ -20,8 +20,9 @@ dependencies {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
-    systemProperty 'dndturn.repositoryRoot', projectDir.parentFile.absolutePath
 }
+
+apply from: file('../gradle/target-conventions/boundaries.gradle')
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'

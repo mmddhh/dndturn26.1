@@ -1,5 +1,7 @@
 package cc.sighs.dndturn.platform.server.runtime;
 
+import java.util.Objects;
+import cc.sighs.dndturn.platform.server.character.CharacterContentService;
 import cc.sighs.dndturn.platform.server.actor.ActorStateAuthority;
 import cc.sighs.dndturn.platform.server.runtime.EncounterRuntime;
 import java.util.Collections;
@@ -14,11 +16,13 @@ import net.minecraft.server.MinecraftServer;
 public final class ServerRuntime {
     private static final Map<MinecraftServer, ServerRuntime> SERVERS = new IdentityHashMap<>();
     private static final Set<MinecraftServer> CLOSED = Collections.newSetFromMap(new WeakHashMap<>());
+    private final CharacterContentService content;
     private final ActorStateAuthority actors;
     private final EncounterRuntime encounters;
     private ServerRuntime(MinecraftServer server) {
+        content = new CharacterContentService(server);
         actors = new ActorStateAuthority(server);
-        try { encounters = new EncounterRuntime(server, actors, UUID.randomUUID()); }
+        try { encounters = new EncounterRuntime(server, content, actors, UUID.randomUUID()); }
         catch (RuntimeException failure) {
             try { actors.close(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
             throw failure;
@@ -47,6 +51,11 @@ public final class ServerRuntime {
     private static void requireThread(MinecraftServer server) {
         if (!server.isSameThread()) throw new IllegalStateException("server lifecycle requires server thread");
     }
+    public static CharacterContentService content(MinecraftServer server) {
+        requireThread(server);
+        return Objects.requireNonNull(SERVERS.get(server), "inactive server").content;
+    }
+
     public static EncounterRuntime encounters(MinecraftServer server) {
         requireThread(server);
         var runtime = SERVERS.get(server);
